@@ -1,4 +1,4 @@
-# hermes-auto-update
+# Hermes 自动更新
 
 （英文名：Hermes Auto-Update）
 
