@@ -1,0 +1,15 @@
+# Hermes auto-update — install this line in SYSTEM cron (`crontab -e`), never in hermes cron:
+# a hermes-cron job lives inside the gateway process tree the updater must drain and restart.
+#
+# Two things this line must keep, both of which fail SILENTLY when broken:
+#   * AU_APPLY=1 — prefixed to the SCRIPT. Without it the tick only reports that an update is
+#     available and never installs. Prefixed to the sourced env file it would bind to the
+#     source builtin and never be exported to the child at all.
+#   * `set -a` around the source — the script does NOT read the env file itself, so without
+#     it every value in that file (AU_REPO_DIR / AU_GATEWAY_STATE / AU_HERMES_BIN / TG_PROXY)
+#     stays in the scheduler shell and silently falls back to the script's built-in defaults.
+#     The `[ -f ]` guard keeps a missing file from aborting the line before the flag is set.
+#
+# Adjust the hour to taste; 03:23 keeps the tick off the hour. Alert cadences (every 12th
+# failure) are counted in TICKS, so rescale them if you change the frequency.
+23 3 * * * set -a; [ -f $HOME/.hermes/scripts/auto_update.env ] && . $HOME/.hermes/scripts/auto_update.env; set +a; AU_APPLY=1 $HOME/.hermes/scripts/auto_update.sh >> $HOME/.hermes/logs/auto_update_cron.log 2>&1
