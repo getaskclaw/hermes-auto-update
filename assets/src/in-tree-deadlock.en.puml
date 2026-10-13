@@ -1,0 +1,38 @@
+@startuml
+skinparam DefaultFontColor #1f2937
+skinparam ArrowColor #5b6b8c
+skinparam ArrowFontColor #1f2937
+skinparam RectangleBackgroundColor #eef2fb
+skinparam RectangleBorderColor #5b6b8c
+skinparam RectangleFontColor #1f2937
+skinparam NoteBackgroundColor #dfe5fb
+skinparam NoteBorderColor #5b6b8c
+skinparam NoteFontColor #1f2937
+
+title The problem: updating yourself inside the gateway tree = deadlock
+
+participant "system cron" as cron
+participant "hermes cron\n(inside gateway)" as hcron
+participant "auto_update.sh" as upd
+participant "gateway" as gw
+
+cron -> hcron : tick
+activate hcron
+hcron -> upd : launch updater
+activate upd
+upd -> gw : hermes update --yes\n(starts draining)
+upd -> upd : wait for gateway restart...
+note right of upd
+  But the gateway is the updater's
+  parent — the updater won't exit,
+  so the gateway can't restart;
+  the gateway won't restart,
+  so the updater waits forever.
+  → deadlock, burning the 30-min
+    drain budget
+end note
+upd --> hcron : timeout / STALE
+deactivate upd
+hcron --> cron : reports STALE\n(may actually have installed)
+deactivate hcron
+@enduml

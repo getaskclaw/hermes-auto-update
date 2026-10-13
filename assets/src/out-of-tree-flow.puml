@@ -1,0 +1,47 @@
+@startuml
+skinparam DefaultFontColor #1f2937
+skinparam ArrowColor #5b6b8c
+skinparam ArrowFontColor #1f2937
+skinparam RectangleBackgroundColor #eef2fb
+skinparam RectangleBorderColor #5b6b8c
+skinparam RectangleFontColor #1f2937
+skinparam NoteBackgroundColor #dfe5fb
+skinparam NoteBorderColor #5b6b8c
+skinparam NoteFontColor #1f2937
+skinparam ActivityBackgroundColor #eef2fb
+skinparam ActivityBorderColor #5b6b8c
+skinparam ActivityDiamondBackgroundColor #dfe5fb
+skinparam ActivityDiamondBorderColor #5b6b8c
+
+title 解法：系统 cron 在树外跑更新器，自己同步验证
+
+start
+:系统 cron 到点触发;
+:加锁 flock（防并发）;
+:hermes update --check;
+if (有更新?) then (否)
+  :静默退出;
+  stop
+else (是)
+endif
+if (AU_APPLY=1?) then (否)
+  :记录 + 打印"未应用";
+  :静默退出;
+  stop
+else (是)
+endif
+:hermes update --yes;
+:更新器排空 gateway;
+:systemd 重启 gateway;
+:更新器验证 fleet\n(code_sha + is-active);
+if (结果?) then (✓ 成功)
+  :Telegram ✓ 通知;
+elseif (◐ 部分/排空超时) then
+  :标记 drain_pending;
+  :中性退出，下一班复核;
+else (✗ 失败)
+  :Telegram ✗ 通知;
+  :consec_fails 计数+1;
+endif
+stop
+@enduml

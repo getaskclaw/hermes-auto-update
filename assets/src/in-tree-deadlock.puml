@@ -1,0 +1,35 @@
+@startuml
+skinparam DefaultFontColor #1f2937
+skinparam ArrowColor #5b6b8c
+skinparam ArrowFontColor #1f2937
+skinparam RectangleBackgroundColor #eef2fb
+skinparam RectangleBorderColor #5b6b8c
+skinparam RectangleFontColor #1f2937
+skinparam NoteBackgroundColor #dfe5fb
+skinparam NoteBorderColor #5b6b8c
+skinparam NoteFontColor #1f2937
+
+title 问题：在 gateway 进程树里更新自己 = 死锁
+
+participant "系统 cron" as cron
+participant "hermes cron\n(gateway 内)" as hcron
+participant "auto_update.sh" as upd
+participant "gateway" as gw
+
+cron -> hcron : 到点，触发作业
+activate hcron
+hcron -> upd : 启动更新器
+activate upd
+upd -> gw : hermes update --yes\n(开始排空 drain)
+upd -> upd : 等待 gateway 重启完成...
+note right of upd
+  但 gateway 是更新器的父进程——
+  更新器不退出，gateway 不能重启；
+  gateway 不重启，更新器一直等。
+  → 死锁，burning 30 分钟 drain 预算
+end note
+upd --> hcron : 超时 / STALE
+deactivate upd
+hcron --> cron : 报告 STALE（其实可能已装上）
+deactivate hcron
+@enduml

@@ -1,0 +1,47 @@
+@startuml
+skinparam DefaultFontColor #1f2937
+skinparam ArrowColor #5b6b8c
+skinparam ArrowFontColor #1f2937
+skinparam RectangleBackgroundColor #eef2fb
+skinparam RectangleBorderColor #5b6b8c
+skinparam RectangleFontColor #1f2937
+skinparam NoteBackgroundColor #dfe5fb
+skinparam NoteBorderColor #5b6b8c
+skinparam NoteFontColor #1f2937
+skinparam ActivityBackgroundColor #eef2fb
+skinparam ActivityBorderColor #5b6b8c
+skinparam ActivityDiamondBackgroundColor #dfe5fb
+skinparam ActivityDiamondBorderColor #5b6b8c
+
+title The fix: system cron runs the updater outside the tree
+
+start
+:system cron fires;
+:flock (no concurrency);
+:hermes update --check;
+if (update available?) then (no)
+  :exit silently;
+  stop
+else (yes)
+endif
+if (AU_APPLY=1?) then (no)
+  :log + print "not applied";
+  :exit silently;
+  stop
+else (yes)
+endif
+:hermes update --yes;
+:updater drains gateway;
+:systemd restarts gateway;
+:updater verifies fleet\n(code_sha + is-active);
+if (outcome?) then (✓ success)
+  :Telegram ✓ notify;
+elseif (◐ partial / drain timeout) then
+  :set drain_pending marker;
+  :neutral exit, next tick re-verifies;
+else (✗ failure)
+  :Telegram ✗ notify;
+  :consec_fails +1;
+endif
+stop
+@enduml
