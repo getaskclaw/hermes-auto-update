@@ -17,7 +17,12 @@ rm -rf "$ROOT"; mkdir -p "$ROOT/bin" "$ROOT/stub" "$ROOT/repo"
 
 cat > "$ROOT/bin/curl" <<EOF
 #!/bin/bash
-{ printf '%s | ' "\$(cat $ROOT/mode)"; echo "\$@"; } >> $ROOT/notify.calls
+# Log each invocation on exactly ONE line: escape backslashes first, then CR/LF, so a
+# multi-line alert payload never splits one notify into several lines. Spaces are kept
+# verbatim so substring greps (updated/success/...) still match.
+a="\$*"; bs='\'; nl=\$'\n'; cr=\$'\r'; rn='\n'; rr='\r'
+a="\${a//"\$bs"/"\$bs\$bs"}"; a="\${a//"\$nl"/"\$rn"}"; a="\${a//"\$cr"/"\$rr"}"
+{ printf '%s | ' "\$(cat $ROOT/mode)"; printf '%s\n' "\$a"; } >> $ROOT/notify.calls
 [ -f $ROOT/curl_fail ] && exit 22
 # A real API answers with a JSON body; a blocked bot reports ok:false on HTTP 200.
 # Emit a realistic body so the delivery check (D2) is exercised, not bypassed.
@@ -47,10 +52,22 @@ cat > "$ROOT/stub/hermes" <<EOF
 #!/bin/bash
 MODE=\$(cat $ROOT/mode)
 H=$ROOT/home
+R=$ROOT/repo
+# Real checkout movement for the SHA-bearing modes: race_sha ADVANCES the scratch repo (a new
+# commit), race_same leaves it put. Both record the actual before/after HEADs, so the receipt
+# carries real hashes that the updater can correlate with its own read-only rev-parse.
+heads_before() { git -C "\$R" rev-parse HEAD > $ROOT/stub_pre_head || exit 3; }
+heads_after()  { git -C "\$R" rev-parse HEAD > $ROOT/stub_post_head || exit 3; }
+advance_repo() {
+  heads_before
+  git -C "\$R" -c user.email=t@t -c user.name=t commit -q --allow-empty -m "stub update \$(date +%s%N)" || exit 3
+  heads_after
+}
+hold_repo() { heads_before; heads_after; }
 receipt() {
   mkdir -p "\$H/.hermes/logs/update_receipts"
-  python3 - "\$1" <<'PY'
-import json,sys,datetime
+  python3 - "\$1" "\$(cat $ROOT/stub_pre_head 2>/dev/null)" "\$(cat $ROOT/stub_post_head 2>/dev/null)" <<'PY'
+import json,sys,datetime,os
 outcome = sys.argv[1]
 d = {"schema":1,"started_at":"2026-09-11T00:00:00+00:00",
      "finished_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -59,14 +76,26 @@ d = {"schema":1,"started_at":"2026-09-11T00:00:00+00:00",
 # pre != post proves the install landed; pre == post means it did not.
 # NOTE: the outcome field stays "partial" — the SHA pair is the only difference,
 # exactly like the real receipt (a mode name is not a receipt outcome).
+# The SHAs are the REAL scratch-repo HEADs recorded around the stub's checkout move
+# (argv 2/3), never constants, so checkout-proof correlation is exercised for real.
 if outcome == "partial_sha":
     d["outcome"] = "partial"
-    d["pre_update"] = {"short_sha": "aaaaaaaa"}
-    d["post_update"] = {"short_sha": "bbbbbbbb"}
+    pre, post = sys.argv[2].strip(), sys.argv[3].strip()
+    if not (pre and post and pre != post):
+        raise SystemExit("stub: race_sha did not advance the scratch repo")
+    d["pre_update"] = {"short_sha": pre[:8]}
+    d["post_update"] = {"short_sha": post[:8]}
+    cid = os.environ.get("HERMES_UPDATE_CORRELATION_ID", "").strip()
+    if not cid:
+        raise SystemExit("stub: race_sha needs HERMES_UPDATE_CORRELATION_ID from the updater")
+    d["correlation_id"] = cid
 elif outcome == "partial_same":
     d["outcome"] = "partial"
-    d["pre_update"] = {"short_sha": "aaaaaaaa"}
-    d["post_update"] = {"short_sha": "aaaaaaaa"}
+    pre, post = sys.argv[2].strip(), sys.argv[3].strip()
+    if not (pre and pre == post):
+        raise SystemExit("stub: race_same moved the scratch repo")
+    d["pre_update"] = {"short_sha": pre[:8]}
+    d["post_update"] = {"short_sha": post[:8]}
 json.dump(d, open("$ROOT/home/.hermes/logs/update_receipts/latest.json","w"))
 PY
 }
@@ -84,8 +113,8 @@ if [ "\${1:-}" = "update" ] && [ "\${2:-}" = "--yes" ]; then
     ok)       echo "✓ Update complete! (v9.9.9)"; receipt success; exit 0 ;;
     partial0) echo "✓ Update complete! (v9.9.9)"; receipt partial; exit 0 ;;
     race)     echo "✓ Update complete! (v9.9.9)"; echo "→ hermes-gateway: draining"; receipt partial; exit 1 ;;
-    race_sha)  echo "✓ Code updated! [main @ bbbbbbbb]"; echo "→ hermes-gateway: draining"; receipt partial_sha; exit 1 ;;
-    race_same) echo "✓ Code updated! [main @ aaaaaaaa]"; echo "→ hermes-gateway: draining"; receipt partial_same; exit 1 ;;
+    race_sha)  advance_repo; echo "✓ Code updated! [main @ \$(head -c 8 $ROOT/stub_post_head)]"; echo "→ hermes-gateway: draining"; receipt partial_sha; exit 1 ;;
+    race_same) hold_repo; echo "✓ Code updated! [main @ \$(head -c 8 $ROOT/stub_pre_head)]"; echo "→ hermes-gateway: draining"; receipt partial_same; exit 1 ;;
     noop)     echo "✓ Already up to date."; exit 0 ;;
     weirdyes) echo "⚕ something unexpected happened"; exit 0 ;;
     fail)     echo "✗ Update failed: merge conflict"; exit 1 ;;

@@ -227,27 +227,31 @@ notify() {
     return 1
 }
 
-# Receipt outcome reader (machine-written, machine-read — never grep the text).
-receipt_outcome() {
-    python3 - "$RECEIPT" <<'PYEOF' 2>/dev/null || echo "unreadable"
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-    print(d.get("outcome", "missing"))
-except Exception:
-    print("unreadable")
-PYEOF
-}
-
-# Freshness-gated reader: outcome is only meaningful if the receipt was FINISHED after
-# $1 (epoch). A stale receipt (older run) returns "stale" — callers must not treat it
-# as evidence about THIS run. Parses ISO finished_at incl. the +00:00 tz suffix.
+# Freshness-gated reader over a receipt FILE. $1 = path to the immutable post-command
+# snapshot (never the shared latest.json), $2 = run start epoch, $3 = correlation id.
+# Outcome is only meaningful if the receipt was FINISHED after $2. A stale receipt (older
+# run) returns "stale" — callers must not treat it as evidence about THIS run. Parses ISO
+# finished_at incl. the +00:00 tz suffix.
 receipt_outcome_fresh() {
-    python3 - "$RECEIPT" "$1" <<'PYEOF' 2>/dev/null || echo "unreadable"
+    python3 - "$1" "$2" "${3:-}" <<'PYEOF' 2>/dev/null || echo "unreadable"
 import json, sys
 from datetime import datetime
 try:
     d = json.load(open(sys.argv[1]))
+    # Upstream UpdateReceipt (schema 1) writes NO "kind" field. Its keys are schema/started_at/
+    # finished_at/argv/pid/outcome/pre_update/post_update/steps/skips/gateway_restart/fleet/
+    # update_id/correlation_id/action_id. So an absent kind is the real upstream shape. An
+    # explicit kind is accepted only when it is "update". Any other kind (plugin-check etc.
+    # sharing latest.json) is NOT install evidence.
+    kind = d.get("kind")
+    if kind is not None and str(kind).strip().lower() != "update":
+        print("foreign"); raise SystemExit(0)
+    # Upstream copies the launcher's HERMES_UPDATE_CORRELATION_ID into correlation_id.
+    # A non-null id that is not ours belongs to another invocation.
+    want = sys.argv[3] if len(sys.argv) > 3 else ""
+    got = d.get("correlation_id")
+    if want and got not in (None, "") and str(got) != want:
+        print("stale"); raise SystemExit(0)
     fin = datetime.fromisoformat(d["finished_at"])
     started = float(sys.argv[2])
     if fin.timestamp() >= started - 5:  # 5s clock skew tolerance
@@ -316,6 +320,185 @@ recheck_drain_marker() {
     return 1
 }
 
+# --- issue #1: check verdicts, time-based check alerts, install proof -------------------
+# Repeat check alerts are TIME-based, not tick-count based. The first alert fires on the 3rd
+# consecutive failed-or-unknown check. After that, at most one alert per
+# AU_CHECK_ALERT_INTERVAL seconds (default 86400). The delivery timestamp is written ONLY
+# when notify() succeeds, so a dead channel retries on the next tick.
+AU_CHECK_ALERT_INTERVAL="${AU_CHECK_ALERT_INTERVAL:-86400}"
+case "$AU_CHECK_ALERT_INTERVAL" in ''|*[!0-9]*) AU_CHECK_ALERT_INTERVAL=86400 ;; esac
+if [ "${#AU_CHECK_ALERT_INTERVAL}" -gt 9 ] || [ "$((10#$AU_CHECK_ALERT_INTERVAL))" -le 0 ]; then
+    AU_CHECK_ALERT_INTERVAL=86400
+fi
+AU_CHECK_ALERT_INTERVAL=$((10#$AU_CHECK_ALERT_INTERVAL))
+# Line-anchored verdict patterns. Quoted diagnostic text in the middle of a line never matches.
+RE_COMPLETE='^[[:space:]]*(✓[[:space:]]*)?Update complete([^[:alnum:]_]|$)'
+RE_NOOP='^[[:space:]]*((✓|→)[[:space:]]*)?(Already up to date|Holding at this build|No newer release|Up to date with the latest release)([^[:alnum:]_]|$)'
+
+# Epoch reader. This is NOT read_counter, whose 6-digit clamp would zero every real epoch.
+# Garbage, empty, or more than 12 digits echoes nothing, and the caller treats that as
+# "no timestamp": it alerts, and on delivery the file is overwritten (self-heal).
+read_ts() {
+    local v
+    v=$(head -c 64 "$STATE_DIR/$1" 2>/dev/null | tr -d '[:space:]')
+    case "$v" in ''|*[!0-9]*) return 0 ;; esac
+    [ "${#v}" -le 12 ] || return 0
+    printf '%s' "$((10#$v))"
+}
+fmt_ts() { date -d "@$1" '+%F %T %Z' 2>/dev/null || printf '%s' "$1"; }
+mark_installed() { date +%s > "$STATE_DIR/last_install_ts"; }   # call ONLY on proven installs
+check_ok() { echo 0 > "$STATE_DIR/consec_check_fails"; rm -f "$STATE_DIR/check_alert_last_ts"; }
+
+# Bounded multiline error summary. Channel banner lines and blank lines are dropped.
+check_summary() {
+    local s
+    s=$(printf '%s\n' "$1" | tr -d '\r' | grep -vE '^[[:space:]]*(→[[:space:]]*Update channel:.*)?$' \
+        | head -n 6 | cut -c1-200 | head -c 1000)
+    printf '%s' "${s:-(no output)}"
+}
+
+# Failed (nonzero) and unknown checks share ONE counter and ONE cadence.
+check_problem() {  # $1 = label
+    local n now last li due=0 msg
+    n=$(read_counter consec_check_fails); n=$((n + 1))
+    echo "$n" > "$STATE_DIR/consec_check_fails"
+    [ "$n" -ge 3 ] || return 0
+    now=$(date +%s)
+    last=$(read_ts check_alert_last_ts)
+    # Alert when any of these holds:
+    #   - this is the 3rd failure;
+    #   - there is no usable timestamp (migration from the old counter at N>3, or malformed/huge);
+    #   - the timestamp is in the future (beyond 300s skew), which would otherwise suppress forever;
+    #   - the interval has elapsed.
+    if [ "$n" -eq 3 ] || [ -z "$last" ] || [ "$last" -gt $((now + 300)) ] \
+        || [ $((now - last)) -ge "$AU_CHECK_ALERT_INTERVAL" ]; then due=1; fi
+    if [ "$due" -ne 1 ]; then
+        log "check problem #$n — alert suppressed (last alert $(fmt_ts "$last"), interval ${AU_CHECK_ALERT_INTERVAL}s)"
+        return 0
+    fi
+    li=$(read_ts last_install_ts)
+    msg="⚠ hermes auto-update: update check $1 ($n consecutive)
+last successful install: $(if [ -n "$li" ]; then fmt_ts "$li"; else echo unknown; fi)
+$(check_summary "$CHECK_OUT")"
+    if notify "$msg"; then
+        date +%s > "$STATE_DIR/check_alert_last_ts"
+    else
+        log "check alert #$n not delivered — retrying next tick"
+    fi
+}
+
+# Classify --check output from LINE-START verdicts only.
+# Possible results: available | uptodate | held | rollback | unknown.
+# A ✗ line, conflicting verdicts, or no verdict at all yields unknown (fail closed).
+classify_verdicts() {
+    local line v m low found=""
+    while IFS= read -r line; do
+        line="${line%$'\r'}"
+        line="${line#"${line%%[![:space:]]*}"}"
+        case "$line" in *"✗"*) v=error ;; *)
+            for m in "✓" "→" "⚕" "•" "🔄" "⬆"; do
+                case "$line" in "$m"*) line="${line#"$m"}"; line="${line#"${line%%[![:space:]]*}"}"; break ;; esac
+            done
+            case "$line" in
+                "Selected release available"|"Selected release available"[![:alnum:]_]*|"Update available"|"Update available"[![:alnum:]_]*) v=available ;;
+                "No newer release"*|"Up to date with the latest release"*|"Already up to date"*) v=uptodate ;;
+                "Holding at this build"*) v=held ;;
+                "This checkout is newer than the selected release"*) v=rollback ;;
+                *) low="${line,,}"
+                    case "$low" in
+                        *"release available"*|*"update available"*|*"no newer release"*|*"up to date"*|*"holding at this build"*|*"newer than the selected release"*) v=error ;;
+                        *) continue ;;
+                    esac ;;
+            esac ;;
+        esac
+        case " $found " in *" $v "*) ;; *) found="${found:+$found }$v" ;; esac
+    done <<< "$1"
+    case "$found" in available|uptodate|held|rollback) echo "$found" ;; *) echo unknown ;; esac
+}
+
+# Version from the completion line.
+# New format: "(vA → vB) [detached @ sha]" yields the destination vB.
+# Legacy format: "(vX)" ON THE COMPLETION LINE is kept verbatim. There is no fallback to an
+# arbitrary (vX) elsewhere in the output, because that could name an unrelated version.
+parse_version() {
+    local line v
+    line=$(printf '%s\n' "$1" | grep -E "$RE_COMPLETE" | tail -1)
+    v=$(printf '%s' "$line" | grep -oE '→ ?v[0-9][0-9A-Za-z.+-]*' | tail -1 | grep -oE 'v[0-9][0-9A-Za-z.+-]*')
+    [ -n "$v" ] || v=$(printf '%s' "$line" | grep -oE '\(v[0-9.]+\)' | head -1)
+    printf '%s' "$v"
+}
+
+# 1 only when the receipt is a Hermes install receipt (kind absent = upstream shape, or kind "update")
+# AND post_update.short_sha differs from pre_update.short_sha. $1 = receipt snapshot path.
+receipt_sha_advanced() {
+    [ -n "${1:-}" ] && [ -f "$1" ] || { echo 0; return 0; }
+    python3 - "$1" <<'PYEOF' 2>/dev/null || echo 0
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    kind = d.get("kind")
+    if kind is not None and str(kind).strip().lower() != "update":
+        print(0); raise SystemExit(0)
+    pre = ((d.get("pre_update") or {}).get("short_sha") or "").strip()
+    post = ((d.get("post_update") or {}).get("short_sha") or "").strip()
+    print(1 if (pre and post and pre != post) else 0)
+except Exception:
+    print(0)
+PYEOF
+}
+
+# Correlation state of a receipt snapshot vs this invocation's id. $1 = snapshot, $2 = our id.
+#   match    — correlation_id equals ours: this invocation's receipt
+#   legacy   — no correlation_id (old Hermes / fixtures): ownership UNPROVEN
+#   mismatch — another invocation's id (receipt_outcome_fresh already reports it as stale)
+receipt_corr_state() {
+    python3 - "$1" "${2:-}" <<'PYEOF' 2>/dev/null || echo "unreadable"
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+    want = sys.argv[2]
+    got = d.get("correlation_id")
+    if got is None or got == "":
+        print("legacy")
+    elif want and str(got) == want:
+        print("match")
+    else:
+        print("mismatch")
+except Exception:
+    print("unreadable")
+PYEOF
+}
+
+# 1 only when the ACTUAL checkout moved during this command and the receipt's SHAs describe
+# that exact move: the observed before/after HEADs (full hex from read-only rev-parse) differ,
+# and pre_update.short_sha / post_update.short_sha (>= 7 hex chars, distinct) prefix-match them.
+# $1 = receipt snapshot, $2 = HEAD before --yes, $3 = HEAD after --yes.
+receipt_checkout_agrees() {
+    [ -n "${1:-}" ] && [ -f "$1" ] || { echo 0; return 0; }
+    python3 - "$1" "${2:-}" "${3:-}" <<'PYEOF' 2>/dev/null || echo 0
+import json, re, sys
+HEX = re.compile(r"[0-9a-f]+")
+def full(s):
+    s = s.strip().lower()
+    return s if len(s) in (40, 64) and HEX.fullmatch(s) else ""
+def short(side):
+    s = str((side or {}).get("short_sha") or "").strip().lower()
+    return s if len(s) >= 7 and HEX.fullmatch(s) else ""
+try:
+    d = json.load(open(sys.argv[1]))
+    kind = d.get("kind")
+    if kind is not None and str(kind).strip().lower() != "update":
+        print(0); raise SystemExit(0)
+    before, after = full(sys.argv[2]), full(sys.argv[3])
+    pre, post = short(d.get("pre_update")), short(d.get("post_update"))
+    ok = bool(before and after and before != after and pre and post and pre != post
+              and before.startswith(pre) and after.startswith(post))
+    print(1 if ok else 0)
+except Exception:
+    print(0)
+PYEOF
+}
+
 # Resolve hermes by absolute path — cron PATH is minimal.
 HERMES_BIN=""
 for cand in "$HOME/.hermes/venvs/hermes-dev/bin/hermes" /usr/local/lib/hermes-agent/venv/bin/hermes ${AU_HERMES_BIN:+"$AU_HERMES_BIN"}; do
@@ -355,6 +538,9 @@ if ! flock -n 9; then
     log "previous update still running, skipped"
     exit 0
 fi
+# Orphaned receipt snapshots (SIGKILL skips the EXIT trap). Safe here: only the lock holder
+# ever creates them, and we now hold the lock.
+find "$STATE_DIR" -maxdepth 1 -type f -name 'receipt_snap.*' -delete 2>/dev/null || true
 
 # Bounded check: it fetches from origin while already holding the lock. A hung fetch would
 # hold the flock forever and every later tick would skip with no alert.
@@ -363,43 +549,51 @@ CHECK_OUT=$(timeout -k "${AU_UPDATE_KILL:-60}" "$AU_CHECK_TIMEOUT" "$HERMES_BIN"
 CHECK_STATUS=$?
 
 if [ $CHECK_STATUS -ne 0 ]; then
-    # Fetch failures (429/5xx/network) exit 1 with "✗" — transient, never install on them.
+    # Fetch failures (429/5xx/network) exit 1 with "✗". They are transient: never install on them.
     log "check failed (exit $CHECK_STATUS): $(echo "$CHECK_OUT" | head -2 | tr '\n' ' ')"
-    # Consecutive-failure counter: notify once at 3, then every 24h (avoid hourly spam).
-    N=$(read_counter consec_check_fails)
-    N=$((N + 1))
-    echo "$N" > "$STATE_DIR/consec_check_fails"
-    if [ "$N" -eq 3 ] || [ $((N % 24)) -eq 0 ]; then
-        notify "⚠ hermes auto-update: update check failing ($N consecutive) — $(echo "$CHECK_OUT" | head -1)"
-    fi
+    check_problem "failing (exit $CHECK_STATUS)"
     exit 0
 fi
-if ! echo "$CHECK_OUT" | grep -q "Update available"; then
-    # Not "Update available". Recognize the legitimate up-to-date wording; anything
-    # else (upstream reworded the banner?) is INCONCLUSIVE — alert, never silently
-    # stall: a missed wording change would stop updating forever with zero noise.
-    if echo "$CHECK_OUT" | grep -q "Already up to date"; then
-        echo 0 > "$STATE_DIR/consec_check_fails"   # conclusive: nothing to update
-        # D3: a healthy no-update tick is a SUCCESSFUL updater run. Without this reset a
-        # real failure followed by healthy no-op ticks keeps its counter climbing, so the
-        # next unrelated failure is suppressed by the stale count (deduped as if ongoing).
+# Exit 0 is not enough on its own. Only a single, unambiguous line-start verdict counts.
+# Stable verdicts and legacy main verdicts are both recognized. Anything else is
+# INCONCLUSIVE: it alerts, and never silently stalls.
+VERDICT=$(classify_verdicts "$CHECK_OUT")
+case "$VERDICT" in
+    uptodate|held)
+        check_ok   # conclusive: nothing to install
+        rm -f "$STATE_DIR/rollback_notified"
+        # D3: a healthy no-update tick is a SUCCESSFUL updater run. Reset the real-failure
+        # count so the next unrelated failure is not deduped by a stale count.
         echo 0 > "$STATE_DIR/consec_real_fails"
-        log "up-to-date: $(echo "$CHECK_OUT" | tail -1)"
+        if [ "$VERDICT" = held ]; then
+            log "held (benign, no install): $(printf '%s\n' "$CHECK_OUT" | grep -m1 'Holding at this build' | head -c 300)"
+        else
+            log "up-to-date: $(echo "$CHECK_OUT" | tail -1)"
+        fi
         recheck_drain_marker || exit 1
-        exit 0
-    fi
-    log "⚠ unrecognized --check output (wording changed upstream?): $(echo "$CHECK_OUT" | head -2 | tr '\n' ' ')"
-    N=$(read_counter consec_check_fails)
-    N=$((N + 1))
-    echo "$N" > "$STATE_DIR/consec_check_fails"
-    if [ "$N" -eq 3 ] || [ $((N % 24)) -eq 0 ]; then
-        notify "⚠ hermes auto-update: --check output unrecognized ($N consecutive) — update pipeline may be stalled: $(echo "$CHECK_OUT" | head -1)"
-    fi
-    exit 0
-fi
+        exit 0 ;;
+    rollback)
+        # The checkout is newer than the selected release. Moving it back is a manual decision:
+        # never run --yes for this verdict, regardless of AU_APPLY.
+        check_ok
+        echo 0 > "$STATE_DIR/consec_real_fails"
+        log "⚠ checkout newer than selected release — rollback is manual, NOT applied: $(printf '%s\n' "$CHECK_OUT" | grep -m1 'newer than the selected release' | head -c 300)"
+        if [ ! -f "$STATE_DIR/rollback_notified" ]; then
+            notify "→ hermes auto-update: this checkout is newer than the selected release — NOT moved back automatically (manual: run hermes update by hand, or hermes update --set-channel main)" \
+                && touch "$STATE_DIR/rollback_notified"
+        fi
+        recheck_drain_marker || exit 1
+        exit 0 ;;
+    available) ;;
+    *)
+        log "⚠ unrecognized --check output (wording changed upstream?): $(echo "$CHECK_OUT" | head -2 | tr '\n' ' ')"
+        check_problem "output unrecognized/conflicting — update pipeline may be stalled"
+        exit 0 ;;
+esac
 
-echo 0 > "$STATE_DIR/consec_check_fails"   # conclusive: an update really is available
-log "update available: $(echo "$CHECK_OUT" | tail -1)"
+check_ok   # conclusive: an update really is available
+rm -f "$STATE_DIR/rollback_notified"
+log "update available: $(printf '%s\n' "$CHECK_OUT" | grep -m1 -E 'available' | head -c 300)"
 
 # --- apply gate -------------------------------------------------------------------
 # Installing is destructive (hard-resets the checkout, reinstalls deps, restarts the
@@ -413,14 +607,52 @@ if [ "${AU_APPLY:-0}" != "1" ]; then
     exit 0
 fi
 
+# Bind the receipt to THIS invocation. A receipt that is byte-identical to the one on disk
+# before --yes was not written by this run, whatever its finished_at says. Without this check,
+# the 5s skew window admits a previous run's receipt.
+receipt_digest() {  # $1 = file path; empty output = read error (callers fail closed)
+    if [ -e "$1" ]; then sha256sum 2>/dev/null < "$1" | cut -d' ' -f1; else echo absent; fi
+}
+PRE_RECEIPT_DIGEST=$(receipt_digest "$RECEIPT")
+# Upstream records HERMES_UPDATE_CORRELATION_ID as the receipt's correlation_id. When a
+# receipt carries one, it must be ours.
+AU_CORR_ID="au-$(date +%s%N)-$$-$RANDOM"
 RUN_STARTED=$(date +%s)
+# Observed checkout identity BEFORE this command (read-only). Paired with POST_HEAD after
+# --yes, it is this run's own install evidence for receipts that carry no correlation_id.
+PRE_HEAD=$(git -C "$REPO" rev-parse HEAD 2>/dev/null)
 # Bounded install: upstream can legitimately block for restart_after_turn_timeout (1800s
 # default) while draining, so the cap is 2x that. Without a cap a wedged updater holds the
 # flock forever and every later tick skips silently — the stall guard below only counts
 # check-phase failures, so nothing would ever alert.
 AU_UPDATE_TIMEOUT="${AU_UPDATE_TIMEOUT:-3600}"
-UPDATE_OUT=$(timeout -k "${AU_UPDATE_KILL:-60}" "$AU_UPDATE_TIMEOUT" "$HERMES_BIN" update --yes 2>&1)
+UPDATE_OUT=$(HERMES_UPDATE_CORRELATION_ID="$AU_CORR_ID" timeout -k "${AU_UPDATE_KILL:-60}" "$AU_UPDATE_TIMEOUT" "$HERMES_BIN" update --yes 2>&1)
 STATUS=$?
+
+# Immutable post-command receipt snapshot, taken FIRST. Every receipt-derived verdict below
+# (outcome, kind, freshness, correlation, digest, SHA advance) reads THIS private copy only,
+# never the shared latest.json again: a concurrent updater replacing latest.json after this
+# point cannot swap the evidence out from under the binding checks. Private mktemp under
+# STATE_DIR (mode 0600, unpredictable name), removed on exit. Any snapshot failure is fail
+# closed: the receipt is treated as unreadable, i.e. no install evidence.
+SNAP=""
+SNAP_STATE=error
+_au_snap_cleanup() { if [ -n "$SNAP" ]; then rm -f -- "$SNAP"; fi; }
+trap '_au_snap_cleanup' EXIT
+trap '_au_snap_cleanup; exit 129' HUP
+trap '_au_snap_cleanup; exit 130' INT
+trap '_au_snap_cleanup; exit 143' TERM
+SNAP=$(mktemp "$STATE_DIR/receipt_snap.XXXXXX" 2>/dev/null) || SNAP=""
+if [ -n "$SNAP" ] && [ -f "$SNAP" ] && [ ! -L "$SNAP" ]; then
+    if [ ! -e "$RECEIPT" ] && [ ! -L "$RECEIPT" ]; then
+        SNAP_STATE=absent
+    elif cp -- "$RECEIPT" "$SNAP" 2>/dev/null; then
+        SNAP_STATE=ok
+    fi
+fi
+# Observed checkout identity AFTER this command (read-only), read right after the snapshot.
+# If something moves HEAD after this point, the receipt's post SHA cannot match: fail closed.
+POST_HEAD=$(git -C "$REPO" rev-parse HEAD 2>/dev/null)
 
 log "update exit=$STATUS (cap ${AU_UPDATE_TIMEOUT}s)"
 echo "$UPDATE_OUT" | tail -40 >> "$LOG"
@@ -444,25 +676,103 @@ fi
 # failure (merge conflict, syntax guard, SIGKILL) exits before finalize, leaving the
 # PREVIOUS run's success receipt on disk. Reading that stale 'success' would fake a
 # success notify. Freshness-gate it.
-OUTCOME=$(receipt_outcome_fresh "$RUN_STARTED")
-VERSION=$(echo "$UPDATE_OUT" | grep -oE '\(v[0-9.]+\)' | head -1)
+case "$SNAP_STATE" in
+    ok)
+        OUTCOME=$(receipt_outcome_fresh "$SNAP" "$RUN_STARTED" "$AU_CORR_ID")
+        SNAP_DIGEST=$(receipt_digest "$SNAP") ;;
+    absent)
+        OUTCOME=unreadable; SNAP_DIGEST=absent ;;
+    *)
+        log "⚠ receipt snapshot failed (mktemp/copy under $STATE_DIR) — receipt treated as unreadable, no install evidence (fail closed)"
+        OUTCOME=unreadable; SNAP_DIGEST="" ;;
+esac
+# Unchanged bytes = not written by this invocation, even inside the 5s skew window.
+# The SNAPSHOT's digest is compared with the original pre-run receipt bytes. An empty digest
+# on either side (read error) cannot prove a new receipt, so it counts as unchanged.
+if [ -z "$SNAP_DIGEST" ] || [ -z "$PRE_RECEIPT_DIGEST" ] || [ "$SNAP_DIGEST" = "$PRE_RECEIPT_DIGEST" ]; then
+    case "$OUTCOME" in foreign|unreadable) ;; *) OUTCOME=unchanged ;; esac
+fi
+VERSION=$(parse_version "$UPDATE_OUT")
+# Evidence is computed once, from THIS run's output and the SAME receipt snapshot only.
+SHA_ADVANCED=0
+case "$OUTCOME" in success|partial) SHA_ADVANCED=$(receipt_sha_advanced "$SNAP") ;; esac
+HAS_COMPLETE=0
+printf '%s\n' "$UPDATE_OUT" | grep -qE "$RE_COMPLETE" && HAS_COMPLETE=1
+HAS_NOOP=0
+printf '%s\n' "$UPDATE_OUT" | grep -qE "$RE_NOOP" && HAS_NOOP=1
+# Receipt ownership. correlation_id == ours means this invocation's receipt (a foreign id was
+# already "stale"). No correlation_id means legacy: freshness + changed bytes do NOT prove
+# ownership (a concurrent updater can write such a receipt). It is install evidence only with
+# independent affirmative evidence from THIS command: the anchored completion line, or the
+# real checkout moving during the command with the receipt's pre/post SHAs agreeing with it.
+# A no-op line never yields an install from a legacy receipt, whatever the receipt claims.
+CORR_STATE=n/a
+CHECKOUT_PROOF=0
+case "$OUTCOME" in
+    success|partial)
+        CORR_STATE=$(receipt_corr_state "$SNAP" "$AU_CORR_ID")
+        CHECKOUT_PROOF=$(receipt_checkout_agrees "$SNAP" "$PRE_HEAD" "$POST_HEAD")
+        if [ "$CORR_STATE" = "match" ]; then
+            :
+        elif [ "$CORR_STATE" = "legacy" ] && [ "$HAS_NOOP" != 1 ] \
+            && { [ "$HAS_COMPLETE" = 1 ] || { [ "$STATUS" = 0 ] && [ "$CHECKOUT_PROOF" = 1 ]; }; }; then
+            # The receipt's own SHA claim counts only when the observed checkout agrees with it.
+            SHA_ADVANCED=$CHECKOUT_PROOF
+            log "legacy receipt (no correlation_id) accepted on this run's evidence: completion_line=$HAS_COMPLETE checkout ${PRE_HEAD:0:10}->${POST_HEAD:0:10} agrees=$CHECKOUT_PROOF"
+        else
+            log "⚠ receipt=$OUTCOME not owned by this run (correlation=$CORR_STATE, completion_line=$HAS_COMPLETE, noop_line=$HAS_NOOP, checkout_proof=$CHECKOUT_PROOF) — not install evidence"
+            OUTCOME=uncorrelated
+            SHA_ADVANCED=0
+        fi ;;
+esac
 
 if [ "$STATUS" -eq 0 ]; then
-    if [ "$OUTCOME" = "stale" ]; then
-        # exit 0 but no receipt was finalized during this run: the updater most likely
-        # found "Already up to date" (beaten by another updater between check and
-        # install) and exited without writing. Never claim success on stale data.
-        if echo "$UPDATE_OUT" | grep -q "Already up to date"; then
-            log "no-op: beaten by another updater between check and install (exit=0, stale receipt)"
+    case "$OUTCOME" in stale|unchanged|foreign|unreadable|missing|uncorrelated) NO_RECEIPT=1 ;; *) NO_RECEIPT=0 ;; esac
+    # A no-op verdict stays a no-op even if a bound success receipt exists, provided there is
+    # no completion line and no SHA advance. Nothing was installed, so it must never reach
+    # mark_installed.
+    if [ "$OUTCOME" = "success" ] && [ "$HAS_NOOP" = 1 ] && [ "$HAS_COMPLETE" = 0 ] && [ "$SHA_ADVANCED" != 1 ]; then
+        NO_RECEIPT=1
+    fi
+    if [ "$NO_RECEIPT" = "1" ]; then
+        # exit 0, but this run finalized no Hermes install receipt. The receipt is one of:
+        #   stale      — from an older run
+        #   foreign    — written by plugin-check or similar
+        #   unreadable — none on disk
+        #   unchanged  — byte-identical to the receipt present before --yes
+        #   uncorrelated — no correlation_id and no evidence from this command that it installed
+        # Never reuse it as success. gateway_confirmed() is no proof either: HEAD equals the
+        # running SHA even when nothing was installed.
+        if printf '%s\n' "$UPDATE_OUT" | grep -qE "$RE_COMPLETE"; then
+            # A real completion line with no receipt: possibly installed, but UNPROVEN.
+            log "⚠ exit=0, update reported complete ${VERSION} but receipt=$OUTCOME — install UNPROVEN, drain_pending set"
+            touch "$STATE_DIR/drain_pending"
+            notify "⚠ hermes auto-update: updater reported completion${VERSION:+ to $VERSION} but wrote no fresh install receipt (receipt=$OUTCOME) — install unproven, verify the host (updater v${UPDATER_VERSION})"
+            exit 1
+        fi
+        if printf '%s\n' "$UPDATE_OUT" | grep -qE "$RE_NOOP"; then
+            log "no-op: beaten by another updater between check and install / held / no newer release (exit=0, receipt=$OUTCOME): $(printf '%s\n' "$UPDATE_OUT" | grep -m1 -E "$RE_NOOP" | head -c 200)"
+            # No install happened, so never mark_installed here. A pending drain marker must
+            # still be re-verified, exactly as on the check-time no-update path.
+            recheck_drain_marker || exit 1
             exit 0
         fi
         log "⚠ exit=0, stale receipt, output unrecognized — treating as inconclusive"
         notify "⚠ hermes auto-update: exit=0 but no fresh receipt (raced?) — verify fleet manually"
         exit 1
     fi
+    if [ "$OUTCOME" = "success" ] && [ "$HAS_COMPLETE" != 1 ] && [ "$SHA_ADVANCED" != 1 ]; then
+        # A success receipt (even correlated) with no completion line and no SHA advance proves
+        # nothing was installed. Never mark_installed or announce an update on it.
+        log "⚠ exit=0, receipt=success but no completion line and no SHA advance (correlation=$CORR_STATE) — install UNPROVEN, drain_pending set"
+        touch "$STATE_DIR/drain_pending"
+        notify "⚠ hermes auto-update: updater exited 0 with a success receipt but no evidence of an install (no SHA change, no completion line) — verify the host (updater v${UPDATER_VERSION})"
+        exit 1
+    fi
     if [ "$OUTCOME" = "success" ]; then
         log "success $VERSION (receipt: success)"
         echo 0 > "$STATE_DIR/consec_real_fails"
+        mark_installed   # fresh, kind-checked success receipt owned by THIS run (correlated, or legacy + this run's own evidence) = proven install
         # receipt=success means the restart was ISSUED (upstream: restart.incomplete only
         # covers a failed signal) — NOT that the new gateway process actually came up on
         # the new code. Clearing the marker here (C2) erased the re-verify hook precisely
@@ -476,7 +786,19 @@ if [ "$STATUS" -eq 0 ]; then
         recheck_drain_marker >/dev/null 2>&1 || true
         exit 0
     fi
-    # exit 0 but receipt says partial/missing: install landed, restart may race.
+    if [ "$OUTCOME" = "partial" ] && [ "$SHA_ADVANCED" != 1 ] && [ "$HAS_COMPLETE" != 1 ]; then
+        # Legacy partial receipts may omit the SHAs. With no SHA advance AND no completion
+        # line, a partial receipt proves nothing, and gateway health cannot fill the gap.
+        log "⚠ exit=0, receipt=partial but no SHA advance and no completion line — install UNPROVEN, drain_pending set"
+        touch "$STATE_DIR/drain_pending"
+        notify "⚠ hermes auto-update: updater exited 0 with a partial receipt but no evidence of an install (no SHA change, no completion line) — verify the host (updater v${UPDATER_VERSION})"
+        exit 1
+    fi
+    # Only "partial" with evidence may use gateway health. A failed, running, refused, or
+    # unknown outcome is NOT an install, however healthy the existing gateway looks. Those
+    # outcomes skip the poll and fall through to the REAL FAILURE path below.
+    if [ "$OUTCOME" = "partial" ]; then
+    # exit 0 and the receipt says partial (with evidence): install landed, restart may race.
     # Wait for the gateway to catch up before declaring anything.
     log "exit=0 but receipt outcome=$OUTCOME — waiting for gateway to restart"
     # Set the marker BEFORE waiting, not only after the wait times out: if this script is
@@ -484,6 +806,9 @@ if [ "$STATUS" -eq 0 ]; then
     # the install stays flagged and the next no-update tick consumes it. Marker-on-timeout
     # only is invisible to precisely the interruption it exists to survive.
     touch "$STATE_DIR/drain_pending"
+    # Install is proven here (accepted partial receipt + SHA/completion evidence gate above);
+    # gateway health is separate, so record the install once now, before polling can time out.
+    mark_installed
     GW_OK=0
     # Env knobs so the drain-timeout branch is testable in seconds, not minutes
     # (AU_POLL_EVERY seconds x AU_POLL_TRIES tries; defaults keep the 6x30s behavior).
@@ -513,6 +838,9 @@ if [ "$STATUS" -eq 0 ]; then
     log "⚠ install ok, gateway not confirmed within 3 min (still draining?) — drain_pending set, next tick re-verifies"
     notify "⚠ hermes auto-update: installed $VERSION, gateway restart still draining (no failure) — re-check next tick"
     exit 0
+    fi
+    # Reaching here means exit 0 with outcome failed/running/refused/unknown. The success/partial
+    # race block below does not match, so this falls through to REAL FAILURE.
 fi
 
 # Nonzero exit: could be a real failure OR the STALE race (update complete, restart
@@ -523,23 +851,12 @@ if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "partial" ]; then
     # post_update.short_sha advanced past pre_update.short_sha proves code landed.
     # Text ("Update complete") is only a fallback when the SHAs are unavailable —
     # never the primary signal (upstream rewords banners; machine fields don't drift).
-    SHA_ADVANCED=0
-    if [ -f "$RECEIPT" ]; then
-        SHA_ADVANCED=$(python3 - "$RECEIPT" <<'PYEOF' 2>/dev/null || echo 0
-import json, sys
-try:
-    d = json.load(open(sys.argv[1]))
-    pre = ((d.get("pre_update") or {}).get("short_sha") or "").strip()
-    post = ((d.get("post_update") or {}).get("short_sha") or "").strip()
-    print(1 if (pre and post and pre != post) else 0)
-except Exception:
-    print(0)
-PYEOF
-)
-    fi
-    if [ "$SHA_ADVANCED" = "1" ] || echo "$UPDATE_OUT" | grep -q "Update complete"; then
+    # SHA_ADVANCED comes from the SAME snapshot as OUTCOME (no reread of latest.json). The
+    # text fallback is the line-anchored RE_COMPLETE (HAS_COMPLETE), never a substring match.
+    if [ "$SHA_ADVANCED" = "1" ] || [ "$HAS_COMPLETE" = "1" ]; then
         log "success $VERSION (exit=$STATUS but receipt=$OUTCOME, code landed per SHA advance/text — restart race, not failure)"
         echo 0 > "$STATE_DIR/consec_real_fails"
+        if [ "$SHA_ADVANCED" = "1" ] || [ "$HAS_COMPLETE" = "1" ]; then mark_installed; fi
         # DO NOT clear the drain marker here: the race means the gateway was NOT
         # confirmed current — the receipt froze stale. Keep/refresh the marker so the
         # next no-update tick re-verifies (recheck_drain_marker); erasing it here
@@ -557,7 +874,7 @@ F=$(read_counter consec_real_fails)
 F=$((F + 1))
 echo "$F" > "$STATE_DIR/consec_real_fails"
 if [ "$F" -eq 1 ] || [ $((F % 12)) -eq 0 ]; then
-    notify "✗ hermes auto-update failed (attempt $F, exit $STATUS): $(echo "$UPDATE_OUT" | grep -E "✗|⚠" | head -2 | tr '\n' ' ')"
+    notify "✗ hermes auto-update failed (attempt $F, exit $STATUS, receipt $OUTCOME): $(echo "$UPDATE_OUT" | grep -E "✗|⚠" | head -2 | tr '\n' ' ')"
 else
     log "failure #$F - notify suppressed (alerted on attempt 1, re-alerts every 12)"
 fi

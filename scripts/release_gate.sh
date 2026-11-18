@@ -83,6 +83,14 @@ for probe in scripts/*.sh; do
     fi
 done
 
+step "3b/4 python compat probe (explicit: the loop above only globs scripts/*.sh)"
+printf -- "-- %s\n" scripts/check_compat_sanity.py
+if out=$(env -u AU_APPLY python3 scripts/check_compat_sanity.py ./auto_update.sh 2>&1); then
+    printf '%s\n' "$out" | tail -1
+else
+    echo "PROBE FAILED: scripts/check_compat_sanity.py"; printf '%s\n' "$out" | tail -15; FAIL=1
+fi
+
 step "4/4 teeth: neutered builds must FAIL the probe that guards them"
 # A green probe proves the toolchain runs, not that it catches anything. For each guard
 # with a known neuter, break the source, feed the BROKEN copy to the probe, and require
@@ -106,6 +114,15 @@ elif kind == "clamporder":
     b = '    v=$((10#$v))\n    if [ "${#v}" -gt 6 ]; then v=0; fi\n'
     assert a in s, "clamp-order neuter: anchored pair not found"
     new = s.replace(a, b)
+elif kind == "alertstamp":
+    a = '    if notify "$msg"; then\n        date +%s > "$STATE_DIR/check_alert_last_ts"\n'
+    b = '    notify "$msg"; if true; then\n        date +%s > "$STATE_DIR/check_alert_last_ts"\n'
+    assert a in s, "alert-stamp neuter: anchor not found"
+    new = s.replace(a, b)
+elif kind == "applygate":
+    a = 'if [ "${AU_APPLY:-0}" != "1" ]; then'
+    assert a in s, "apply-gate neuter: anchor not found"
+    new = s.replace(a, 'if [ "${AU_APPLY:-1}" != "1" ]; then')
 else:
     raise SystemExit("unknown neuter kind: " + kind)
 open(dst, "w").write(new)
@@ -118,7 +135,9 @@ neuter_and_run() { # $1 = kind  $2 = label  [$3 = probe, default counter_sanity.
         echo "NEUTER IS A NO-OP: $2 — the copy equals the source, so this proves nothing"; FAIL=1; return
     fi
     bash -n /tmp/gate_neut/au_neut.sh || { echo "neutered copy not bash-clean: $2"; FAIL=1; return; }
-    if env -u AU_APPLY bash "$probe" /tmp/gate_neut/au_neut.sh >/dev/null 2>&1; then
+    local runner=bash
+    case "$probe" in *.py) runner=python3 ;; esac
+    if env -u AU_APPLY "$runner" "$probe" /tmp/gate_neut/au_neut.sh >/dev/null 2>&1; then
         echo "NO TEETH: $2 — probe passed on a broken build"; FAIL=1
     else
         echo "teeth ok: $2 (probe fails on the neutered build)"
@@ -131,6 +150,9 @@ neuter_and_run sanitizer "counter sanitizer removed -> counter_sanity must FAIL"
 # being zeroed, and the counter lands on 4 / -4. Without this neuter the gate proved only that
 # the probe RUNS, not that it would catch the order regression returning.
 neuter_and_run clamporder "length clamp moved AFTER the arithmetic -> counter_sanity must FAIL"
+# guards (issue #1): check-alert timestamp written only on delivery; AU_APPLY gate closed by default.
+neuter_and_run alertstamp "check alert stamped although notify failed -> check_compat_sanity must FAIL" scripts/check_compat_sanity.py
+neuter_and_run applygate "AU_APPLY gate defaulted open -> check_compat_sanity must FAIL" scripts/check_compat_sanity.py
 
 step "gate"
 if [ "$FAIL" -eq 0 ]; then

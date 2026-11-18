@@ -19,8 +19,8 @@ Hands-off Hermes updates via a system-cron job outside the gateway process tree;
 
 Changing the cron frequency is a three-place edit, all verified in one pass:
 1. **crontab**: edit the line via `crontab -l | sed ... | crontab -` and print `crontab -l` after — the echoed crontab is the verification, not the sed's exit code.
-2. **SKILL.md**: update the Cron line in Procedure (cadence + the rescale note for alert counters — the re-alert interval is counted in TICKS, so 12 ticks at 3h = 36h).
-3. **Grep the script for cadence-coupled logic** (`24`, `12`, `% N`, hourly comments): the dedup counters count TICKS, not hours, and the script has no hourly hard-coding otherwise — but the SKILL.md note must say the re-alert period in wall-clock terms so a future reader does not rescale the wrong constant.
+2. **SKILL.md**: update the Cron line in Procedure (cadence + the rescale note for alert counters — the tick-counted re-alert intervals (real-failure every 12th, notify-failure 3/24) are counted in TICKS, so 12 ticks at 3h = 36h. The check-failure re-alert after the 3rd failure is wall-clock (`AU_CHECK_ALERT_INTERVAL`, in seconds) and does not rescale).
+3. **Grep the script for cadence-coupled logic** (`24`, `12`, `% N`, hourly comments): the tick-counted dedup counters count TICKS, not hours. The check-failure re-alert is the one time-based cadence (`AU_CHECK_ALERT_INTERVAL`, default 86400s), and the script has no other hourly hard-coding — but the SKILL.md note must say the re-alert period in wall-clock terms so a future reader does not rescale the wrong constant.
 
 ## Procedure
 
@@ -29,14 +29,19 @@ Changing the cron frequency is a three-place edit, all verified in one pass:
    2. `notify()` before any call site, message as `$1` (creds from `~/.hermes/.env`, proxy via `$TG_PROXY`).
    3. Resolve hermes by absolute path (candidates, then PATH); abort with a notification if absent.
    4. `flock -n` on `$HOME/.hermes/state/auto_update/auto_update.lock`; rotate the log at 5 MB.
-   5. `update --check` → gate on BOTH exit code and output text.
+   5. `update --check` → gate on BOTH exit code and output. Recognize the stable outcome form and the legacy text form. Up to date and `hold` are benign (no install, not a check failure). `rollback` requires manual action and NEVER triggers an automatic `--yes`. Unknown/failed stays blocked: no install, counted as a check failure.
    6. Up to date → one trace line, exit 0, silent.
-   7. Update available → if `AU_APPLY=1` continue, else log + print "not applied" and exit 0 (report-only). When applying: `update --yes`, log `tail -40`, classify.
+   7. Update available (only reaches the `AU_APPLY` gate; the target version is extracted later from the update completion line — new `old→new` form or legacy single version — not from the check line) → if `AU_APPLY=1` continue, else log + print "not applied" and exit 0 (report-only). When applying: `update --yes`, log `tail -40`, classify.
    8. **Classification** (receipt-first, freshness-gated): capture `RUN_STARTED` BEFORE `--yes`; trust `latest.json`'s `outcome` only when `finished_at >= RUN_STARTED - 5s`. Set `drain_pending` BEFORE the catch-up poll. `exit=0 + fresh success` → ✓. `exit=0 + fresh partial` → poll for gateway catch-up (`code_sha` == HEAD AND `is-active`); timeout is NOT failure (drain may take 30 min) → neutral exit 0, marker carries the obligation. `exit≠0 + fresh success/partial + SHA advanced` → restart race, ✓ with note. `exit=0 + stale receipt + "Already up to date"` → silent no-op. Anything else → ✗ failure.
    9. Real failure → ✗ with `consec_real_fails` (alert on 1st, re-alert every 12th); every success path resets it.
-   10. Counters in state files: `consec_check_fails` (3/24), `consec_notify_fails` (3/24, also counts missing credentials). All reads via a numeric sanitizer.
-2. **Cron**: `23 3 * * * set -a; [ -f $HOME/.hermes/scripts/auto_update.env ] && . $HOME/.hermes/scripts/auto_update.env; set +a; AU_APPLY=1 <script>` (daily 03:23, off-the-hour; history: hourly → every-3h 2026-09-15 → daily 2026-09-16, user preference is less frequent). **`AU_APPLY=1` is required** — without it the run only reports that an update is available. `set -a` around the source is required too: without it the env file delivers NOTHING to the script (the updater never sources the file itself), which is invisible because the flag — prefixed to the script — still arrives. Alert cadences assume a ~24h tick interval — rescale if the schedule changes.
-3. **Gate the release**: from the *extracted* bundle run `bash scripts/release_gate.sh` (doc pointers + matrix + every probe + teeth) and require PASS. The gate runs for minutes (full matrix + self-seeding probes + teeth) — launch it `background=true` with `notify=true` or a raised timeout; the default foreground call dies mid-matrix at the tool timeout and reports nothing. Then — **Verify with the hermetic harness** in `verify/` (stub hermes/curl/systemctl, stub FIRST in the candidate list): run it before and after every patch and require 0 failed — its own tally is the truth, never restate counts in prose. Time-based waits have env knobs (`AU_POLL_EVERY`/`AU_POLL_TRIES`/`AU_SETTLE_SECONDS`/`AU_UPDATE_TIMEOUT`/`AU_UPDATE_KILL`/`AU_CHECK_TIMEOUT`) and the matrix's `run()` must set them.
+   10. Counters in state files:
+       - `consec_check_fails`: first alert at 3. After that, re-alert on a time basis every `AU_CHECK_ALERT_INTERVAL` seconds (default 86400; positive integer seconds; an invalid, empty, or zero value falls back to 86400). The last-alert timestamp is written ONLY when the notification is delivered. Migration: a pre-existing count N>3 with no timestamp alerts on the next tick.
+       - `consec_notify_fails`: 3/24; also counts missing credentials.
+       - All reads go through a numeric sanitizer.
+
+       Check-failure alerts carry the consecutive count, the last successful installation (`unknown` until the first proven install), and the real error (multiline, bounded). The last-install record is written only from installation proof bound to the current invocation: a fresh, immutable receipt for THIS run plus an affirmative completion or code movement. Stale, missing, unrelated (another operation, e.g. `kind=plugin-check`), or unchanged receipts never prove an install.
+2. **Cron**: `23 3 * * * set -a; [ -f $HOME/.hermes/scripts/auto_update.env ] && . $HOME/.hermes/scripts/auto_update.env; set +a; AU_APPLY=1 <script>` (daily 03:23, off-the-hour; history: hourly → every-3h 2026-09-15 → daily 2026-09-16, user preference is less frequent). **`AU_APPLY=1` is required** — without it the run only reports that an update is available. `set -a` around the source is required too: without it the env file delivers NOTHING to the script (the updater never sources the file itself), which is invisible because the flag — prefixed to the script — still arrives. Tick-counted alert cadences (real-failure 12th, notify-failure 3/24) assume a ~24h tick interval — rescale them if the schedule changes. The check-failure re-alert is wall-clock (`AU_CHECK_ALERT_INTERVAL`).
+3. **Gate the release**: from the *extracted* bundle run `bash scripts/release_gate.sh` (doc pointers + matrix + every probe + teeth, including `python3 scripts/check_compat_sanity.py auto_update.sh`) and require PASS. The gate runs for minutes (full matrix + self-seeding probes + teeth) — launch it `background=true` with `notify=true` or a raised timeout; the default foreground call dies mid-matrix at the tool timeout and reports nothing. Then — **Verify with the hermetic harness** in `verify/` (stub hermes/curl/systemctl, stub FIRST in the candidate list): run it before and after every patch and require 0 failed — its own tally is the truth, never restate counts in prose. Time-based waits have env knobs (`AU_POLL_EVERY`/`AU_POLL_TRIES`/`AU_SETTLE_SECONDS`/`AU_UPDATE_TIMEOUT`/`AU_UPDATE_KILL`/`AU_CHECK_TIMEOUT`) and the matrix's `run()` must set them.
 4. **Verify real updates** via the receipt's `pre_update.short_sha` vs `post_update.short_sha` (advancing SHA = a real install) and `hermes gateway status`.
 5. **Audit the schedule, not just the last run.** Enumerate the fire times the cron expression implies for a window, extract the actual tick timestamps from the log, and diff them. A missing window means the scheduler never fired — silent by construction (see the WSL cron pitfall); a long run of ticks with no "update available" means the check banner changed and the stall guard should have alerted. Answer "is the cron healthy?" with the window count and any misses, never with "looks fine".
 
@@ -48,7 +53,12 @@ Changing the cron frequency is a three-place edit, all verified in one pass:
 - The receipt freezes at finalize: a drain finishing later leaves `fleet: stale` plus a lingering `fleet_restart_pending` warning. The next `--yes` (even up-to-date) discharges it. Don't hand-delete the marker.
 - Pull-stage failures (merge conflict, syntax guard, SIGKILL) exit WITHOUT finalizing, so `latest.json` still holds the PREVIOUS run's `success`. Freshness-gate every read; "stale" means "no evidence about this run".
 - `receipt=success` carries a SHA-verified fleet snapshot (the updater's post-restart matrix compares live `code_sha` against the checkout) — it is not "no verification", but it does not prove the process stayed up. Keep `drain_pending` through the receipt and clear only after your own recheck.
-- Text-gating has a stall mode: a reworded banner makes every tick read "up to date" forever, silently. Only "Already up to date" is legitimate; anything else is inconclusive and must alert.
+- Text-gating has a stall mode: a reworded banner makes every tick read "up to date" forever, silently. Only the recognized outcomes are legitimate:
+  - up to date / `hold`, in the stable form or the legacy "Already up to date" form;
+  - update available;
+  - rollback (manual action only).
+
+  Unknown/failed is inconclusive: it stays blocked and must alert.
 
 **Classification rules**
 - A success-shaped branch must key on MACHINE fields, never text: compare `pre_update.short_sha` vs `post_update.short_sha` (advance = landed), with text only as fallback. Dropping the text gate entirely is equally wrong — it turns "deps failed after pull" into a false success.
@@ -82,7 +92,7 @@ Changing the cron frequency is a three-place edit, all verified in one pass:
 - Resolve hermes by absolute path: cron's PATH is narrower, and a missing binary misreads as "up to date".
 - `set -u` + stripped env: guard `HOME`. A function called before its definition is "command not found" at runtime and `bash -n` won't catch it — define `notify()` first.
 - A REPL session holds the drain: an in-tree `--yes` sits in "draining" until the turn ends, so expect the gateway restart to interrupt the session; check the receipt rather than re-running.
-- Orphan-divergent installs back up HEAD to `refs/hermes-update-backups/orphan-main-*` then hard-reset. Rollback is a HUMAN decision — unattended auto-revert turns one bad update into a crash loop.
+- Orphan-divergent installs back up HEAD to `refs/hermes-update-backups/orphan-main-*` then hard-reset. Rollback is a HUMAN decision — unattended auto-revert turns one bad update into a crash loop. Likewise, a `--check` rollback outcome is surfaced for manual action and never auto-runs `--yes`.
 - Drain budget is max(restart_exit_wait_budget, 45s), up to 30 min with the default turn timeout. Fine under cron; don't add tighter script-side timeouts.
 - `--yes` accepts config-migration and stash prompts non-interactively; `updates.non_interactive_local_changes: stash` protects local edits.
 - Tirith blocks scripts containing `hermes gateway restart` / `gateway stop` even for `bash -n` — word around them or lint a copy.
@@ -174,11 +184,15 @@ Minor operational decisions during maintenance — syncing a verified fix to the
 
 ## Notification design (user preference)
 
-Silence when up to date. `✓` on install (headline the Hermes version, name the updater version), `✗` on failure, `⚠` when checks fail 3 consecutively then once per 24 further failures. Telegram via `$TG_PROXY` — which may be empty on hosts that reach the API directly — with creds from `~/.hermes/.env`.
+Silence when up to date. `✓` on install (headline the Hermes version, name the updater version), `✗` on failure.
+
+`⚠` when checks fail 3 consecutively, then once per `AU_CHECK_ALERT_INTERVAL` seconds (default 86400). The timestamp is recorded only when the alert is delivered. The alert carries the consecutive count, the last successful installation (`unknown` until a proven install is recorded), and the bounded multiline real error.
+
+The real-failure (1st, then every 12th) and notify-failure (3/24) cadences are unchanged. Telegram via `$TG_PROXY` — which may be empty on hosts that reach the API directly — with creds from `~/.hermes/.env`.
 
 ## Receipt field contract
 
-Field meanings, the freshness gate, the classification table, the counter covenant, and marker discharge rules live in `references/receipt-field-contract.md`; the sealed-fixture recipe for the gateway-confirmation path is in `references/health-fixture-recipe.md`; the pack-extract-verify recipe for release bundles is in `references/bundle-verification-recipe.md`. `verify/` is the executable form of this contract. Companion probes: `scripts/marker_lifecycle_sweep.sh`, `scripts/counter_sanity.sh`, `scripts/schedule_delivery.sh`.
+Field meanings, the freshness gate, the classification table, the counter covenant, and marker discharge rules live in `references/receipt-field-contract.md`; the sealed-fixture recipe for the gateway-confirmation path is in `references/health-fixture-recipe.md`; the pack-extract-verify recipe for release bundles is in `references/bundle-verification-recipe.md`. `verify/` is the executable form of this contract. Companion probes: `scripts/marker_lifecycle_sweep.sh`, `scripts/counter_sanity.sh`, `scripts/schedule_delivery.sh`, `scripts/check_compat_sanity.py` (run as `python3 scripts/check_compat_sanity.py auto_update.sh`; part of the gate).
 
 ## Environment specifics (this machine)
 
