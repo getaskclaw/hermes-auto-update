@@ -51,6 +51,30 @@ scenario is added). What each scenario must hold:
 | S25 | install-phase call **wedged** (ignores TERM) | bounded: exit 1 promptly, logged + alerted, `drain_pending` left set |
 | S26 | check-phase call **wedged** | bounded: a transient check failure (counter path), no install attempted |
 
+## Issue #1 acceptance points → the test that carries each
+
+The stable-channel / alerting behaviour of issue #1 is asserted in
+`scripts/check_compat_sanity.py` (a fake clock, per-scenario fake HOME, the same stub-first rule
+as this harness), not in `stub_matrix.sh`. `scripts/release_gate.sh` runs both (step 2 = matrix,
+step 3b = compat probe) and neuters each guard in step 4.
+
+| acceptance point | test (`scripts/check_compat_sanity.py` unless noted) | gate teeth (step 4) |
+|---|---|---|
+| 6 stable shapes + main shapes classified right (incl. retired line, cleanup lines, CRLF, older ☤, a real `--check` capture) | `StrictVerdicts.test_upstream_shapes_classify`, `Verdicts.*` | `anchor`, `unknownline` |
+| error / near-miss / mixed / unknown-line output never "no update", never install | `StrictVerdicts.test_error_and_unknown_shapes_fail_closed`, `StrictVerdicts.test_unknown_three_times_alerts_with_offending_line`, `Banners.*`, `Hardening.*` | `anchor`, `unknownline`, `errorword` |
+| `--yes` no-op vetoed by ✗ / error words / conflicting verdict → real failure | `YesNoopVeto.*` | `noopveto`, `errorword` |
+| every legitimate no-op resets `consec_real_fails` (old failure → no-op → new failure alerts at once) | `NoopResetsRealFails.*`; matrix S22 | `noopreset` |
+| exit≠0 multi-line output: the alert carries the real ✗ / error line, even after line 9 | `AlertSummary.*`, `Summary.*` | `summarypriority` |
+| check alerts by wall clock (first at 3rd, daily cadence, undelivered retries) | `Cadence.*` | `alertstamp` |
+| real-failure re-alert by wall clock (daily schedule: re-alert after 3–4 days) | `RealFailureCadence.*`; matrix S4/S25 (dedup) | `realclock` |
+| notify-failure dead letter by wall clock | `NotifyFailureCadence.*`; matrix S8/S17/S21 | — |
+| checkout-newer reminder: low frequency, never installs, never a check failure | `RollbackReminder.*`, `Verdicts.test_rollback_never_installs_and_notifies_once` | `remindclock` |
+| corrupted / empty / future timestamps and garbage knobs: no crash, no permanent silence | `Cadence.test_garbage_overflow_future_timestamps_alert_and_self_heal`, `RealFailureCadence.test_corrupt_or_future_stamp_alerts_and_self_heals`, `RealFailureCadence.test_knob_override_and_garbage`, `RollbackReminder.test_undelivered_reminder_retries_and_corrupt_stamp_self_heals`; counters: `scripts/counter_sanity.sh` | `sanitizer`, `clamporder` (counters) |
+| version from both completion-line formats | `Verdicts.test_stable_available_installs_to_arrow_destination`, `Verdicts.test_legacy_available_installs_with_legacy_completion` | — |
+| receipt binding: production `pre_update`/`post_update` schema, legacy checkout proof both ways, foreign correlation id, uncorrelated exit/drain | `ReceiptBinding.*`, `RealMovement.*`, `Receipts.*`, `Hardening.test_legacy_fresh_success_without_completion_or_movement_not_marked` | `checkoutproof` |
+| no install without `AU_APPLY=1` | `Banners.test_noisy_available_is_report_only_without_apply`; matrix S23/S24/S24b | `applygate` |
+| existing behaviour (drain marker, kill mid-poll, wedges, bare env) | matrix S1–S26; `scripts/marker_lifecycle_sweep.sh` | — |
+
 ## Teeth
 
 Every fix carries a destructive check: neuter the branch it guards, re-run the matrix, and

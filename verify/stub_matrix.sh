@@ -57,8 +57,8 @@ check "exit"   0 "$(run)"
 check "notify" 1 "$(notifies)"
 
 echo "S4  pull-stage failure with a STALE success receipt, x3 -> alert on the 1st, then deduped"
-echo "      (the invariant is 'not one alert per tick'; the exact cadence is 1+12th"
-echo "       here, so 3 ticks give 1 alert - a 1+3rd cadence gives 2)"
+echo "      (the invariant is 'not one alert per tick'; since v5.15 the re-alert is wall clock"
+echo "       (AU_REALERT_SECS), so 3 back-to-back ticks give 1 alert - a 1+3rd cadence gives 2)"
 reset_home; echo fail > "$ROOT/mode"
 python3 -c "import json;json.dump({'finished_at':'2026-09-01T00:00:00+00:00','outcome':'success'},open('$ROOT/home/.hermes/logs/update_receipts/latest.json','w'))"
 for _ in 1 2 3; do run >/dev/null; done

@@ -120,7 +120,7 @@ EDITS = {
     # B300: whole-line anchoring of the no-update sentences (prefix match instead)
     "anchor": ('|✓ Already up to date\\.)\\$"', '|✓ Already up to date\\.)"'),
     # B300: an unrecognized non-empty line no longer makes the output unknown
-    "unknownline": ("            error|unknown) bad=1 ;;\n", "            error) bad=1 ;;\n"),
+    "unknownline": ("            error|unknown) bad=1 ;;\n", "            error) bad=1 ;;\n            unknown) ;;\n"),
     # B300/B301: the error / failed / timed out word veto removed
     "errorword": ('    case "${l,,}" in *error*|*failed*|*"timed out"*) return 0 ;; esac\n', ""),
     # B301: --yes no-op accepted without the veto
