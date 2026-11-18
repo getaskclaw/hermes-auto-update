@@ -77,7 +77,8 @@ exec "@DATE@" "$@"
 '''
 
 BANNER = "→ Update channel: stable\n"
-STABLE_AVAIL = BANNER + "⬆ Selected release available: v1.3.0 (current v1.2.3)\n"
+# Exact upstream shape (update_cmd_check.py:123; label per source_releases.py:61-65).
+STABLE_AVAIL = BANNER + "→ Selected release available: stable v1.3.0 (abc1234def56)\n"
 LEGACY_AVAIL = "⚕ Update available: 3 commits behind origin/main.\n  Run 'hermes update' to install.\n"
 DONE_NEW = "→ Fetching v1.3.0\n✓ Update complete! (v1.2.3 → v1.3.0) [detached @ abc1234]\n"
 DONE_OLD = "✓ Update complete! (v9.9.9)\n"
@@ -235,8 +236,8 @@ class T(unittest.TestCase):
 
 class Verdicts(T):
     def test_stable_and_legacy_uptodate(self):
-        for out in (BANNER + "✓ Up to date with the latest release (v1.2.3)\n",
-                    BANNER + "→ No newer release than v1.2.3\n", NOOP):
+        for out in (BANNER + "✓ Up to date with the latest release (stable v1.2.3 (abc1234def56)).\n",
+                    BANNER + "✓ No newer release: stable v1.2.3 (abc1234def56).\n", NOOP):
             with self.subTest(out=out):
                 b = self.box()
                 b.scenario(out, yes=DONE_NEW, receipt=GOOD)
@@ -266,7 +267,8 @@ class Verdicts(T):
 
     def test_held_is_benign(self):
         b = self.box()
-        b.scenario(BANNER + "→ Holding at this build (v1.2.3, channel pinned)\n", yes=DONE_NEW, receipt=GOOD)
+        b.scenario(BANNER + "→ Holding at this build: stable v1.2.3 (abc1234def56) predates the gateway"
+                   " runtime your sessions use.\n", yes=DONE_NEW, receipt=GOOD)
         p = b.run(apply="1")
         self.assertEqual(p.returncode, 0, b.log())
         self.assertFalse(b.yes_called())
@@ -276,7 +278,8 @@ class Verdicts(T):
 
     def test_rollback_never_installs_and_notifies_once(self):
         b = self.box()
-        b.scenario(BANNER + "→ This checkout is newer than the selected release (v1.3.0)\n", yes=DONE_NEW, receipt=GOOD)
+        b.scenario(BANNER + "→ This checkout is newer than the selected release: stable v1.3.0 (abc1234def56).\n",
+                   yes=DONE_NEW, receipt=GOOD)
         for _ in range(2):
             self.assertEqual(b.run(apply="1").returncode, 0, b.log())
         self.assertFalse(b.yes_called())
@@ -302,20 +305,32 @@ class Banners(T):
         self.assertEqual(b.st("consec_check_fails"), "1")
 
     def test_conflicting_verdicts_fail_closed(self):
-        b, _ = self.refused("✓ Up to date with the latest release\n⬆ Selected release available: v1.3.0\n")
+        b, _ = self.refused("✓ Up to date with the latest release (stable v1.2.3 (abc1234def56)).\n"
+                            "→ Selected release available: stable v1.3.0 (abc1234def56)\n")
         self.assertEqual(b.st("consec_check_fails"), "1")
 
     def test_error_line_beside_available_fails_closed(self):
-        b, _ = self.refused("⬆ Selected release available: v1.3.0\n✗ signature verification failed\n")
+        b, _ = self.refused("→ Selected release available: stable v1.3.0 (abc1234def56)\n✗ signature verification failed\n")
         self.assertEqual(b.st("consec_check_fails"), "1")
 
     def test_nonzero_check_fails_closed_despite_available_text(self):
-        b, _ = self.refused("⬆ Selected release available: v1.3.0\n✗ fetch failed: HTTP 429\n", rc=1)
+        b, _ = self.refused("→ Selected release available: stable v1.3.0 (abc1234def56)\n✗ fetch failed: HTTP 429\n", rc=1)
         self.assertEqual(b.st("consec_check_fails"), "1")
         self.assertIn("check failed (exit 1)", b.log())
 
-    NOISY = (BANNER + "\nDEBUG: fetched tags in 0.2s\n   ⬆  Selected release available: v1.3.0\r\n"
+    # Noise that upstream really prints around a verdict: blank line, a `  (…)` cleanup line
+    # (update_cmd_check.py:49), indentation, CRLF, a hint line.
+    NOISY = (BANNER + "\n  (removed stale git lock: .git/shallow.lock)\n"
+             "   → Selected release available: stable v1.3.0 (abc1234def56)\r\n"
              "  Run 'hermes update' to install.\n")
+    # The pre-5.15 NOISY input: an unrecognized line beside the verdict is unknown since v5.15.
+    NOISY_UNKNOWN = (BANNER + "\nDEBUG: fetched tags in 0.2s\n"
+                     "   → Selected release available: stable v1.3.0 (abc1234def56)\r\n"
+                     "  Run 'hermes update' to install.\n")
+
+    def test_noisy_with_unrecognized_line_fails_closed(self):
+        b, _ = self.refused(self.NOISY_UNKNOWN)
+        self.assertEqual(b.st("consec_check_fails"), "1")
 
     def test_noisy_available_is_report_only_without_apply(self):
         for apply in (None, "0", "yes", "true"):
@@ -487,7 +502,7 @@ class Receipts(T):
 
 
 class Hardening(T):
-    AV = "⬆ Selected release available: v1.3.0\n"
+    AV = "→ Selected release available: stable v1.3.0 (abc1234def56)\n"
 
     def go(self, check, **kw):
         b = self.box()
