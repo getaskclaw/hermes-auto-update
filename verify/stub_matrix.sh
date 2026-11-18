@@ -4,7 +4,7 @@
 #
 # Usage:  bash stub_matrix.sh          (after stub_setup.sh, uses HARNESS_ROOT)
 set -u
-ROOT="${HARNESS_ROOT:-/tmp/au-harness}"
+ROOT="${HARNESS_ROOT:-${TMPDIR:-/tmp}/au-harness}"   # same default as stub_setup.sh
 AU="$ROOT/au.sh"
 test -x "$AU" || { echo "run stub_setup.sh first" >&2; exit 1; }
 ST="$ROOT/home/.hermes/state/auto_update"

@@ -2,7 +2,7 @@
 # Release gate: run the pre-publish recipe against THIS directory and fail loudly on anything
 # that would break for the recipient. Run it from an EXTRACTED copy of the bundle:
 #
-#   cd /tmp/bundle_check/x && bash scripts/release_gate.sh
+#   cd "$(mktemp -d)" && <extract the bundle> && bash scripts/release_gate.sh
 #
 # Why this exists: the recipe in references/bundle-verification-recipe.md was written after a
 # release shipped probes that could not run (bad paths, then a missing AU_APPLY=1 opt-in).
@@ -19,6 +19,11 @@ step() { printf '\n== %s\n' "$1"; }
 # a fixed /tmp path (predictable, shared, world-writable). Removed on exit.
 GATE_TMP=$(mktemp -d "${TMPDIR:-/tmp}/release_gate.XXXXXX") || { echo "cannot create gate scratch dir"; exit 1; }
 trap 'rm -rf -- "$GATE_TMP"' EXIT
+# The stub harness root, shared by the matrix and every probe below (each self-seeds it). An
+# explicit HARNESS_ROOT wins; otherwise it lives in the private gate scratch, never a fixed /tmp
+# path, and is exported so no probe falls back to its own default.
+if [ -z "${HARNESS_ROOT:-}" ]; then HARNESS_ROOT="$GATE_TMP/au-harness"; fi
+export HARNESS_ROOT
 
 step "1/4 doc pointers resolve to real files"
 python3 - <<'PY' || FAIL=1
@@ -67,7 +72,7 @@ sys.exit(1 if missing else 0)
 PY
 
 step "2/4 hermetic matrix"
-if ( cd verify && rm -rf "${HARNESS_ROOT:-/tmp/au-harness}" \
+if ( cd verify && rm -rf "$HARNESS_ROOT" \
      && bash stub_setup.sh ../auto_update.sh >/dev/null \
      && bash stub_matrix.sh > "$GATE_TMP/matrix.out" 2>&1 ); then
     tail -1 "$GATE_TMP/matrix.out"
@@ -123,6 +128,16 @@ EDITS = {
     "unknownline": ("            error|unknown) bad=1 ;;\n", "            error) bad=1 ;;\n            unknown) ;;\n"),
     # B300/B301: the error / failed / timed out word veto removed
     "errorword": ('    case "${l,,}" in *error*|*failed*|*"timed out"*) return 0 ;; esac\n', ""),
+    # B500: --yes no-op accepted on the broad no-op SHAPE again (pre-PATCH2 prefix acceptance)
+    "noopstrict": ('        if [[ $t =~ $V_YES_NOOP ]]; then seen=1; continue; fi\n',
+                   '        if [[ $line =~ $RE_NOOP ]]; then seen=1; continue; fi\n'),
+    # B500: an unrecognized column-0 conclusion line next to a no-op no longer vetoes it
+    "conclusionline": ('        if [ "$CL" = unknown ] && [[ $line =~ ^(✓|→|⚕|☤) ]] && ! [[ $t =~ $V_YES_LOG ]]; then\n',
+                       '        if false; then\n'),
+    # B501/B600: the daily check re-alert default back to a zero-margin 86400
+    "checkinterval": ('"${AU_CHECK_ALERT_INTERVAL-}" 82800)', '"${AU_CHECK_ALERT_INTERVAL-}" 86400)'),
+    # B601: "No newer release" accepts the short label again
+    "noneweraheadonly": ('✓ No newer release: $_V_LBL_AHEAD\\.|', '✓ No newer release: ($_V_LBL|$_V_LBL_AHEAD)\\.|'),
     # B301: --yes no-op accepted without the veto
     "noopveto": ('            if VETO=$(yes_noop_veto "$UPDATE_OUT"); then\n',
                  '            if false; then VETO=\n'),
@@ -182,6 +197,10 @@ neuter_and_run anchor "B300 no-update sentence matched as a prefix -> StrictVerd
 neuter_and_run unknownline "B300 unknown line ignored -> StrictVerdicts must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed
 neuter_and_run errorword "B300/B301 error-word veto removed -> StrictVerdicts + YesNoopVeto must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed YesNoopVeto.test_vetoed_noop_is_a_real_failure
 neuter_and_run noopveto "B301 --yes no-op veto removed -> YesNoopVeto must FAIL" "$PY_PROBE" YesNoopVeto
+neuter_and_run noopstrict "B500 --yes no-op accepted on a no-op-shaped prefix -> YesNoopStrict must FAIL" "$PY_PROBE" YesNoopStrict.test_r3a_noop_prefix_cases_fail_closed
+neuter_and_run conclusionline "B500 unrecognized column-0 conclusion line ignored -> YesNoopStrict must FAIL" "$PY_PROBE" YesNoopStrict.test_other_noop_shaped_and_unknown_conclusion_lines_fail_closed
+neuter_and_run checkinterval "B501 zero-margin daily check re-alert -> Cadence jitter must FAIL" "$PY_PROBE" Cadence.test_daily_ticks_with_start_jitter_alert_every_day
+neuter_and_run noneweraheadonly "B601 short label after No newer release -> StrictVerdicts must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed
 neuter_and_run noopreset "B306 --yes no-op keeps the real-failure streak -> NoopResetsRealFails must FAIL" "$PY_PROBE" NoopResetsRealFails.test_yes_noop_missing_receipt
 neuter_and_run realclock "B303 real failure re-alert by count/never -> RealFailureCadence must FAIL" "$PY_PROBE" RealFailureCadence
 neuter_and_run remindclock "B304 rollback reminder one-shot -> RollbackReminder must FAIL" "$PY_PROBE" RollbackReminder.test_weekly_reminder_never_installs

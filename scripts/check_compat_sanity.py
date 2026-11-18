@@ -26,6 +26,7 @@ BASH = shutil.which("bash") or "/bin/bash"
 REAL_DATE = shutil.which("date") or "/bin/date"
 T0 = 1800000000
 DAY = 86400
+CHECK_INTERVAL = DAY - 3600   # AU_CHECK_ALERT_INTERVAL default since PATCH2 (B501/B600)
 
 HERMES = r'''#!@PY@ -I
 import datetime, json, os, sys
@@ -82,7 +83,7 @@ STABLE_AVAIL = BANNER + "→ Selected release available: stable v1.3.0 (abc1234d
 LEGACY_AVAIL = "⚕ Update available: 3 commits behind origin/main.\n  Run 'hermes update' to install.\n"
 DONE_NEW = "→ Fetching v1.3.0\n✓ Update complete! (v1.2.3 → v1.3.0) [detached @ abc1234]\n"
 DONE_OLD = "✓ Update complete! (v9.9.9)\n"
-NOOP = "✓ Already up to date.\n"
+NOOP = "✓ Already up to date.\n"   # --check sentence ONLY (update_cmd_check.py:200/:208/:222)
 GOOD = {"kind": "update", "outcome": "success",
         "pre_update": {"short_sha": "aaaaaaaa"}, "post_update": {"short_sha": "bbbbbbbb"}}
 CHECK_FAIL = "✗ fetch failed: HTTP 429\n"
@@ -103,7 +104,83 @@ UP_ROLLBACK = (BANNER + "→ This checkout is newer than the selected release: %
 # Verbatim capture of a real `hermes update --check` (stable channel, v0.23.2 available).
 REAL_CHECK = ("→ Update channel: stable\n→ Selected release available: stable v0.23.2 (ae2a81ccc00e)\n"
               "  Run `hermes update` to install it.\n")
-YES_NOOP = "✓ Already up to date!\n"      # update_cmd.py:1726 (--yes completion message)
+# --yes no-op conclusions, exactly as upstream prints them (update_cmd.py:1730/:1731/:1915 at
+# origin/main 67e4d22; :1726/:1727/:1911 in v0.23.1), optional " [<branch> @ <sha>]" suffix from
+# _print_update_completion (update_cmd_maint.py:304-311, update_cmd_git.py:172-175).
+YES_NOOP = "✓ Already up to date!\n"
+YES_HELD = "✓ Holding at this build until a newer stable release ships.\n"
+YES_FORK = "✓ Up to date with your fork (official repo not checked). [main @ 1a2b3c4]\n"
+# A complete no-op `hermes update --yes` run, line by line in upstream print order (origin/main):
+#   update_cmd.py:1810-1811 banner; update_cmd_maint.py:708/:737-740 pre-update backup;
+#   update_cmd_check.py:252 channel, :267 "Latest release"; update_cmd.py:1893 fetch;
+#   commit_count == 0 -> _finish_already_up_to_date -> completion tail: update_cmd_maint.py:1022
+#   history, :1030 model catalog, :1047-1049 skills (+ :516), update_cmd_config.py:180-181/:256
+#   config, :1062-1063 conclusion line; then the fleet restart, update_cmd_fleet.py:1627-1629.
+REAL_YES_NOOP = (
+    "☤ Updating Hermes Agent...\n\n"
+    "◆ Creating pre-update backup...\n"
+    "  Saved:    ~/hermes-backups/pre-update-20261118.zip (12.0 MB, 1.2s)\n"
+    "  Restore:  hermes import ~/hermes-backups/pre-update-20261118.zip\n"
+    "  Disable:  set updates.pre_update_backup: quick (or off) in config.yaml\n\n"
+    "→ Update channel: stable\n"
+    "→ Latest release: stable v0.23.2 (ae2a81ccc00e)\n"
+    "→ Fetching updates...\n"
+    "  ✓ Fetched release history (commits only) for version identity\n"
+    "  ✓ Model catalog cache refreshed from checkout\n\n"
+    "→ Syncing bundled skills...\n"
+    "  ✓ Skills are up to date\n\n"
+    "→ Checking configuration for new options...\n"
+    "  ✓ Configuration is up to date\n\n"
+    "✓ Already up to date! [detached @ ae2a81c]\n\n"
+    "  ✓ Restarted hermes-gateway.service\n")
+# The held no-op: hold_channel_release_behind_runtime (update_cmd_check.py:323-326) then the
+# held_message conclusion (update_cmd.py:1915), same tail.
+REAL_YES_HELD = (
+    "☤ Updating Hermes Agent...\n\n"
+    "→ Update channel: stable\n"
+    "→ Latest release: stable v0.23.1 (ae2a81ccc00e)\n"
+    "→ Fetching updates...\n"
+    "→ This build is newer than the stable release ae2a81ccc00e: that release predates the gateway"
+    " runtime your sessions use, so there is nothing to update to yet.\n"
+    "  Hermes stays on 67e4d22d83b2 until a newer stable release ships. To follow every commit"
+    " instead: `hermes update --set-channel main`.\n\n"
+    "→ Syncing bundled skills...\n"
+    "  ✓ Skills are up to date\n\n"
+    "→ Checking configuration for new options...\n"
+    "  ✓ Configuration is up to date\n\n"
+    "✓ Holding at this build until a newer stable release ships. [detached @ 67e4d22]\n")
+# The forward-only "ahead" default subscription (update_cmd_check.py:267 "Release: <ahead label>";
+# no fetch, update_cmd.py:1880-1882), conclusion on a fork (update_cmd.py:1731).
+REAL_YES_FORK = (
+    "☤ Updating Hermes Agent...\n\n"
+    "→ Update channel: stable\n"
+    "→ Release: stable v0.23.2; this checkout is newer and waits for the next release"
+    " (`hermes update --set-channel main` follows every commit)\n"
+    "→ Adding upstream remote...\n"
+    "  ✓ Added upstream: https://github.com/NousResearch/hermes-agent.git\n\n"
+    "→ Fetching upstream...\n"
+    "  ✓ Fork is up to date with upstream\n\n"
+    "→ Syncing bundled skills...\n"
+    "  ✓ Skills are up to date\n\n"
+    "✓ Up to date with your fork (official repo not checked). [main @ 1a2b3c4]\n")
+# A real INSTALL run in upstream print order: update_cmd.py:1893 fetch, :1931 switch, :1940 pull,
+# update_completion.py:427 announce "\n✓ Code updated!", the completion tail, and
+# _update_complete_message (update_cmd_maint.py:356) + suffix.
+REAL_YES_INSTALL = (
+    "☤ Updating Hermes Agent...\n\n"
+    "→ Update channel: stable\n"
+    "→ Latest release: stable v0.23.2 (ae2a81ccc00e)\n"
+    "→ Fetching updates...\n"
+    "→ Switching to source commit ae2a81ccc0\n"
+    "→ Pulling updates...\n\n"
+    "✓ Code updated!\n"
+    "  ✓ Fetched release history (commits only) for version identity\n\n"
+    "→ Syncing bundled skills...\n"
+    "  ↑ 2 updated: github-pr-workflow, plan\n\n"
+    "→ Checking configuration for new options...\n"
+    "  ✓ Configuration is up to date\n\n"
+    "✓ Update complete! (v0.23.1 → v0.23.2) [detached @ ae2a81c]\n\n"
+    "  ✓ Restarted hermes-gateway.service\n")
 YES_FAIL = "✗ dependency install failed\n"
 REALERT_DEFAULT = 3 * DAY - 3600         # AU_REALERT_SECS default
 REMIND_DEFAULT = 7 * DAY - 3600          # AU_ROLLBACK_REMIND_SECS default
@@ -236,8 +313,11 @@ class T(unittest.TestCase):
 
 class Verdicts(T):
     def test_stable_and_legacy_uptodate(self):
+        # "No newer release" is printed only when target.ahead (update_cmd_check.py:109-110), whose
+        # label is always the long form (source_releases.py:62-64).
         for out in (BANNER + "✓ Up to date with the latest release (stable v1.2.3 (abc1234def56)).\n",
-                    BANNER + "✓ No newer release: stable v1.2.3 (abc1234def56).\n", NOOP):
+                    BANNER + "✓ No newer release: stable v1.2.3; this checkout is newer and waits for the"
+                    " next release (`hermes update --set-channel main` follows every commit).\n", NOOP):
             with self.subTest(out=out):
                 b = self.box()
                 b.scenario(out, yes=DONE_NEW, receipt=GOOD)
@@ -319,14 +399,26 @@ class Banners(T):
         self.assertIn("check failed (exit 1)", b.log())
 
     # Noise that upstream really prints around a verdict: blank line, a `  (…)` cleanup line
-    # (update_cmd_check.py:49), indentation, CRLF, a hint line.
+    # (update_cmd_check.py:49), indentation, CRLF, and the stable hint line (:124). Indentation and
+    # CRLF are normalization tests, not a verbatim capture.
     NOISY = (BANNER + "\n  (removed stale git lock: .git/shallow.lock)\n"
              "   → Selected release available: stable v1.3.0 (abc1234def56)\r\n"
-             "  Run 'hermes update' to install.\n")
+             "  Run `hermes update` to install it.\n")
+    # The same noise around the main-channel verdict with ITS hint (update_cmd_check.py:212/:215,
+    # "  Run '{recommended_update_command()}' to install.").
+    NOISY_MAIN = ("\n  (removed stale git lock: .git/shallow.lock)\n"
+                  "   ⚕ Update available: 3 commits behind origin/main.\r\n"
+                  "  Run 'hermes update' to install.\n")
     # The pre-5.15 NOISY input: an unrecognized line beside the verdict is unknown since v5.15.
     NOISY_UNKNOWN = (BANNER + "\nDEBUG: fetched tags in 0.2s\n"
                      "   → Selected release available: stable v1.3.0 (abc1234def56)\r\n"
-                     "  Run 'hermes update' to install.\n")
+                     "  Run `hermes update` to install it.\n")
+
+    def test_noisy_main_available_installs_with_apply(self):
+        b = self.box()
+        b.scenario(self.NOISY_MAIN, yes=DONE_OLD, receipt={"outcome": "success"})
+        self.assertEqual(b.run(apply="1").returncode, 0, b.log())
+        self.assertTrue(b.yes_called())
 
     def test_noisy_with_unrecognized_line_fails_closed(self):
         b, _ = self.refused(self.NOISY_UNKNOWN)
@@ -360,11 +452,36 @@ class Cadence(T):
         first = T0 + 7200
         self.assertIn("(3 consecutive)", b.alerts()[0])
         self.assertEqual(b.st("check_alert_last_ts"), str(first))
-        for now, want in ((first + 3600, 1), (first + DAY - 1, 1), (first + DAY, 2),
-                          (first + DAY + 3600, 2), (first + 2 * DAY - 1, 2), (first + 2 * DAY, 3)):
+        # PATCH2 (B501/B600, orchestrator ruling in ADJUDICATION-MAIN.md): the 7d2f640 assertion
+        # "first + DAY - 1 is still suppressed" encoded exactly the defect being fixed: with a
+        # zero-margin 86400 default, a daily tick that starts 1s early (cross-second start jitter)
+        # or 1h early (local-time cron across DST) is suppressed and the reminder slips a day. The
+        # default is now CHECK_INTERVAL = 86400 - 3600; these are the same assertions at that
+        # boundary: CHECK_INTERVAL - 1 suppressed, CHECK_INTERVAL alerts.
+        for now, want in ((first + 3600, 1), (first + CHECK_INTERVAL - 1, 1), (first + CHECK_INTERVAL, 2),
+                          (first + CHECK_INTERVAL + 3600, 2), (first + 2 * CHECK_INTERVAL - 1, 2),
+                          (first + 2 * CHECK_INTERVAL, 3)):
             b.run(now=now)
             self.assertEqual(len(b.alerts()), want, "at +%ds" % (now - first))
-        self.assertEqual(b.st("check_alert_last_ts"), str(first + 2 * DAY))
+        self.assertEqual(b.st("check_alert_last_ts"), str(first + 2 * CHECK_INTERVAL))
+
+    def test_daily_ticks_with_start_jitter_alert_every_day(self):
+        # r3A check-start-jitter-daily-alert: the first tick starts 1s late, the next ones on time
+        # (86399s apart). Every daily tick of a persisting failure must alert.
+        b = self.failing()
+        b.seed("consec_check_fails", "2")
+        for i, now in enumerate((T0 + 1, T0 + DAY, T0 + 2 * DAY)):
+            self.assertEqual(b.run(now=now).returncode, 0, b.log())
+            self.assertEqual(len(b.alerts()), i + 1, "daily tick %d (+%ds)\n%s" % (i + 1, now - T0, b.log()))
+        self.assertEqual(b.st("check_alert_last_ts"), str(T0 + 2 * DAY))
+
+    def test_dst_short_day_still_alerts(self):
+        # A local-time daily cron across the spring DST change: two ticks 23h (82800s) apart.
+        b = self.failing()
+        b.seed("consec_check_fails", "2")
+        b.run(now=T0)
+        b.run(now=T0 + 82800)
+        self.assertEqual(len(b.alerts()), 2, b.log())
 
     def test_failed_and_unknown_share_one_counter(self):
         b = self.failing()
@@ -469,8 +586,11 @@ class Receipts(T):
 
     def test_noop_without_fresh_receipt_is_silent_and_unmarked(self):
         # Intentional conservative behaviour: nothing proven installed, nothing claimed.
+        # PATCH2 (B500): the --yes inputs are upstream's own --yes no-op sentences. The 7d2f640
+        # inputs ("✓ Already up to date." = the --check sentence, "→ Holding at this build (v1.2.3)"
+        # = never printed) are not --yes conclusions and are now vetoed: see YesNoopStrict.
         for label, rc, old in self.cases():
-            for out in (NOOP, "→ Holding at this build (v1.2.3)\n"):
+            for out in (YES_NOOP, YES_HELD):
                 with self.subTest(receipt=label, out=out):
                     b = self.box()
                     if old:
@@ -559,7 +679,7 @@ class Hardening(T):
         b = self.box()
         b.old_receipt(dict(GOOD, finished_at=time.strftime("%Y-%m-%dT%H:%M:%S+00:00",
                                                            time.gmtime(time.time() - 30))))
-        b.scenario(STABLE_AVAIL, yes=NOOP)
+        b.scenario(STABLE_AVAIL, yes=YES_NOOP)   # PATCH2 (B500): upstream --yes sentence, was NOOP
         b.run(apply="1")
         self.assertTrue(b.yes_called())
         self.no_success(b)
@@ -667,7 +787,6 @@ class RealMovement(T):
 class StrictVerdicts(T):
     """B300: whole-line upstream verdicts; any error word / unknown line -> unknown (fail closed)."""
     POSITIVE = (
-        ("stable-no-newer", BANNER + "✓ No newer release: %s.\n" % LBL, "uptodate"),
         ("stable-no-newer-ahead", BANNER + "✓ No newer release: %s.\n" % AHEAD_LBL, "uptodate"),
         ("stable-latest", BANNER + "✓ Up to date with the latest release (%s).\n" % LBL, "uptodate"),
         ("stable-held", UP_HELD, "held"),
@@ -700,7 +819,7 @@ class StrictVerdicts(T):
         ("available-paren-error", "⚕ Update available (error: compare API unreachable).\n"),
         # unknown line next to a valid verdict, any case of the veto words, glyph-less / wrong glyph
         ("unknown-line-beside-available", UP_AVAIL + "DEBUG: fetched tags in 0.2s\n"),
-        ("upper-case-failed", BANNER + "✓ No newer release: %s.\nFETCH FAILED (cached verdict)\n" % LBL),
+        ("upper-case-failed", BANNER + "✓ No newer release: %s.\nFETCH FAILED (cached verdict)\n" % AHEAD_LBL),
         ("timed-out-word", "✓ Already up to date.\n  (git cleanup timed out)\n"),
         # a context-shaped line still carries the veto words (only the word veto catches this)
         ("context-line-failed", "  (removed stale git lock: .git/index.lock; removal failed)\n✓ Already up to date.\n"),
@@ -710,8 +829,11 @@ class StrictVerdicts(T):
         ("wrong-glyph", BANNER + "⬆ Selected release available: %s\n" % LBL),
         ("label-shape", BANNER + "→ Selected release available: soon, maybe\n"),
         ("sentence-tail", BANNER + "→ Holding at this build: %s (channel pinned)\n" % LBL),
-        ("two-verdicts", BANNER + "✓ No newer release: %s.\n→ Selected release available: %s\n" % (LBL, LBL)),
+        ("two-verdicts", BANNER + "✓ No newer release: %s.\n→ Selected release available: %s\n" % (AHEAD_LBL, LBL)),
         ("banner-only", BANNER),
+        # B601: "No newer release" is printed only with the ahead label (update_cmd_check.py:109-110,
+        # source_releases.py:62-64); the short label never follows it.
+        ("no-newer-short-label", BANNER + "✓ No newer release: %s.\n" % LBL),
     )
 
     def run_check(self, out, rc=0):
@@ -765,10 +887,10 @@ class StrictVerdicts(T):
 class YesNoopVeto(T):
     """B301: a --yes no-op line is accepted only if nothing else in the output contradicts it."""
     VETOED = (
-        ("noop-plus-error", NOOP + "✗ dependency repair failed\n", None),
+        ("noop-plus-error", YES_NOOP + "✗ dependency repair failed\n", None),
         ("hold-plus-error", "✓ Holding at this build until a newer stable release ships.\n✗ checkout repair failed\n", None),
-        ("noop-plus-conflict", NOOP + "→ Selected release available: stable v0.23.1\n", None),
-        ("foreign-noop-plus-error", NOOP + "✗ repair failed\n", {"kind": "plugin-check", "outcome": "failed"}),
+        ("noop-plus-conflict", YES_NOOP + "→ Selected release available: stable v0.23.1\n", None),
+        ("foreign-noop-plus-error", YES_NOOP + "✗ repair failed\n", {"kind": "plugin-check", "outcome": "failed"}),
         ("noop-plus-error-word", YES_NOOP + "  warning: fleet restart timed out\n", None),
         ("noop-plus-rollback", YES_NOOP + "→ This checkout is newer than the selected release: %s.\n" % LBL, None),
     )
@@ -791,7 +913,7 @@ class YesNoopVeto(T):
 
     def test_vetoed_noop_alerts_at_once_on_a_fresh_streak(self):
         b = self.box()
-        b.scenario(UP_AVAIL, yes=NOOP + "✗ dependency repair failed\n")
+        b.scenario(UP_AVAIL, yes=YES_NOOP + "✗ dependency repair failed\n")
         p = b.run(apply="1", now=T0)
         self.assertEqual(p.returncode, 1, b.log())
         t = b.texts()
@@ -801,7 +923,7 @@ class YesNoopVeto(T):
         self.assertIn("dependency repair failed", t[0])
 
     def test_clean_noop_shapes_still_accepted(self):
-        for out in (YES_NOOP, NOOP, "✓ Holding at this build until a newer stable release ships.\n",
+        for out in (YES_NOOP, YES_HELD, YES_FORK, "✓ Already up to date! [detached @ ae2a81c]\n",
                     "→ Update channel: stable\n  ✓ Configuration is up to date\n" + YES_NOOP):
             with self.subTest(out=out):
                 b = self.box()
@@ -811,6 +933,111 @@ class YesNoopVeto(T):
                 self.assertEqual(p.returncode, 0, b.log())
                 self.assertEqual(b.texts(), [])
                 self.assertIsNone(b.st("last_install_ts"))
+
+
+class YesNoopStrict(T):
+    """B500: a --yes no-op is accepted only on upstream's exact --yes sentence; any other no-op-shaped
+    line, or an unrecognized column-0 conclusion line, is a REAL FAILURE. Ordinary progress output
+    (indented step lines, whitelisted column-0 log lines) stays compatible."""
+    # r3A evidence-r3A/noop-prefix.py, verbatim inputs
+    R3A = (
+        ("question", "✓ Already up to date? Could not determine release status.\n"),
+        ("cached-suffix", "✓ Already up to date. (cached result from yesterday)\n"),
+        ("unverified-suffix", "✓ Already up to date. Cached verdict could not be verified.\n"),
+        ("holding-question", "→ Holding at this build? Channel status unavailable.\n"),
+    )
+    OTHER = (
+        # the --check sentence and the never-printed held shape (former 7d2f640 --yes inputs)
+        ("check-period-form", NOOP),
+        ("held-never-printed", "→ Holding at this build (v1.2.3)\n"),
+        ("check-no-newer", BANNER + "✓ No newer release: %s.\n" % AHEAD_LBL),
+        ("check-latest", BANNER + "✓ Up to date with the latest release (%s).\n" % LBL),
+        ("check-held", UP_HELD),
+        ("sentence-tail", "✓ Already up to date! (maybe)\n"),
+        ("indented-question-beside-real", YES_NOOP + "  ✓ Already up to date? cached\n"),
+        ("question-beside-real", REAL_YES_NOOP + "✓ Already up to date? Could not determine release status.\n"),
+        ("unknown-conclusion-arrow", REAL_YES_NOOP + "→ Release status could not be verified\n"),
+        ("unknown-conclusion-check", "✓ Release check skipped (offline)\n" + YES_NOOP),
+        ("unknown-conclusion-staff", "⚕ Channel status unavailable\n" + YES_NOOP),
+        ("movement-beside-noop", "→ Pulling updates...\n" + YES_NOOP),
+        ("code-updated-beside-noop", "\n✓ Code updated!\n" + YES_NOOP),
+    )
+
+    def vetoed(self, out, rec=None):
+        b = self.box()
+        b.seed("consec_real_fails", "8")      # old streak, never alerted on a stamp
+        b.scenario(UP_AVAIL, yes=out, receipt=rec)
+        p = b.run(apply="1", now=T0)
+        self.assertTrue(b.yes_called())
+        self.assertEqual(p.returncode, 1, b.log())
+        t = b.texts()
+        self.assertEqual(len(t), 1, b.log())
+        self.assertIn("vetoed", t[0])
+        self.assertEqual(b.st("consec_real_fails"), "9", b.log())
+        self.assertIsNone(b.st("last_install_ts"))
+        self.assertIn("no-op line vetoed", b.log())
+        self.assertNotIn("no-op: beaten", b.log())
+        return b, t
+
+    def test_r3a_noop_prefix_cases_fail_closed(self):
+        for name, out in self.R3A:
+            with self.subTest(name=name):
+                _, t = self.vetoed(out)
+                self.assertIn("not an upstream --yes sentence", t[0])
+                self.assertIn(out.strip()[:20], t[0])
+
+    def test_other_noop_shaped_and_unknown_conclusion_lines_fail_closed(self):
+        for name, out in self.OTHER:
+            with self.subTest(name=name):
+                self.vetoed(out)
+
+    def test_r3a_cases_fail_closed_with_stale_or_foreign_receipt(self):
+        for rec in ({"kind": "plugin-check", "outcome": "success"},
+                    dict(GOOD, finished_at="2020-01-01T00:00:00+00:00")):
+            for name, out in self.R3A:
+                with self.subTest(name=name, rec=rec.get("kind", "stale")):
+                    self.vetoed(out, rec)
+
+    def test_real_upstream_noop_runs_are_silent_and_reset(self):
+        for name, out in (("noop", REAL_YES_NOOP), ("noop-crlf", REAL_YES_NOOP.replace("\n", "\r\n")),
+                          ("held", REAL_YES_HELD), ("fork-ahead", REAL_YES_FORK),
+                          ("bare-legacy", YES_NOOP)):
+            with self.subTest(name=name):
+                b = self.box()
+                b.seed("consec_real_fails", "8")
+                b.seed("real_alert_last_ts", str(T0 - 100))
+                b.scenario(UP_AVAIL, yes=out)
+                p = b.run(apply="1", now=T0)
+                self.assertTrue(b.yes_called())
+                self.assertEqual(p.returncode, 0, b.log())
+                self.assertEqual(b.texts(), [])
+                self.assertEqual(b.st("consec_real_fails"), "0", b.log())
+                self.assertIsNone(b.st("real_alert_last_ts"))
+                self.assertIsNone(b.st("last_install_ts"))
+                self.assertIn("no-op: beaten", b.log())
+
+    def test_real_upstream_install_run_installs(self):
+        # Install output never goes through the no-op veto: its column-0 movement lines and the
+        # completion line are evidence, the receipt decides.
+        for name, rec in (("legacy-receipt", GOOD), ("correlated", None)):
+            with self.subTest(name=name):
+                b = self.box()
+                if rec is None:
+                    with open(b.stub_hermes) as f:
+                        s = f.read()
+                    a = '    d = dict(step["receipt"])\n'
+                    self.assertEqual(s.count(a), 1)
+                    with open(b.stub_hermes, "w") as f:
+                        f.write(s.replace(a, a + RealMovement.CORR, 1))
+                    rec = GOOD
+                b.scenario(UP_AVAIL, yes=REAL_YES_INSTALL, receipt=rec)
+                p = b.run(apply="1")   # real clock: the stub's receipt finished_at is "now"
+                self.assertEqual(p.returncode, 0, b.log())
+                self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$")
+                t = b.texts()
+                self.assertEqual(len(t), 1, t)
+                self.assertIn("updated to v0.23.2", t[0])
+                self.assertNotIn("vetoed", b.log())
 
 
 class NoopResetsRealFails(T):
@@ -841,14 +1068,14 @@ class NoopResetsRealFails(T):
     def test_yes_noop_stale_receipt(self):
         def s(b):
             b.old_receipt(dict(GOOD, finished_at="2020-01-01T00:00:00+00:00"))
-            b.scenario(UP_AVAIL, yes=NOOP)
+            b.scenario(UP_AVAIL, yes=YES_NOOP)
         self.sequence(s)
 
     def test_yes_noop_foreign_receipt(self):
         self.sequence(lambda b: b.scenario(UP_AVAIL, yes=YES_NOOP, receipt={"kind": "plugin-check", "outcome": "success"}))
 
     def test_check_time_uptodate_held_rollback(self):
-        for out in (BANNER + "✓ No newer release: %s.\n" % LBL, UP_HELD, UP_ROLLBACK):
+        for out in (BANNER + "✓ No newer release: %s.\n" % AHEAD_LBL, UP_HELD, UP_ROLLBACK):
             with self.subTest(out=out):
                 self.sequence(lambda b, o=out: b.scenario(o))
 
@@ -1027,7 +1254,7 @@ class RollbackReminder(T):
         b.run(apply="1", now=T0)
         self.assertEqual(len(b.texts()), 1, "pre-5.15 marker must not silence the reminder forever")
         self.assertIsNone(b.st("rollback_notified"))
-        b.scenario(BANNER + "✓ No newer release: %s.\n" % LBL)
+        b.scenario(BANNER + "✓ No newer release: %s.\n" % AHEAD_LBL)
         b.run(apply="1", now=T0 + DAY)
         self.assertIsNone(b.st("rollback_remind_ts"))
         b.scenario(UP_ROLLBACK)

@@ -60,12 +60,13 @@ step 3b = compat probe) and neuters each guard in step 4.
 
 | acceptance point | test (`scripts/check_compat_sanity.py` unless noted) | gate teeth (step 4) |
 |---|---|---|
-| 6 stable shapes + main shapes classified right (incl. retired line, cleanup lines, CRLF, older ☤, a real `--check` capture) | `StrictVerdicts.test_upstream_shapes_classify`, `Verdicts.*` | `anchor`, `unknownline` |
+| 6 stable shapes + main shapes classified right (incl. retired line, cleanup lines, CRLF, older ☤, a real `--check` capture); `No newer release` only with the ahead label | `StrictVerdicts.test_upstream_shapes_classify`, `Verdicts.*` | `anchor`, `unknownline`, `noneweraheadonly` |
 | error / near-miss / mixed / unknown-line output never "no update", never install | `StrictVerdicts.test_error_and_unknown_shapes_fail_closed`, `StrictVerdicts.test_unknown_three_times_alerts_with_offending_line`, `Banners.*`, `Hardening.*` | `anchor`, `unknownline`, `errorword` |
 | `--yes` no-op vetoed by ✗ / error words / conflicting verdict → real failure | `YesNoopVeto.*` | `noopveto`, `errorword` |
+| `--yes` no-op only on upstream's exact `--yes` sentence; other no-op-shaped lines and unrecognized column-0 conclusion lines → real failure; real upstream no-op runs (stable / held / fork-ahead / CRLF) stay silent + reset; a real upstream install run still installs | `YesNoopStrict.*` | `noopstrict`, `conclusionline` |
 | every legitimate no-op resets `consec_real_fails` (old failure → no-op → new failure alerts at once) | `NoopResetsRealFails.*`; matrix S22 | `noopreset` |
 | exit≠0 multi-line output: the alert carries the real ✗ / error line, even after line 9 | `AlertSummary.*`, `Summary.*` | `summarypriority` |
-| check alerts by wall clock (first at 3rd, daily cadence, undelivered retries) | `Cadence.*` | `alertstamp` |
+| check alerts by wall clock (first at 3rd, daily cadence with a 1h margin: start jitter and DST do not slip a day, undelivered retries) | `Cadence.*` (incl. `Cadence.test_daily_ticks_with_start_jitter_alert_every_day`, `Cadence.test_dst_short_day_still_alerts`) | `alertstamp`, `checkinterval` |
 | real-failure re-alert by wall clock (daily schedule: re-alert after 3–4 days) | `RealFailureCadence.*`; matrix S4/S25 (dedup) | `realclock` |
 | notify-failure dead letter by wall clock | `NotifyFailureCadence.*`; matrix S8/S17/S21 | — |
 | checkout-newer reminder: low frequency, never installs, never a check failure | `RollbackReminder.*`, `Verdicts.test_rollback_never_installs_and_notifies_once` | `remindclock` |

@@ -15,7 +15,15 @@
 #       entirely. Assertion: a long value must land on 1, never on a negative number.
 set -u
 SRC="${1:?usage: bash counter_sanity.sh /path/to/auto_update.sh}"
-ROOT="${HARNESS_ROOT:-/tmp/au-harness}"
+# Harness root: the caller's HARNESS_ROOT (the release gate exports one), else a private mktemp
+# dir under $TMPDIR, exported so stub_setup.sh builds the harness in the same place. Never a fixed
+# /tmp path.
+if [ -z "${HARNESS_ROOT:-}" ]; then
+  HARNESS_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/au-harness.XXXXXX") || { echo "FAIL: cannot create harness dir"; exit 1; }
+  trap 'rm -rf -- "$HARNESS_ROOT"' EXIT   # ours: removed on exit
+fi
+export HARNESS_ROOT
+ROOT="$HARNESS_ROOT"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 bash "$HERE/../verify/stub_setup.sh" "$SRC" >/dev/null || exit 1
 ST="$ROOT/home/.hermes/state/auto_update"
@@ -35,7 +43,7 @@ for f in consec_check_fails consec_notify_fails consec_real_fails consec_drain_p
   printf 'x!' > "$ST/$f"
 done
 echo checkfail > "$ROOT/mode"
-HOME="$ROOT/home" PATH="$ROOT/bin:/usr/bin:/bin" AU_APPLY=1 bash "$ROOT/au.sh" >/dev/null 2>/tmp/cs_check.err
+HOME="$ROOT/home" PATH="$ROOT/bin:/usr/bin:/bin" AU_APPLY=1 bash "$ROOT/au.sh" >/dev/null 2>"$ROOT/cs_check.err"
 rc=$?
 [ "$rc" -eq 0 ] || { echo "FAIL: updater exited $rc on corrupted counters (check-failure path)"; fail=1; }
 v=$(cat "$ST/consec_check_fails" 2>/dev/null)
@@ -44,7 +52,7 @@ case "$v" in ''|*[!0-9]*) echo "FAIL: consec_check_fails = [$v] (not sanitized)"
 # unsanitized reads — bash replaces a failed $((10#...)) with 1, which is also numeric. The
 # only observable that separates them is the arithmetic error escaping to stderr. A build
 # with the sanitizer removed MUST trip this; the sanitized build must be silent (0 bytes).
-if grep -q 'value too great for base' /tmp/cs_check.err 2>/dev/null; then
+if grep -q 'value too great for base' "$ROOT/cs_check.err" 2>/dev/null; then
   echo "FAIL: arithmetic error escaped to stderr — sanitizer not effective on this path"; fail=1
 fi
 

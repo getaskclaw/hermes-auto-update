@@ -39,11 +39,16 @@
 #     :143/:164 fetching) and the known `  (…)` cleanup lines (:49 :52 :62 :65 :180 :183). ANY
 #     other non-empty line, any ✗, any line containing error/failed/timed out (any case), or two
 #     different verdicts = unknown (counted, alerted at 3) — never "no update", never install.
-#   - --yes no-op with no receipt for this run is accepted only after the same veto (✗ / error
-#     words / an available-or-rollback verdict line); a vetoed no-op is a REAL FAILURE.
+#   - --yes no-op with no receipt for this run is accepted only on an exact upstream --yes no-op
+#     sentence (update_cmd.py:1730/:1731/:1915, optional " [<branch> @ <sha>]" suffix) and only
+#     after the veto: ✗ / error words / an available-or-rollback verdict, ANY other no-op-shaped
+#     line ("✓ Already up to date? …", the --check sentences), or an unrecognized column-0
+#     ✓/→/⚕/☤ line outside the known upstream --yes log whitelist. Indented progress lines stay
+#     compatible. A vetoed no-op is a REAL FAILURE (counted, alerted, exit 1, no reset).
 #   - every legitimate no-op exit (check-time and --yes) resets consec_real_fails after the drain
 #     recheck, so an old streak cannot swallow the next unrelated failure's first alert.
-#   - check alerts: first at the 3rd consecutive problem, then every AU_CHECK_ALERT_INTERVAL s;
+#   - check alerts: first at the 3rd consecutive problem, then every AU_CHECK_ALERT_INTERVAL s
+#     (default 82800 = 1 day - 1h of scheduling margin);
 #     real failures: first at once, then every AU_REALERT_SECS s; notify-failure dead letter +
 #     meta-alert: at the 3rd, then every AU_REALERT_SECS s; "checkout newer than the selected
 #     release": reminder every AU_ROLLBACK_REMIND_SECS s (never installs). All stamps are the
@@ -148,8 +153,9 @@
 
 set -u
 # Tick start (epoch). Every alert/reminder timestamp is THIS value and every interval is measured
-# from it, so the length of the check itself (1s vs a 300s timeout) cannot shift the cadence: on
-# a daily cron two consecutive ticks are 86400s apart give or take the process start latency.
+# from it, so the length of the check itself (1s vs a 300s timeout) cannot shift the cadence.
+# Start jitter remains (a tick that starts 1s late, then one on time, are 86399s apart; a local-time
+# cron across a DST change is 82800s or 90000s apart), so the daily defaults keep a 1h margin.
 TICK_TS=$(date +%s)
 case "$TICK_TS" in ''|*[!0-9]*) TICK_TS=0 ;; esac
 HOME="${HOME:-$(getent passwd "$(id -u)" | cut -d: -f6)}"
@@ -224,10 +230,11 @@ interval_due() {
 }
 
 # Alert cadences (wall clock, seconds; see README "Alert cadence" for the reasoning):
-#  - AU_CHECK_ALERT_INTERVAL (default 86400): re-alert while --check keeps failing / unknown,
-#    after the first alert on the 3rd consecutive problem. Stamps are tick-start epochs, so on a
-#    daily cron consecutive ticks are exactly 86400s apart (start latency is milliseconds) and the
-#    daily re-alert does not slip a day when one check runs faster than the previous one.
+#  - AU_CHECK_ALERT_INTERVAL (default 82800 = 1 day - 1h): re-alert while --check keeps failing /
+#    unknown, after the first alert on the 3rd consecutive problem. Stamps are tick-start epochs,
+#    so the check's own duration cannot shift the cadence; the 1h margin absorbs start jitter
+#    (whole-second epochs: 86399s between a late and an on-time tick) and a local-time cron
+#    crossing a DST change (82800s), either of which would otherwise slip the reminder a day.
 #  - AU_REALERT_SECS (default 255600 = 3 days - 1h): re-alert for a persisting REAL install failure
 #    (the first failure always alerts at once) and for the notify-failure dead letter + meta-alert
 #    (first at the 3rd consecutive delivery failure). The same broken install retried daily is one
@@ -235,7 +242,7 @@ interval_due() {
 #    margin keeps a late-starting tick from slipping the reminder to the 4th day.
 #  - AU_ROLLBACK_REMIND_SECS (default 601200 = 7 days - 1h): "this checkout is newer than the
 #    selected release" needs a human decision, not an emergency page — a weekly nudge, same margin.
-AU_CHECK_ALERT_INTERVAL=$(knob_secs "${AU_CHECK_ALERT_INTERVAL-}" 86400)
+AU_CHECK_ALERT_INTERVAL=$(knob_secs "${AU_CHECK_ALERT_INTERVAL-}" 82800)
 AU_REALERT_SECS=$(knob_secs "${AU_REALERT_SECS-}" 255600)
 AU_ROLLBACK_REMIND_SECS=$(knob_secs "${AU_ROLLBACK_REMIND_SECS-}" 601200)
 
@@ -408,12 +415,16 @@ recheck_drain_marker() {
 # --- issue #1: check verdicts, time-based check alerts, install proof -------------------
 # Repeat check alerts are TIME-based, not tick-count based. The first alert fires on the 3rd
 # consecutive failed-or-unknown check. After that, at most one alert per
-# AU_CHECK_ALERT_INTERVAL seconds (default 86400, parsed with the other knobs above). The
+# AU_CHECK_ALERT_INTERVAL seconds (default 82800, parsed with the other knobs above). The
 # delivery timestamp is written ONLY when notify() succeeds, so a dead channel retries on the
 # next tick.
 # Line-anchored --yes patterns. Quoted diagnostic text in the middle of a line never matches.
+# RE_NOOP is deliberately BROAD: it finds every line SHAPED like a no-op claim (any indentation,
+# any tail). It routes the run into the no-op branch and makes the legacy-receipt rules stricter,
+# but it never accepts a no-op on its own: yes_noop_veto() accepts only V_YES_NOOP (below), and
+# vetoes every other no-op-shaped line as a real failure.
 RE_COMPLETE='^[[:space:]]*(✓[[:space:]]*)?Update complete([^[:alnum:]_]|$)'
-RE_NOOP='^[[:space:]]*((✓|→)[[:space:]]*)?(Already up to date|Holding at this build|No newer release|Up to date with the latest release)([^[:alnum:]_]|$)'
+RE_NOOP='^[[:space:]]*((✓|→)[[:space:]]*)?(Already up to date|Up to date|Holding at this build|No newer release)([^[:alnum:]_]|$)'
 
 mark_installed() { date +%s > "$STATE_DIR/last_install_ts"; }   # call ONLY on proven installs
 check_ok() { echo 0 > "$STATE_DIR/consec_check_fails"; rm -f "$STATE_DIR/check_alert_last_ts"; }
@@ -506,7 +517,8 @@ $(check_summary "$CHECK_OUT")"
 # a print() followed by exit 0 (hermes_cli/update_cmd_check.py, byte-identical in v0.23.1,
 # v0.23.2 and upstream main 67e4d22). The text is therefore the contract, matched WHOLE LINE
 # after trimming surrounding whitespace and one trailing CR:
-#   stable  :110 "✓ No newer release: {label}."     (label may be the "ahead" form, see below)
+#   stable  :110 "✓ No newer release: {label}."     (printed only under target.ahead (:109), so
+#                                                    the label is always the "ahead" form below)
 #           :112 "✓ Up to date with the latest release ({label})."
 #           :115 "→ Holding at this build: {label} predates the gateway runtime your sessions use."
 #           :119 "→ This checkout is newer than the selected release: {label}."
@@ -516,9 +528,10 @@ $(check_summary "$CHECK_OUT")"
 #           Older builds printed the same two sentences with ☤ (v2026.9.24 update_cmd.py:623/:625)
 #           and ⚕ before that (v2026.6.19/v2026.7.20 main.py); no release printed a glyph-less
 #           --check verdict, so a glyph-less line is NOT accepted.
-#   label   hermes_cli/source_releases.py:61-65: "{channel} v{version} ({commit[:12]})", or for
-#           "No newer release" the ahead form "{channel} v{version}; this checkout is newer and
-#           waits for the next release (`hermes update --set-channel main` follows every commit)".
+#   label   hermes_cli/source_releases.py:61-65: "{channel} v{version} ({commit[:12]})", or when
+#           target.ahead the form "{channel} v{version}; this checkout is newer and waits for the
+#           next release (`hermes update --set-channel main` follows every commit)" (:62-64). Since
+#           :110 runs only when ahead, "No newer release" accepts ONLY the ahead label.
 #   context :97 banner, :108 retired line, :116-117 / :120-121 / :124 / :215 / :228 hints,
 #           :143 / :164 "→ Fetching from {remote}...", and the `  (…)` cleanup lines :49 :52 :62
 #           :65 :180 :183 — accepted, carry no verdict.
@@ -527,7 +540,7 @@ $(check_summary "$CHECK_OUT")"
 _V_LBL='[^[:space:]]+ v[^[:space:]]+( \([0-9a-f]{7,40}\))?'
 _V_LBL_AHEAD='[^[:space:]]+ v[^[:space:]]+; this checkout is newer and waits for the next release \(`hermes update --set-channel main` follows every commit\)'
 _V_REF='[^[:space:]]+'
-V_UPTODATE="^(✓ No newer release: ($_V_LBL|$_V_LBL_AHEAD)\.|✓ Up to date with the latest release \($_V_LBL\)\.|✓ Already up to date\.)\$"
+V_UPTODATE="^(✓ No newer release: $_V_LBL_AHEAD\.|✓ Up to date with the latest release \($_V_LBL\)\.|✓ Already up to date\.)\$"
 V_HELD="^→ Holding at this build: $_V_LBL predates the gateway runtime your sessions use\.\$"
 V_ROLLBACK="^→ This checkout is newer than the selected release: $_V_LBL\.\$"
 V_AVAILABLE="^(→ Selected release available: $_V_LBL|(⚕|☤) Update available(: [0-9]+ commits? behind $_V_REF\.| \(behind $_V_REF\)\.))\$"
@@ -591,22 +604,101 @@ verdict_detail() {
     [ -n "$found" ] || printf 'no verdict line'
 }
 
-# --yes no-op veto. A no-op line (RE_NOOP) is accepted as "nothing installed, nothing wrong" only
-# if no line of the SAME output says otherwise: a ✗ line, a line naming error / failed / timed out
-# (any case), or an available / rollback verdict line. Echoes the reason and returns 0 when
-# vetoed; returns 1 (no output) when the no-op may stand.
+# --- `hermes update --yes` no-op contract -----------------------------------------------------
+# On a no-op run upstream prints the whole maintenance tail and then ONE conclusion line,
+# _print_update_completion (update_cmd_maint.py:304-311) = "{message}{_branch_head_suffix()}",
+# suffix " [<branch|detached> @ <git rev-parse --short HEAD>]" or "" (update_cmd_git.py:160-175).
+# The message on the no-op path (_finish_already_up_to_date) is exactly one of:
+#   "✓ Already up to date!"                                    update_cmd.py:1730 (v0.23.1 :1726;
+#        v2026.9.24 update_cmd.py:764; bare print in v2026.3.12 main.py:1667, v2026.6.19
+#        main.py:8798, v2026.7.20 main.py:10256)
+#   "✓ Up to date with your fork (official repo not checked)."  update_cmd.py:1731 (v0.23.1 :1727;
+#        v2026.9.24 update_cmd.py:765)
+#   "✓ Holding at this build until a newer {channel} release ships."  update_cmd.py:1915
+#        (v0.23.1 :1911)
+# Nothing else is a --yes no-op. "✓ Already up to date." (period) is ONLY the --check sentence
+# (update_cmd_check.py:200/:208/:222; v2026.6.19 main.py:7913/:8004 and v2026.7.20 main.py:8876/
+# :8985/:9003, all inside _cmd_update_check); no --yes path ever printed it.
+V_YES_NOOP='^(✓ Already up to date!|✓ Up to date with your fork \(official repo not checked\)\.|✓ Holding at this build until a newer [^[:space:]]+ release ships\.)( \[[^][]+ @ [0-9a-f]{4,40}\])?$'
+# Column-0 ✓ / → / ⚕ / ☤ lines are where upstream puts conclusions; its step logs are indented
+# ("  ✓ Skills are up to date", "  ✓ Restarted <unit>", "  (…)") and stay compatible. The
+# column-0 lines that a no-op --yes run can legitimately print are whitelisted here, each from
+# upstream origin/main (67e4d22). Lines that announce MOVEMENT (→ Switching to source commit,
+# → Found N new commit(s), → Pulling updates..., → Pulling from upstream..., → Syncing fork...,
+# → Rolling back to, ✓ Code updated!, ZIP update lines) are deliberately NOT here: beside a no-op
+# sentence they contradict it, so the run is vetoed and alerted.
+_YL=(
+    '☤ Updating Hermes Agent\.\.\.'                                   # update_cmd.py:1810
+    '→ (Release|Latest release): ('"$_V_LBL|$_V_LBL_AHEAD"')'              # update_cmd_check.py:267
+    '→ This build is newer than the [^[:space:]]+ release [0-9a-f]{7,40}: that release predates the gateway runtime your sessions use, so there is nothing to update to yet\.'  # update_cmd_check.py:323-324
+    '→ Fetching updates\.\.\.'                                                 # update_cmd.py:1893
+    '→ Fleet: [0-9]+ running service\(s\) across profiles: .+'                  # update_cmd.py:1544
+    '→ Source subscription moved to [^[:space:]]+'                              # update_cmd.py:811
+    '→ Adding upstream remote\.\.\.|→ Fetching upstream\.\.\.'                 # update_cmd_git.py:362/:399 (via update_cmd.py:1443)
+    '→ Discarded npm lockfile churn \([0-9]+ file\(s\)\)|→ Normalized line-ending churn \([0-9]+ file\(s\)\)'  # update_cmd_git.py:698/:751
+    '→ Local changes detected:|→ Local changes detected — stashing before update\.\.\.|→ Restoring local changes\.\.\.'  # update_cmd_stash.py:182/:252/:592
+    '→ Discarded local changes \(you chose not to keep them\)\.|→ Discarded local source changes \(updates\.non_interactive_local_changes=discard\)\.'  # update_cmd_stash.py:208/:733
+    '→ Leaving [0-9]+ untracked entr(y|ies) in place \(the update does not touch them\)\.'  # update_cmd_stash.py:226-227
+    '→ Clearing unmerged index entries from a previous conflict\.\.\.|→ Making [0-9]+ intent-to-add file\(s\) stashable\.\.\.'  # update_cmd_stash.py:237/:246
+    '→ Syncing bundled skills\.\.\.|→ Syncing bundled skills to all profiles\.\.\.'  # update_cmd_maint.py:1048/:838
+    '→ Seeded \.env for [0-9]+ profile\(s\) \(empty placeholder\): .+'       # update_cmd_maint.py:852
+    '→ Windows cua-driver refresh deferred \(autostart registration requires UAC\)\.|→ Preparing pinned cua-driver \(Computer Use\)\.\.\.'  # update_cmd_maint.py:868/:871
+    '→ Installing .+ \(default tool; opt out with `hermes pm install --without .+`\)\.\.\.'  # update_cmd_maint.py:908
+    '→ Checking configuration for new options\.\.\.|✓ Configuration updated!'  # update_cmd_config.py:181/:252
+    '→ Stopping Windows gateway process\(es\) before updating Hermes\.\.\.'    # update_cmd_windows.py:1040
+    '✓ Gateway (profile [^[:space:]]+ )?started via cold-start after update \(PID: [0-9, ]+\)'  # update_cmd_windows.py:1109/:1172
+    '→ Gateway restart deferred \(--no-gateway-restart\); restart gateways separately\.'  # update_completion.py:450
+    '→ Post-swap hand-off: completing the update in a fresh interpreter \(.+\)'  # update_handoff.py:143
+    '→ Restarting gateway\(s\) paused by an interrupted `hermes update`\.\.\.'  # update_pause_record.py:971
+    '→ Waiting for a running Hermes update to release this checkout\.\.\.|→ Waiting for another Hermes desktop dependency install or build to finish\.\.\.'  # desktop_build_lock.py:85/:111
+    '✓ Desktop .+ is up to date \(content stamp matches\)'                      # main_desktop.py:1787
+    '→ Restarting externally-supervised gateway \(PID [0-9]+\) — draining in-flight runs \(up to [0-9]+s\)\.\.\.|✓ Gateway relaunched by its supervisor \(PID [0-9]+\)'  # gateway_supervised_restart.py:87-88/:93
+    '→ Migrating per-profile gateways onto one multiplexed default gateway\.\.\.|✓ Already multiplexed — nothing to do\.'  # gateway_migrate.py:1294/:1039
+)
+_IFS_SAVE=$IFS; IFS='|'; V_YES_LOG="^(${_YL[*]})\$"; IFS=$_IFS_SAVE; unset _IFS_SAVE _YL
+
+# --yes no-op veto. The no-op stands ("nothing installed, nothing wrong") only if
+#   - at least one line is an exact upstream no-op sentence (V_YES_NOOP), and
+#   - no line is ✗ / names error, failed or timed out (any case) / is an available or rollback
+#     verdict, and
+#   - no OTHER line is shaped like a no-op claim (RE_NOOP: "✓ Already up to date? …",
+#     "✓ Already up to date. (cached …)", "→ Holding at this build? …", the --check sentences —
+#     a no-op conclusion must be upstream's own --yes sentence, any indentation), and
+#   - no column-0 ✓ / → / ⚕ / ☤ line is unrecognized (classify_line = unknown and not V_YES_LOG).
+# Indented lines and lines without those glyphs are ordinary progress output and stay compatible.
+# Echoes the reason and returns 0 when vetoed; returns 1 (no output) when the no-op may stand.
 yes_noop_veto() {
-    local line
-    while IFS= read -r line; do
+    local raw line t seen=0
+    while IFS= read -r raw; do
+        line="${raw%$'\r'}"
+        t="${line#"${line%%[![:space:]]*}"}"
+        t="${t%"${t##*[![:space:]]}"}"
         classify_line "$line"
         case "$CL" in
             error)
-                printf 'error line: %s' "$(printf '%s' "$line" | tr -d '\r' | head -c 200)"; return 0 ;;
+                printf 'error line: %s' "$(printf '%s' "$t" | head -c 200)"; return 0 ;;
             available|rollback)
-                printf 'conflicting %s verdict: %s' "$CL" "$(printf '%s' "$line" | tr -d '\r' | head -c 200)"; return 0 ;;
+                printf 'conflicting %s verdict: %s' "$CL" "$(printf '%s' "$t" | head -c 200)"; return 0 ;;
         esac
+        if [[ $t =~ $V_YES_NOOP ]]; then seen=1; continue; fi
+        if [[ $line =~ $RE_NOOP ]]; then
+            printf 'no-op line is not an upstream --yes sentence: %s' "$(printf '%s' "$t" | head -c 200)"; return 0
+        fi
+        if [ "$CL" = unknown ] && [[ $line =~ ^(✓|→|⚕|☤) ]] && ! [[ $t =~ $V_YES_LOG ]]; then
+            printf 'unrecognized conclusion line: %s' "$(printf '%s' "$t" | head -c 200)"; return 0
+        fi
     done <<< "$1"
-    return 1
+    [ "$seen" -eq 1 ] && return 1
+    printf 'no upstream --yes no-op sentence'
+    return 0
+}
+# The accepted no-op sentence, for the log (call only after the veto passed).
+yes_noop_line() {
+    local raw t
+    while IFS= read -r raw; do
+        t="${raw%$'\r'}"; t="${t#"${t%%[![:space:]]*}"}"; t="${t%"${t##*[![:space:]]}"}"
+        if [[ $t =~ $V_YES_NOOP ]]; then printf '%s' "$t" | head -c 200; return 0; fi
+    done <<< "$1"
 }
 
 # Version from the completion line.
@@ -953,13 +1045,15 @@ if [ "$STATUS" -eq 0 ]; then
             exit 1
         fi
         if printf '%s\n' "$UPDATE_OUT" | grep -qE "$RE_NOOP"; then
-            # A no-op line alone never outvotes the rest of the output: a ✗ line, an error /
-            # failed / timed out line, or an available / rollback verdict next to it means the
-            # run is NOT a harmless no-op. That is a REAL FAILURE (counted, alerted, exit 1).
+            # A no-op-shaped line alone never decides: the conclusion must be upstream's exact
+            # --yes no-op sentence, and a ✗ line, an error / failed / timed out line, an
+            # available / rollback verdict, any other no-op-shaped line, or an unrecognized
+            # column-0 conclusion line means the run is NOT a harmless no-op. That is a REAL
+            # FAILURE (counted, alerted, exit 1, the streak is NOT reset).
             if VETO=$(yes_noop_veto "$UPDATE_OUT"); then
                 real_failure_exit "no-op line vetoed ($VETO)"
             fi
-            log "no-op: beaten by another updater between check and install / held / no newer release (exit=0, receipt=$OUTCOME): $(printf '%s\n' "$UPDATE_OUT" | grep -m1 -E "$RE_NOOP" | head -c 200)"
+            log "no-op: beaten by another updater between check and install / held / no newer release (exit=0, receipt=$OUTCOME): $(yes_noop_line "$UPDATE_OUT")"
             # No install happened, so never mark_installed here. A pending drain marker must
             # still be re-verified, exactly as on the check-time no-update path; then this
             # legitimate no-op ends any real-failure streak (same as the check-time no-op).

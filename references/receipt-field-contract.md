@@ -53,7 +53,7 @@ The race branch's discriminator is the SHA PAIR, not the banner: on a correlatio
 
 Check-failure alert cadence:
 - First alert at the 3rd consecutive failure.
-- After that, time-based re-alerts every `AU_CHECK_ALERT_INTERVAL` seconds (default 86400).
+- After that, time-based re-alerts every `AU_CHECK_ALERT_INTERVAL` seconds (default 82800 = 1 day − 1h; the margin absorbs start jitter and DST).
 - Interval values must be positive integer seconds; an invalid, empty, or zero value falls back to the default.
 
 ## Receipt claims vs what the updater actually verifies
@@ -66,7 +66,7 @@ Check-failure alert cadence:
 Every alert path needs a consec-counter or persistent failures spam one notification per cron tick. Three counters coexist, each reset by its own success:
 
 - `consec_check_fails` — check/fetch failures and unknown/failed `--check` outcomes.
-  - Alert at 3, then on a time basis every `AU_CHECK_ALERT_INTERVAL` seconds (default 86400; invalid/zero → 86400).
+  - Alert at 3, then on a time basis every `AU_CHECK_ALERT_INTERVAL` seconds (default 82800; invalid/zero → 82800).
   - The last-alert timestamp is written ONLY after the notification is delivered, so an undelivered alert retries next tick.
   - Migration: a count N>3 with no timestamp alerts on the next tick.
   - The alert carries the consecutive count, the last successful installation, and the real error (multiline, bounded).

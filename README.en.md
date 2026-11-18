@@ -42,7 +42,7 @@ The recommended schedule (install.sh prints it; crontab.txt carries it):
 | `TG_PROXY=""` (or empty value) | direct Telegram. **Must live in `~/.hermes/scripts/auto_update.env`** — the file the scheduler sources. A copy in `~/.hermes/.env` never arrives (the script reads that file only for bot token + chat id). Empty value is meaningful, never delete the var. |
 | `AU_REPO_DIR` / `AU_HERMES_BIN` | non-default checkout / binary paths |
 | `AU_GATEWAY_STATE` / `AU_GATEWAY_UNIT` / `AU_CRON_UNIT` | systemd specifics |
-| `AU_CHECK_ALERT_INTERVAL` | check-failure re-alert interval in seconds (default `86400`). Must be a positive integer; an invalid, empty, or `0` value falls back to the default |
+| `AU_CHECK_ALERT_INTERVAL` | check-failure re-alert interval in seconds (default `82800` = 1 day − 1h). Must be a positive integer; an invalid, empty, or `0` value falls back to the default |
 | `AU_REALERT_SECS` | re-alert interval for real install failures and notify-delivery failures, seconds (default `255600` = 3 days − 1h). Same rules |
 | `AU_ROLLBACK_REMIND_SECS` | reminder interval for "checkout newer than the selected release", seconds (default `601200` = 7 days − 1h). Same rules |
 
@@ -58,26 +58,37 @@ Upstream `hermes update --check` has **no machine-readable output**: `--check` i
 
 | verdict | upstream sentence (`update_cmd_check.py`) | action |
 |---|---|---|
-| up to date | `:110` `✓ No newer release: {label}.`, `:112` `✓ Up to date with the latest release ({label}).`, `:200/:208/:222` `✓ Already up to date.` | silent, no install, not a check failure |
+| up to date | `:110` `✓ No newer release: {ahead label}.`, `:112` `✓ Up to date with the latest release ({label}).`, `:200/:208/:222` `✓ Already up to date.` | silent, no install, not a check failure |
 | held | `:115` `→ Holding at this build: {label} predates the gateway runtime your sessions use.` | same, one log line |
 | checkout newer than the selected release | `:119` `→ This checkout is newer than the selected release: {label}.` | NEVER an automatic `--yes` (it would downgrade); not a check failure; low-frequency reminder (`AU_ROLLBACK_REMIND_SECS`) for a human decision |
 | update available | `:123` `→ Selected release available: {label}`, `:212/:225` `⚕ Update available: N commit(s) behind <ref>.`, `:214` `⚕ Update available (behind <ref>).` | reaches the `AU_APPLY` gate only; the version comes from the completion line (new `old → new` form: the destination; legacy single version), never from the check line |
 | unknown | anything else | no install, counted as a check failure, alert on the 3rd in a row |
 
-- `{label}` looks like `stable v0.23.2 (ae2a81ccc00e)` (`source_releases.py:61-65`); the long "checkout is newer and waits for the next release" form of `No newer release` is accepted too.
+- `{label}` looks like `stable v0.23.2 (ae2a81ccc00e)` (`source_releases.py:61-65`). `No newer release` is printed only when `target.ahead` (`update_cmd_check.py:109-110`), and then the label is always the long "checkout is newer and waits for the next release" form (`source_releases.py:62-64`), so that sentence accepts **only** the long form; a short label after it never ships and is unknown.
 - Older main-channel builds printed the same two sentences with the `☤` glyph (v2026.9.24), earlier with `⚕`; no release ever printed a glyph-less `--check` verdict, so a glyph-less line is not accepted.
 - Known context lines carry no verdict and are accepted: `:97` channel banner, `:108` retired line, `:116-117/:120-121/:124/:215/:228` hints, `:143/:164` `→ Fetching from …...`, and the `  (…)` cleanup lines `:49/:52/:62/:65/:180/:183`.
 - **Veto**: any line with `✗`, any line containing `error` / `failed` / `timed out` (any case), any other unrecognized non-empty line, or two different verdicts → the whole output is unknown. Alert rather than "no update" — and never install.
 
 ### `--yes` "nothing to do"
 
-When `--yes` exits 0 without a receipt of its own for this run, the run counts as a no-op only if the output has a no-op line (e.g. `update_cmd.py:1726` `✓ Already up to date!`, `:1911` `✓ Holding at this build until a newer … release ships.`) **and** nothing in the same output vetoes it (a `✗` line, an error/failed/timed out line, or an available / checkout-newer verdict line). A vetoed no-op is a real failure (counted, alerted, exit 1). Every legitimate no-op (check time and `--yes` time) resets `consec_real_fails` after the drain recheck, so an old streak cannot swallow the next unrelated failure's first alert.
+When `--yes` exits 0 without a receipt of its own for this run, the run counts as a no-op only if all of this holds:
+
+- The conclusion is upstream's **exact** `--yes` no-op sentence (surrounding whitespace and a trailing CR trimmed; the ` [<branch> @ <short sha>]` suffix added by `_print_update_completion`, `update_cmd_maint.py:304-311`, is allowed):
+  - `✓ Already up to date!` — `update_cmd.py:1730` (v0.23.1 `:1726`; v2026.9.24 `update_cmd.py:764`; a bare print in v2026.3.12 `main.py:1667`, v2026.6.19 `main.py:8798`, v2026.7.20 `main.py:10256`)
+  - `✓ Up to date with your fork (official repo not checked).` — `update_cmd.py:1731` (v0.23.1 `:1727`; v2026.9.24 `update_cmd.py:765`)
+  - `✓ Holding at this build until a newer <channel> release ships.` — `update_cmd.py:1915` (v0.23.1 `:1911`)
+  - `✓ Already up to date.` (period) is only the `--check` sentence (`update_cmd_check.py:200/:208/:222`, and only `_cmd_update_check` in older builds) — **not** a `--yes` conclusion.
+- Nothing in the same output vetoes it: a `✗` line; an error/failed/timed out line; an available / checkout-newer verdict; **any other line shaped like a no-op claim** (any indentation: `✓ Already up to date? …`, `✓ Already up to date. (cached …)`, `→ Holding at this build? …`, the `--check` sentences); or an **unrecognized column-0 conclusion-style line** starting with `✓` / `→` / `⚕` / `☤`.
+- The column-0 whitelist holds only the log lines upstream `--yes` really prints on a no-op run (`☤ Updating Hermes Agent...`, `→ Update channel: …`, `→ Latest release: …` / `→ Release: …`, `→ Fetching updates...`, the held `→ This build is newer than the … release …`, `→ Syncing bundled skills...`, `→ Checking configuration for new options...`, stash / fork / gateway-restart lines — each with its file:line in the `_YL` array of `auto_update.sh`). Lines announcing **code movement** (`→ Switching to source commit`, `→ Pulling updates...`, `→ Pulling from upstream...`, `✓ Code updated!`, …) are deliberately left out: they contradict a no-op.
+- Indented step logs (`  ✓ Skills are up to date`, `  ✓ Restarted …`, `  (…)`) and lines not starting with those glyphs are ordinary progress output and stay compatible; install output never goes through this veto — the receipt decides.
+
+A vetoed no-op is a real failure (counted, alerted, exit 1, no reset). Every legitimate no-op (check time and `--yes` time) resets `consec_real_fails` after the drain recheck, so an old streak cannot swallow the next unrelated failure's first alert.
 
 ### Alert cadence (all wall clock)
 
 | alert | first | then | knob (seconds) | default and why |
 |---|---|---|---|---|
-| check failing / unknown (`⚠`) | 3rd in a row | every `AU_CHECK_ALERT_INTERVAL` | `AU_CHECK_ALERT_INTERVAL` | `86400`: a stalled pipeline gets a daily reminder. The stamp is the **tick start** time, and two consecutive daily cron ticks are exactly 86400s apart (start latency is milliseconds), so a check that takes 1s one day and 300s the next cannot push the re-alert out by a day |
+| check failing / unknown (`⚠`) | 3rd in a row | every `AU_CHECK_ALERT_INTERVAL` | `AU_CHECK_ALERT_INTERVAL` | `82800` (1 day − 1h): a stalled pipeline gets a daily reminder. The stamp is the **tick start** time, so the check's own duration (1s vs 300s) cannot shift the cadence. Daily ticks are still not exactly 86400s apart: stamps are whole seconds, so a tick that started 1s late followed by an on-time one is 86399s, and a local-time cron across a DST change is off by 1h. A zero-margin 86400 would slip the reminder a day in those cases, hence the 1h margin |
 | real install failure (`✗`) | 1st, at once | every `AU_REALERT_SECS` | `AU_REALERT_SECS` | `255600` (3 days − 1h): the same broken install retried daily is one incident; every third daily tick keeps it visible without a daily page. The 1h margin absorbs scheduler jitter so it cannot slip to the 4th day |
 | notify delivery failing (dead letter + meta-alert) | 3rd in a row | every `AU_REALERT_SECS` | same | the local `notify_dead_letter.log` entry IS the delivered artefact, so the stamp is written with it |
 | checkout newer than the selected release (`→`) | on entering the state | every `AU_ROLLBACK_REMIND_SECS` | `AU_ROLLBACK_REMIND_SECS` | `604800 − 3600` (7 days − 1h): a human decision, not an emergency — a weekly nudge |
@@ -96,7 +107,8 @@ An install is proven only by installation proof bound to the current invocation:
 ## v5.15 release notes
 
 - `--check` verdicts are matched whole line against the upstream sentences, with the veto above; unknown output always alerts and never installs.
-- A `--yes` no-op passes the veto before it is accepted; a vetoed no-op is a real failure. Every legitimate no-op exit resets the real-failure counter.
+- A `--yes` no-op is accepted only on upstream's exact `--yes` sentence (`update_cmd.py:1730/:1731/:1915`) and only after the veto (including other no-op-shaped lines and unrecognized column-0 conclusion lines); a vetoed no-op is a real failure. Every legitimate no-op exit resets the real-failure counter.
+- The check-failure re-alert defaults to `82800`s (1 day − 1h), a margin for start jitter and DST; `--check`'s `No newer release` accepts only the ahead label.
 - Real failures, notify-delivery failures, and the checkout-newer reminder now follow a wall-clock cadence (new knobs `AU_REALERT_SECS`, `AU_ROLLBACK_REMIND_SECS`) instead of tick counts ("every 12th" was every 12 days on the daily schedule).
 - The check-failure alert summary puts error lines first.
 - **Behaviour change**: `--yes` exiting 0 without a fresh receipt of its own for this run is **no longer a success** — with a completion line → "install unproven" alert, `drain_pending` set, exit 1; unrecognized output → alert, exit 1. Hermes builds that write no update receipt therefore alert on every install; make sure the target Hermes writes `~/.hermes/logs/update_receipts/latest.json`.
@@ -122,5 +134,5 @@ bash scripts/release_gate.sh
 
 Require PASS. The gate includes `python3 scripts/check_compat_sanity.py auto_update.sh`. The matrix and the compat probe are the executable contract of the script's behavior (they print their own tallies; counts are not restated here). Which test carries which acceptance point: `verify/README.md`.
 
-sha256 (auto_update.sh, updater v5.15): `bacbf28e4ca0fe35a547988f2810b22d82cc9c5016dfd2cb5cb2b8e49d0500d3`
+sha256 (auto_update.sh, updater v5.15): `7d2f811e19c8dbc7b4f42eca19e18ee28c5a29ad534c0b903eb99e7b2eb82476`
 _Regenerate with `sha256sum auto_update.sh` before re-packing._
