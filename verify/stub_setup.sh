@@ -75,13 +75,75 @@ if [ "\${1:-}" = "update" ] && [ "\${2:-}" = "--check" ]; then
     uptodate)  echo "✓ Already up to date."; exit 0 ;;
     checkfail) echo "✗ fetch failed"; exit 1 ;;
     weird)     echo "⚕ Something else entirely"; exit 0 ;;
+    # --- stable channel: verbatim shapes of hermes_cli/update_cmd_check.py L97-L124 (v0.23.1)
+    # (backticks escaped: this heredoc is UNQUOTED, an unescaped one runs at setup time — D7)
+    stable_none)    # the exact line from issue #1 (older label wording, same verdict prefix)
+      echo "→ Update channel: stable"
+      echo "✓ No newer release: stable v0.21.6; this checkout is newer and waits for the next release (\\\`hermes update --set-channel main\\\` follows every commit)."
+      exit 0 ;;
+    stable_uptodate)
+      echo "→ Update channel: stable"
+      echo "✓ Up to date with the latest release (stable v0.23.0 (2bd378ed1b8d))."
+      exit 0 ;;
+    stable_avail|stable_avail_hold)
+      echo "→ Update channel: stable"
+      echo "→ Selected release available: stable v0.23.2 (ae2a81ccc00e)"
+      echo "  Run \\\`hermes update\\\` to install it."
+      exit 0 ;;
+    stable_retired_avail)
+      echo "→ Update channel: canary"
+      echo "→ canary retired; source destination: stable"
+      echo "→ Selected release available: stable v0.23.2 (ae2a81ccc00e)"
+      echo "  Run \\\`hermes update\\\` to install it."
+      exit 0 ;;
+    stable_hold)
+      echo "→ Update channel: stable"
+      echo "→ Holding at this build: stable v0.23.0 (2bd378ed1b8d) predates the gateway runtime your sessions use."
+      echo "  \\\`hermes update\\\` stays on this build; the next release that includes the runtime installs normally (\\\`hermes update --set-channel main\\\` follows every commit)."
+      exit 0 ;;
+    stable_ahead)
+      echo "→ Update channel: stable"
+      echo "→ This checkout is newer than the selected release: stable v0.23.0 (2bd378ed1b8d)."
+      echo "  \\\`hermes update\\\` moves it back to that release (\\\`hermes update --set-channel main\\\` follows every commit)."
+      exit 0 ;;
+    checkfail_multi)   # issue #1's real failure: line 1 is the channel banner, the error is line 2
+      echo "→ Update channel: stable"
+      echo "✗ Could not resolve the stable source channel: Command '['git', 'merge-base', '--is-ancestor', '3b421578588243f920886e6fe79a6faa87ea026e', '66605471e9f0b0832abbefaf625ce08e948ca540']' timed out after 10 seconds"
+      exit 1 ;;
+    # --- adversarial exit-0 bodies that contain verdict WORDS but are not verdicts
+    trap_err_words)
+      echo "→ Update channel: stable"
+      echo "✗ Could not determine if up to date: remote tag lookup timed out"
+      exit 0 ;;
+    trap_mid_words)
+      echo "→ Update channel: stable"
+      echo "⚠ release index stale: Update available? Already up to date? No newer release: unknown"
+      exit 0 ;;
+    contradictory)
+      echo "✓ Already up to date."
+      echo "→ Selected release available: stable v0.23.2 (ae2a81ccc00e)"
+      exit 0 ;;
     checkwedge) echo "→ fetching (wedged check, will not return)"; trap "" TERM; ( trap "" TERM; sleep 600 ) & while :; do sleep 5; done ;;
     *)         echo "⚕ Update available: 3 commits behind origin/main."; echo "  Run 'hermes update' to install."; exit 0 ;;
   esac
 fi
 if [ "\${1:-}" = "update" ] && [ "\${2:-}" = "--yes" ]; then
+  # Every install attempt leaves a trace, so a scenario can assert "no install was attempted".
+  echo "\$MODE" >> $ROOT/yes.calls
   case "\$MODE" in
     ok)       echo "✓ Update complete! (v9.9.9)"; receipt success; exit 0 ;;
+    # current completion line (update_cmd_maint.py L371): pre → post, then a ref suffix
+    stable_avail|stable_retired_avail)
+              echo "→ Update channel: stable"; echo "→ Latest release: stable v0.23.1 (3b42157858)"
+              echo "✓ Update complete! (v0.23.0 → v0.23.1) [detached @ 3b42157858]"; receipt success; exit 0 ;;
+    # --yes found nothing to install (held, update_cmd.py L1911) but the completion still ran
+    # and wrote a FRESH success receipt
+    stable_avail_hold)
+              echo "→ Update channel: stable"; echo "→ Latest release: stable v0.23.2 (ae2a81ccc00e)"
+              echo "✓ Holding at this build until a newer stable release ships."; receipt success; exit 0 ;;
+    # modes whose check must never lead to an install: if --yes is reached anyway, it is loud
+    stable_ahead|stable_hold|stable_none|stable_uptodate|checkfail_multi|trap_err_words|trap_mid_words|contradictory)
+              echo "✓ Update complete! (v0.0.0-MUST-NOT-INSTALL)"; receipt success; exit 0 ;;
     partial0) echo "✓ Update complete! (v9.9.9)"; receipt partial; exit 0 ;;
     race)     echo "✓ Update complete! (v9.9.9)"; echo "→ hermes-gateway: draining"; receipt partial; exit 1 ;;
     race_sha)  echo "✓ Code updated! [main @ bbbbbbbb]"; echo "→ hermes-gateway: draining"; receipt partial_sha; exit 1 ;;

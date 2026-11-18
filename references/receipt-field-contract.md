@@ -4,7 +4,7 @@ Machine-written by the updater at finalize time. This is the classification sour
 
 ## Fields that matter for classification
 
-- `outcome` — `success` | `partial` | `failed` | `refused` | `running` | `missing` (no file). The script maps: success → ✓; partial → wait for gateway catch-up then ✓ (or a neutral "still draining" verdict on timeout — a timeout is NOT failure, drain can legitimately take 30 min); failed/missing → ✗ with dedup (alert on attempt 1, re-alert every 12th attempt; any success path resets the counter).
+- `outcome` — `success` | `partial` | `failed` | `refused` | `running` | `missing` (no file). The script maps: success → ✓; partial → wait for gateway catch-up then ✓ (or a neutral "still draining" verdict on timeout — a timeout is NOT failure, drain can legitimately take 30 min); failed/missing → ✗ with dedup (alert on attempt 1, re-alert every `AU_REALERT_SECS` of wall clock while it persists; any success path resets the counter and its stamp).
   - Freshness rule: `finished_at` (ISO, carries tz offset — `datetime.fromisoformat(...).timestamp()`) must be ≥ the epoch captured BEFORE launching `--yes` (±5s skew) or the receipt predates this run and says nothing about it. Pull-stage failures (merge conflict, syntax-guard rollback, SIGKILL) exit without finalizing, leaving the previous run's receipt on disk; a pre-pull admission refusal finalizes `refused` (best-effort, via `record_refusal_receipt`).
 - `pre_update.short_sha` vs `post_update.short_sha` — the SHA advancing proves the install was real, not a false success.
 - `fleet[].state` — `current` | `stale`. Frozen at finalize time; a drain finishing AFTER finalize leaves `stale` rows even though the gateway is now current (see SKILL.md pitfall). Cross-check live state via `gateway_state.json` (`code_sha` == git HEAD) AND `systemctl --user is-active hermes-gateway` = active before treating a gateway as confirmed — a SHA match against a stale state file alone can hide a crashed gateway.
@@ -20,17 +20,18 @@ A lingering `~/.hermes/fleet_restart_pending` marker + "⚠ A previous update pu
 |---|---|---|---|
 | 0 | success | — | ✓ notify |
 | 0 | partial/missing | — | set `drain_pending` BEFORE the poll; poll 6×30s for gateway catch-up (gateway_state `code_sha` == git HEAD AND systemd is-active) → ✓; on timeout → neutral "still draining", exit 0, marker makes the next no-update tick re-verify (S12: a script killed MID-poll must still leave the marker — write it before the wait, not only on timeout) |
-| 0 | stale | `Already up to date` | silent no-op (beaten by another updater) |
+| 0 | stale | `Already up to date`, or a `--yes` no-op line | silent no-op (beaten by another updater) |
+| 0 | success | a `--yes` no-op line (`✓ Already up to date!` / `✓ Up to date with your fork` / `✓ Holding at this build until a newer …`, update_cmd.py L1726/L1727/L1911) and NO `Update complete` | no-op: no "updated" notify, no `last_install_ok`; marker handling identical to the success row (touch, settle, in-line recheck) — the no-op path still runs the completion, so its receipt is fresh |
 | 0 | stale | other | ⚠ inconclusive, exit 1 |
 | ≠0 | success/partial | `post_update.short_sha` != `pre_update.short_sha` (SHA advanced), OR `Update complete` as fallback | ✓ notify with race note; do NOT clear `drain_pending` — the gateway is exactly the unverified thing; refresh the marker so the next no-update tick re-verifies (a marker may be cleared ONLY after positive verification: sha match + is-active, never merely because the verdict "isn't a failure") |
 | ≠0 | partial with `post_update.short_sha` == `pre_update.short_sha` and no text marker | — | ✗ REAL FAILURE — the code did not land; do not report a race success |
-| ≠0 | anything else | — | ✗ REAL FAILURE notify (dedup: attempt 1, then every 12th) |
+| ≠0 | anything else | — | ✗ REAL FAILURE notify (dedup: attempt 1, then every `AU_REALERT_SECS`) |
 
 Freshness rule: the receipt is evidence about THIS run only when `finished_at >= RUN_STARTED - 5s`, with `RUN_STARTED=$(date +%s)` captured BEFORE launching `--yes` — capturing it after the update makes a fresh receipt misread as stale (clock-order bug). A fresh `refused` receipt (admission refusal, exit 2) classifies as failure.
 
 The race branch's discriminator is the SHA PAIR, not the banner: `post_update.short_sha != pre_update.short_sha` proves the install landed even when the output was reworded and even when the exit code is non-zero. Text is a fallback only. Do NOT simplify this to "fresh partial → success": `partial` is also produced by a failed dependency install after a successful pull, and that case must stay a failure (dropping the discriminator trades a false failure for a false success — the worse error). Both directions need a scenario: SHA-advanced + no text → ✓ (S18), SHA-unchanged + no text → ✗ (S19).
 
-Only "Already up to date" is a legitimate no-update wording for `--check`; any other no-update-looking body is inconclusive → check-failure counter (3/24 alert cadence), never a silent tick.
+`--check` verdicts (exit 0) are the line-anchored phrases upstream prints (`hermes_cli/update_cmd_check.py`, v0.23.1): available = `⚕ Update available` (L212/L214/L225) or `→ Selected release available: ` (L123); none = `✓ Already up to date.` (L200/L208/L222), `✓ No newer release: ` (L110), `✓ Up to date with the latest release (` (L112); hold = `→ Holding at this build: ` (L115); ahead = `→ This checkout is newer than the selected release: ` (L119 — never installed: `hermes update` would move the checkout back). Exactly one class must be present; no verdict, two classes, or any `✗` line in an exit-0 body is inconclusive → check-failure counter (alert from the 3rd, then every `AU_REALERT_SECS`), never a silent tick.
 
 ## Receipt claims vs what the updater actually verifies
 
@@ -39,11 +40,16 @@ Only "Already up to date" is a legitimate no-update wording for `--check`; any o
 
 ## Alert dedup covenants
 
-Every alert path needs a consec-counter or persistent failures spam one notification per cron tick. Three counters coexist, each reset by its own success:
+Every alert path needs a consec-counter or persistent failures spam one notification per cron tick. Re-alerts are throttled by a WALL-CLOCK stamp (`AU_REALERT_SECS`, default 259200 = 3 days, 1h jitter slack), not by tick count — `% 24` was 24 days on the daily schedule. Three counters coexist, each reset (with its stamp) by its own success:
 
-- `consec_check_fails` — check/fetch failures and unrecognized `--check` output; alert at 3, then every 24th.
-- `consec_notify_fails` — curl delivery failures AND missing/empty credentials (the dead channel can't page, but it must count + log); alert at 3, then every 24th.
-- `consec_real_fails` — real update failures; alert on attempt 1 (a NEW failure pages immediately), re-alert every 12th; reset by every success-path exit.
+- `consec_check_fails` + `check_last_alert` — check/fetch failures and unrecognized `--check` output; alert when the streak reaches 3, then every `AU_REALERT_SECS`. Stamp written only on delivery.
+- `consec_notify_fails` + `notify_last_alert` — curl delivery failures AND missing/empty credentials (the dead channel can't page, but it must count + log); dead-letter + re-alert from 3, then every `AU_REALERT_SECS` (stamped on attempt — the channel is known-bad).
+- `consec_real_fails` + `real_last_alert` — real update failures (incl. wedged); alert on attempt 1 (a NEW failure pages immediately), then every `AU_REALERT_SECS`; reset by every success-path exit.
+- `ahead_last_alert` — reminder for "checkout newer than the selected release" (not a failure, no counter): first tick, then every `AU_AHEAD_REMIND_SECS` (7 days); cleared when another verdict appears.
+- `consec_drain_pending` — still tick-counted (1st, then every 3rd tick): it already re-alerts every 3 days on the daily schedule, and it guards the drain marker, whose semantics this round did not touch.
+- `last_install_ok` — epoch of the last install that landed; quoted in check/real-failure alerts.
+
+Stamps are read through `read_epoch` (garbage / >11 digits / FUTURE → 0 = "never alerted"), so a bad stamp can only make an alert come sooner. `scripts/counter_sanity.sh` drives each stamp through the branch that reads it; the gate's teeth step neuters the digits guard and the future guard.
 
 When adding a fourth alert path, give it its own counter — do not reuse another path's counter (different reset conditions).
 

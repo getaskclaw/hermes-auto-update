@@ -13,7 +13,13 @@ bash stub_matrix.sh                           # run every scenario, print PASS/F
 `stub_setup.sh` refuses to continue if it cannot prove the stub is first in the candidate
 list. `mode` files drive the stub — check phase: `uptodate | weird | checkfail |
 checkwedge`; install phase: `ok | partial0 | race | race_sha | race_same | noop |
-weirdyes | fail | wedged`. `gw_down` makes the stub `systemctl is-active` return `inactive`;
+weirdyes | fail | wedged`. Stable-channel check modes (verbatim shapes of upstream
+`hermes_cli/update_cmd_check.py` L97-L124): `stable_none | stable_uptodate | stable_avail |
+stable_retired_avail | stable_hold | stable_ahead | stable_avail_hold` (the last checks
+"available" and then has `--yes` hold with a fresh receipt), `checkfail_multi` (exit 1, banner on
+line 1, `✗ … timed out` on line 2), and adversarial exit-0 bodies `trap_err_words |
+trap_mid_words | contradictory`. Every `update --yes` call is appended to `yes.calls`, so a
+scenario can assert that NO install was attempted. `gw_down` makes the stub `systemctl is-active` return `inactive`;
 `gw_flip_after=N` returns `inactive` for the first N calls then `active` (a gateway that
 comes back mid-poll); `curl_fail` makes the stub curl fail; `tg_reject` makes it answer
 HTTP 200 with `{"ok":false}`; every notify is appended to `notify.calls` instead of sent.
@@ -50,6 +56,26 @@ scenario is added). What each scenario must hold:
 | S24b | the recommended schedule, run under **bash and dash** | must DELIVER `AU_APPLY` to the script (`AU_APPLY=1 . env; script` binds it to the source builtin and delivers nothing) |
 | S25 | install-phase call **wedged** (ignores TERM) | bounded: exit 1 promptly, logged + alerted, `drain_pending` left set |
 | S26 | check-phase call **wedged** | bounded: a transient check failure (counter path), no install attempted |
+| S27 | stable `✓ No newer release: …` (issue #1 verbatim) | up-to-date: silent, streak + stamp reset, no install |
+| S28 | stable `✓ Up to date with the latest release (…)` | up-to-date: silent, no install |
+| S29 | stable `→ Selected release available: …` | **installs**; notify names `v0.23.1` from `(v0.23.0 → v0.23.1) [detached @ …]`; `last_install_ok` written |
+| S30 | `→ X retired; source destination: Y` + Selected release available | installs (retired line is context only) |
+| S31 / S31b | stable `→ Holding at this build: …` | no install, no alert, not a failure; still re-verifies a pending drain marker |
+| S32 | stable `→ This checkout is newer than the selected release: …` | **never installs**; not a failure; one reminder, the next only after 7 days |
+| S33 | main `✓ Already up to date.` / `⚕ Update available: …` | up-to-date / installs; old `(v9.9.9)` completion → `v9.9.9` |
+| S34 | `✗ … up to date` line, verdict words mid-line, two contradictory verdicts (all exit 0) | unrecognized: counted, no install |
+| S35 | exit 1, banner on line 1, `✗ … timed out` on line 2, streak 33 → 34 | alert carries the `✗` line, `(34 consecutive, exit 1)`, last successful install time |
+| S36 | daily ticks, persistent check failure, 10 simulated days | alerts on days **3 6 9** (wall clock, 3-day default) |
+| S37 | same with `AU_REALERT_SECS=86400` | alerts on days 3 4 5 |
+| S38 | the day-3 alert is not delivered | no stamp; the day-4 tick re-sends it |
+| S39 | persistent real install failure, 7 simulated days | alerts on days **1 4 7** |
+| S40 | dead notification channel, 7 simulated days | dead-letter re-alert on days 3 6 |
+| S41 | check "available", `--yes` holds (`✓ Holding at this build until a newer …`) with a FRESH success receipt | no `✓ updated` claim, no `last_install_ok`; marker consumed by the in-line recheck as on success |
+
+Simulated days age every `*_last_alert` stamp by 86400 s between ticks (`age_stamps`), so the
+wall-clock cadence is tested without a clock hook in the script. `scripts/counter_sanity.sh`
+covers corrupt / empty / overflowing / FUTURE stamps and garbage `AU_REALERT_SECS` /
+`AU_AHEAD_REMIND_SECS`, each through the branch that reads it.
 
 ## Teeth
 
@@ -65,6 +91,7 @@ removed is not covered. Two habits this repo learned the hard way:
   grep alone passed the broken line).
 
 Time-based behaviour is env-tunable (`AU_POLL_EVERY`, `AU_POLL_TRIES`, `AU_SETTLE_SECONDS`,
-`AU_UPDATE_TIMEOUT`, `AU_CHECK_TIMEOUT`, `AU_UPDATE_KILL`) so the drain-timeout and wedged
+`AU_UPDATE_TIMEOUT`, `AU_CHECK_TIMEOUT`, `AU_UPDATE_KILL`, `AU_REALERT_SECS`,
+`AU_AHEAD_REMIND_SECS`) so the drain-timeout and wedged
 branches run in seconds instead of minutes; if you add a poll or wait anywhere, add the same
 knob and set it in the matrix's `run()` or nobody will ever exercise that path.
