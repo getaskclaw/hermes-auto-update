@@ -129,11 +129,19 @@ EDITS = {
     # B300/B301: the error / failed / timed out word veto removed
     "errorword": ('    case "${l,,}" in *error*|*failed*|*"timed out"*) return 0 ;; esac\n', ""),
     # B500: --yes no-op accepted on the broad no-op SHAPE again (pre-PATCH2 prefix acceptance)
-    "noopstrict": ('        if [[ $t =~ $V_YES_NOOP ]]; then seen=1; continue; fi\n',
-                   '        if [[ $line =~ $RE_NOOP ]]; then seen=1; continue; fi\n'),
-    # B500: an unrecognized column-0 conclusion line next to a no-op no longer vetoes it
-    "conclusionline": ('        if [ "$CL" = unknown ] && [[ $line =~ ^(✓|→|⚕|☤) ]] && ! [[ $t =~ $V_YES_LOG ]]; then\n',
-                       '        if false; then\n'),
+    "noopstrict": ('        if [ "$KWN" -eq 1 ] && [[ $t =~ $V_YES_NOOP ]]; then\n',
+                   '        if [[ $t =~ $RE_NOOP ]]; then\n'),
+    # B700/B802 (PATCH3): the "a conclusion line must be a whole upstream sentence" rule removed —
+    # a line claiming a conclusion that matches no table passes as neutral
+    "conclusionwhole": ("""        if [[ $lc =~ $RE_YES_CONFLICT ]]; then
+            printf 'conflicting conclusion line, not an upstream --yes sentence: %s' "$(printf '%s' "$t" | head -c 200)"; return 0
+        fi
+        printf 'no-op line is not an upstream --yes sentence: %s' "$(printf '%s' "$t" | head -c 200)"; return 0
+""", "        continue\n"),
+    # B801 (PATCH3): the movement-beside-no-op conflict veto removed
+    "movementveto": ('        if [[ $lc =~ $RE_YES_MOVE ]]; then\n', '        if false; then\n'),
+    # B800: the available verdict no longer anchored at the start of the line
+    "availanchor": ('V_AVAILABLE="^(→ Selected release available: ', 'V_AVAILABLE="(→ Selected release available: '),
     # B501/B600: the daily check re-alert default back to a zero-margin 86400
     "checkinterval": ('"${AU_CHECK_ALERT_INTERVAL-}" 82800)', '"${AU_CHECK_ALERT_INTERVAL-}" 86400)'),
     # B601: "No newer release" accepts the short label again
@@ -198,7 +206,9 @@ neuter_and_run unknownline "B300 unknown line ignored -> StrictVerdicts must FAI
 neuter_and_run errorword "B300/B301 error-word veto removed -> StrictVerdicts + YesNoopVeto must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed YesNoopVeto.test_vetoed_noop_is_a_real_failure
 neuter_and_run noopveto "B301 --yes no-op veto removed -> YesNoopVeto must FAIL" "$PY_PROBE" YesNoopVeto
 neuter_and_run noopstrict "B500 --yes no-op accepted on a no-op-shaped prefix -> YesNoopStrict must FAIL" "$PY_PROBE" YesNoopStrict.test_r3a_noop_prefix_cases_fail_closed
-neuter_and_run conclusionline "B500 unrecognized column-0 conclusion line ignored -> YesNoopStrict must FAIL" "$PY_PROBE" YesNoopStrict.test_other_noop_shaped_and_unknown_conclusion_lines_fail_closed
+neuter_and_run conclusionwhole "B700/B802 conclusion line need not be a whole upstream sentence -> YesNoopStrict must FAIL" "$PY_PROBE" YesNoopStrict.test_other_noop_shaped_and_unknown_conclusion_lines_fail_closed
+neuter_and_run movementveto "B801 code movement beside a no-op not vetoed -> YesNoopStrict must FAIL" "$PY_PROBE" YesNoopStrict.test_movement_beside_noop_is_vetoed
+neuter_and_run availanchor "B800 available verdict matched after a prefix -> StrictVerdicts must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed
 neuter_and_run checkinterval "B501 zero-margin daily check re-alert -> Cadence jitter must FAIL" "$PY_PROBE" Cadence.test_daily_ticks_with_start_jitter_alert_every_day
 neuter_and_run noneweraheadonly "B601 short label after No newer release -> StrictVerdicts must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed
 neuter_and_run noopreset "B306 --yes no-op keeps the real-failure streak -> NoopResetsRealFails must FAIL" "$PY_PROBE" NoopResetsRealFails.test_yes_noop_missing_receipt

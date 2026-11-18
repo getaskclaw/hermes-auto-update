@@ -80,9 +80,9 @@ bash install.sh    # 只做前置检查——绝不运行更新器
   - `✓ Up to date with your fork (official repo not checked).` —— `update_cmd.py:1731`（v0.23.1 `:1727`；v2026.9.24 `update_cmd.py:765`）
   - `✓ Holding at this build until a newer <channel> release ships.` —— `update_cmd.py:1915`（v0.23.1 `:1911`）
   - `✓ Already up to date.`（句点）只是 `--check` 的句子（`update_cmd_check.py:200/:208/:222`，旧版也只在 `_cmd_update_check` 里），**不是** `--yes` 结论。
-- 同一输出没有被否决：`✗` 行；含 error/failed/timed out 的行；一行“有更新”/“检出更新”结论；**任何其它像“无事可做”的行**（任意缩进，如 `✓ Already up to date? …`、`✓ Already up to date. (cached …)`、`→ Holding at this build? …`、`--check` 的句子）；或**行首（第 0 列）以 `✓` / `→` / `⚕` / `☤` 开头、又不认识的结论样式行**。
-- 第 0 列的白名单只收上游 `--yes` 在无事可做时确实会打印的日志行（`☤ Updating Hermes Agent...`、`→ Update channel: …`、`→ Latest release: …` / `→ Release: …`、`→ Fetching updates...`、held 时的 `→ This build is newer than the … release …`、`→ Syncing bundled skills...`、`→ Checking configuration for new options...`、stash / fork / 网关重启等，逐条带 文件:行 写在 `auto_update.sh` 的 `_YL` 数组里）。宣告**代码变动**的行（`→ Switching to source commit`、`→ Pulling updates...`、`→ Pulling from upstream...`、`✓ Code updated!` 等）故意不收：它们和“无事可做”矛盾。
-- 带缩进的步骤日志（`  ✓ Skills are up to date`、`  ✓ Restarted …`、`  (…)`）和不以这几个字形开头的行都是普通进度输出，不受影响；安装成功的输出不走这个否决，由收据判定。
+- 同一输出没有被否决：`✗` 行；含 error/failed/timed out 的行；一行“有更新”/“检出更新”结论；一行宣告**代码变动**（`→ Post-swap hand-off: …`、`→ Switching to source commit`、`→ Found N new commit(s)`、`→ Pulling updates...`、`→ Pulling from upstream...`、`→ Syncing fork...`、`→ Rolling back to`、`✓ Code updated!`、ZIP 更新行等，和“无事可做”矛盾）。
+- **只审“声称结论”的行**：去掉 SGR 颜色码、行尾 CR 和首尾空白后，含结论关键词（不分大小写：`up to date`、`holding at this build`、`no newer release`、`nothing to update`、`newer than the`、`release available`、`update(s) available`、`release status`、`release check`、`channel status`；出处逐条写在 `auto_update.sh` 的 `RE_YES_CONCL` 注释里）的行，必须**整句**等于上游原句，且不再含第二个关键词，否则否决。上游原句分三张表：无事可做结论 `V_YES_NOOP`；held 时结论前的说明 `→ This build is newer than the … release …: … nothing to update to yet.`（`update_cmd_check.py:323-324`，只能和 held 结论同时出现）；以及点名自己对象的步骤报告 `V_YES_STEP`（`✓ Skills are up to date`、`✓ Configuration is up to date`、`✓ Fork is up to date with upstream`、TUI / Web UI / Desktop app、舰队行 `✓ <profile> (pid N) @ <sha> — up to date`、`◆ Search index update available`）。所以 `✓ Already up to date? …`、`✓ Already up to date. (cached …)`、`→ Holding at this build? …`、`--check` 的句子、`→ Fleet: … Already up to date` 这种尾部藏结论的行都会被否决。
+- 不含结论关键词的行（横幅 `☤` / `⚕ Updating Hermes Agent...`、`→ Fetching updates...`、`→ Fleet: …`、各种维护日志，缩进与否都一样）一律中性放行，**没有放行行白名单**；旧版横幅因此不再被误伤。安装成功的输出不走这个否决，由收据判定。
 
 被否决 → 按真实失败处理（计数、告警、退出 1，不清零）。合法的无事可做（检查期与 `--yes` 期都算）在 drain 复核之后把 `consec_real_fails` 清零，旧故障不会吞掉下一次新故障的首次告警。
 
@@ -109,7 +109,7 @@ bash install.sh    # 只做前置检查——绝不运行更新器
 ## v5.15 变更说明
 
 - `--check` 结论按上游整行原句匹配并加否决（见上），未知输出一律报警、不安装。
-- `--yes` 无事可做只认上游 `--yes` 整句原文（`update_cmd.py:1730/:1731/:1915`），并先过否决（含其它“像无事可做”的行和第 0 列不认识的结论行）；被否决按真实失败处理。所有合法无事可做出口都会清零真实失败计数。
+- `--yes` 无事可做只认上游 `--yes` 整句原文（`update_cmd.py:1730/:1731/:1915`），并先过否决：只审含结论关键词的行（须为上游整句），代码变动行与无事可做同现即冲突；横幅和进度行中性放行（不再维护行白名单，旧版 `⚕ Updating Hermes Agent...` 横幅不再被误判）。被否决按真实失败处理。所有合法无事可做出口都会清零真实失败计数。
 - 检查失败重报默认 `82800` 秒（1 天 − 1 小时），给启动抖动和夏令时留余量；`--check` 的 `No newer release` 只认 ahead 长 label。
 - 真实失败、通知送达失败、“检出更新”提醒都改为按墙钟节奏（新变量 `AU_REALERT_SECS`、`AU_ROLLBACK_REMIND_SECS`），不再按 tick 次数（每日调度下“每 12 次”= 12 天）。
 - 检查失败告警摘要优先选错误行。
@@ -136,5 +136,5 @@ bash scripts/release_gate.sh
 
 要求 PASS。闸门包含 `python3 scripts/check_compat_sanity.py auto_update.sh`。矩阵和兼容探针是脚本行为的可执行契约（场景数以它们自己打印的统计为准，不在文档里抄写）；验收点与测试的对应关系见 `verify/README.md`。
 
-sha256（auto_update.sh，updater v5.15）: `7d2f811e19c8dbc7b4f42eca19e18ee28c5a29ad534c0b903eb99e7b2eb82476`
+sha256（auto_update.sh，updater v5.15）: `024692c223524a5c887ea0886557579ca86d9ad62bf5546905573a9b9bf1dd06`
 _重新打包前用 `sha256sum auto_update.sh` 重新生成。_

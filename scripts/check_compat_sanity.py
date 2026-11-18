@@ -149,20 +149,57 @@ REAL_YES_HELD = (
     "→ Checking configuration for new options...\n"
     "  ✓ Configuration is up to date\n\n"
     "✓ Holding at this build until a newer stable release ships. [detached @ 67e4d22]\n")
-# The forward-only "ahead" default subscription (update_cmd_check.py:267 "Release: <ahead label>";
-# no fetch, update_cmd.py:1880-1882), conclusion on a fork (update_cmd.py:1731).
-REAL_YES_FORK = (
+# B701: the two former REAL_YES_FORK ingredients come from DIFFERENT control flows, so they are two
+# fixtures now. Each follows one upstream path (origin/main 67e4d22); the step tail is the same
+# composed tail as above, not a recorded run.
+# (a) The forward-only "ahead" default subscription: update_cmd_check.py:267 "Release: <ahead
+#     label>"; release_sha with target_is_head -> no fetch (update_cmd.py:1881-1883); the release
+#     plan returns upstream_checked=True (update_cmd.py:1399-1405), so the conclusion is
+#     "Already up to date!" (:1730), never the fork sentence (r4A fixture-consistency.py).
+REAL_YES_AHEAD = (
     "☤ Updating Hermes Agent...\n\n"
     "→ Update channel: stable\n"
     "→ Release: stable v0.23.2; this checkout is newer and waits for the next release"
-    " (`hermes update --set-channel main` follows every commit)\n"
-    "→ Adding upstream remote...\n"
-    "  ✓ Added upstream: https://github.com/NousResearch/hermes-agent.git\n\n"
-    "→ Fetching upstream...\n"
-    "  ✓ Fork is up to date with upstream\n\n"
+    " (`hermes update --set-channel main` follows every commit)\n\n"
+    "→ Syncing bundled skills...\n"
+    "  ✓ Skills are up to date\n\n"
+    "✓ Already up to date! [main @ 1a2b3c4]\n")
+# (b) A fork on the main channel with no upstream remote, run with --yes: the main channel prints
+#     only the channel line (no release target), "→ Fetching updates..." (update_cmd.py:1893),
+#     commit_count == 0 and is_fork and branch == "main" and not release_tag -> fork sync
+#     (update_cmd.py:1440) -> no upstream remote -> _offer_upstream_remote prints the notice and,
+#     because assume_yes, skips at update_cmd_git.py:343-349 (never reaching :362 "Adding upstream
+#     remote") and returns False -> upstream_checked=False -> update_cmd.py:1731.
+REAL_YES_FORK = (
+    "☤ Updating Hermes Agent...\n\n"
+    "→ Update channel: main\n"
+    "→ Fetching updates...\n\n"
+    "ℹ Your fork is not tracking the official Hermes repository.\n"
+    "  This means you may miss updates from NousResearch/hermes-agent.\n\n"
+    "  Skipping upstream setup (non-interactive run).\n"
+    "  Add it later with: git remote add upstream https://github.com/NousResearch/hermes-agent.git\n\n"
     "→ Syncing bundled skills...\n"
     "  ✓ Skills are up to date\n\n"
     "✓ Up to date with your fork (official repo not checked). [main @ 1a2b3c4]\n")
+# B700: legacy no-op runs. stdout of the REAL functions, extracted and executed by r4A
+# (evidence-r4A/legacy-noop.py, healthy commit_count == 0 branch, side effects faked):
+#   v2026.7.20 hermes_cli/main.py _cmd_update_impl :9958 banner, :10083 fetch, :10256 conclusion
+#   v2026.3.12 hermes_cli/main.py cmd_update :1608 banner, :1639 fetch, :1667 conclusion
+LEGACY_YES_NOOP_0720 = "⚕ Updating Hermes Agent...\n\n→ Fetching updates...\n✓ Already up to date!\n"
+LEGACY_YES_NOOP_0312 = "⚕ Updating Hermes Agent...\n\n→ Fetching updates...\n✓ Already up to date!\n"
+# The no-op tail with every keyword-bearing upstream step report it can print, each verbatim:
+# update_receipt.py:1244 fleet row, update_cmd_maint.py:185-195 search-index notice (printed by
+# _print_post_update_notices_and_self_heals after the conclusion, update_cmd_maint.py:1072),
+# source_build.py:276/:282/:350, update_cmd_git.py:421.
+REAL_YES_NOOP_TAIL = (REAL_YES_NOOP
+    + "  ✓ default (pid 4242) @ ae2a81c — up to date\n"
+    "  ✓ TUI is up to date\n  ✓ Web UI is up to date\n"
+    "  ✓ Desktop app is up to date: no desktop build input changed since ae2a81ccc00e\n"
+    "  ✓ Fork is up to date with upstream\n"
+    "◆ Search index update available\n"
+    "  Your search index is on the compact layout from an earlier optimization, but a later"
+    " release changed it. Running the command again rebuilds it in the current layout.\n"
+    "  Run when convenient:  hermes sessions optimize-storage\n")
 # A real INSTALL run in upstream print order: update_cmd.py:1893 fetch, :1931 switch, :1940 pull,
 # update_completion.py:427 announce "\n✓ Code updated!", the completion tail, and
 # _update_complete_message (update_cmd_maint.py:356) + suffix.
@@ -180,6 +217,23 @@ REAL_YES_INSTALL = (
     "→ Checking configuration for new options...\n"
     "  ✓ Configuration is up to date\n\n"
     "✓ Update complete! (v0.23.1 → v0.23.2) [detached @ ae2a81c]\n\n"
+    "  ✓ Restarted hermes-gateway.service\n")
+# A real INSTALL on a shallow main checkout: the count is unknown, so update_cmd.py:1938 prints
+# "→ Updates available (…)" before :1940 "→ Pulling updates..."; the post-update notice
+# update_cmd_maint.py:185 "◆ Search index update available" follows the completion line. Both
+# carry an "available" keyword; the install path never goes through the no-op veto.
+REAL_YES_INSTALL_SHALLOW = (
+    "☤ Updating Hermes Agent...\n\n"
+    "→ Update channel: main\n"
+    "→ Fetching updates...\n"
+    "→ Updates available (commit count unknown on this shallow checkout)\n"
+    "→ Pulling updates...\n\n"
+    "✓ Code updated!\n\n"
+    "→ Syncing bundled skills...\n"
+    "  ✓ Skills are up to date\n\n"
+    "✓ Update complete! (v0.23.1 → v0.23.2) [main @ ae2a81c]\n"
+    "◆ Search index update available\n"
+    "  Run when convenient:  hermes sessions optimize-storage\n\n"
     "  ✓ Restarted hermes-gateway.service\n")
 YES_FAIL = "✗ dependency install failed\n"
 REALERT_DEFAULT = 3 * DAY - 3600         # AU_REALERT_SECS default
@@ -834,6 +888,10 @@ class StrictVerdicts(T):
         # B601: "No newer release" is printed only with the ahead label (update_cmd_check.py:109-110,
         # source_releases.py:62-64); the short label never follows it.
         ("no-newer-short-label", BANNER + "✓ No newer release: %s.\n" % LBL),
+        # B800: the available verdict is anchored at the start too (a prefix is not the sentence)
+        ("prefix-available", "cached: → Selected release available: stable v0.23.2 (ae2a81ccc00e)\n"),
+        ("prefix-available-glued", BANNER + "(stale)→ Selected release available: %s\n" % LBL),
+        ("prefix-main-available", "cached ⚕ Update available: 3 commits behind origin/main.\n"),
     )
 
     def run_check(self, out, rc=0):
@@ -936,9 +994,10 @@ class YesNoopVeto(T):
 
 
 class YesNoopStrict(T):
-    """B500: a --yes no-op is accepted only on upstream's exact --yes sentence; any other no-op-shaped
-    line, or an unrecognized column-0 conclusion line, is a REAL FAILURE. Ordinary progress output
-    (indented step lines, whitelisted column-0 log lines) stays compatible."""
+    """B500/B700: a --yes no-op is accepted only on upstream's exact --yes sentence. Every line that
+    claims a conclusion (a conclusion keyword, after SGR/CR/whitespace removal) must be a whole
+    upstream sentence; a code-movement line beside the no-op is a conflict. Lines without a keyword
+    (banners, progress, maintenance logs) are neutral: there is no line whitelist."""
     # r3A evidence-r3A/noop-prefix.py, verbatim inputs
     R3A = (
         ("question", "✓ Already up to date? Could not determine release status.\n"),
@@ -961,6 +1020,37 @@ class YesNoopStrict(T):
         ("unknown-conclusion-staff", "⚕ Channel status unavailable\n" + YES_NOOP),
         ("movement-beside-noop", "→ Pulling updates...\n" + YES_NOOP),
         ("code-updated-beside-noop", "\n✓ Code updated!\n" + YES_NOOP),
+        # B802: a conclusion hidden in the free tail of a progress line (r4B probe_yes.sh inputs)
+        ("fleet-tail-claims-noop", "→ Fleet: 2 running service(s) across profiles: Already up to date\n" + YES_NOOP),
+        ("seeded-tail-claims-noop", "→ Seeded .env for 1 profile(s) (empty placeholder): ✓ Already up to date\n" + YES_NOOP),
+        ("progress-tail-claims-noop", REAL_YES_NOOP.replace("→ Fetching updates...", "→ Fetching updates... up to date (cached)")),
+        # SGR colour codes cannot hide a claim
+        ("sgr-question", YES_NOOP + "\x1b[33m✓ Already up to date? cached\x1b[0m\n"),
+        # keyword-bearing step reports only as whole upstream sentences, one keyword each
+        ("step-report-tail", YES_NOOP + "  ✓ Skills are up to date (cached; could not verify)\n"),
+        ("step-report-whole-run", YES_NOOP + "✓ Hermes is up to date\n"),
+        ("fleet-row-second-claim", YES_NOOP + "  ✓ up-to-date (pid 1) @ abc1234 — up to date\n"),
+        ("search-index-tail", YES_NOOP + "◆ Search index update available: release available\n"),
+        # available / rollback class beside a no-op is a conflict, verdict-shaped or not
+        ("shallow-updates-available", "→ Updates available (commit count unknown on this shallow checkout)\n" + YES_NOOP),
+        ("prefixed-available", YES_NOOP + "cached: → Selected release available: stable v0.23.2 (ae2a81ccc00e)\n"),
+        ("newer-than-the", YES_NOOP + "→ This build is newer than the stable release (cached)\n"),
+        # the held explanation belongs to the held conclusion only
+        ("held-why-beside-noop", REAL_YES_HELD.split("  Hermes stays")[0] + YES_NOOP),
+    )
+    # B801 (+ the rest of the movement family): code movement beside a no-op is a conflict.
+    MOVEMENT = (
+        ("post-swap-then-noop", "→ Post-swap hand-off: completing the update in a fresh interpreter"
+                                " (/home/u/.hermes/update-handoff.json)\n" + YES_NOOP),
+        ("post-swap-in-real-noop", REAL_YES_NOOP.replace(
+            "✓ Already up to date!", "→ Post-swap hand-off: completing the update in a fresh interpreter"
+            " (/home/u/.hermes/update-handoff.json)\n✓ Already up to date!")),
+        ("switching-source-commit", "→ Switching to source commit ae2a81ccc0\n" + YES_NOOP),
+        ("found-new-commits", "→ Found 3 new commit(s)\n" + YES_NOOP),
+        ("pulling-from-upstream", "→ Fork is 2 commit(s) behind upstream\n→ Pulling from upstream...\n" + YES_FORK),
+        ("syncing-fork", "→ Syncing fork...\n" + YES_FORK),
+        ("rolling-back", "→ Rolling back to ae2a81ccc0...\n" + YES_NOOP),
+        ("zip-update", "→ Downloading latest version...\n✓ Updated 12 items from ZIP\n" + YES_NOOP),
     )
 
     def vetoed(self, out, rec=None):
@@ -991,6 +1081,12 @@ class YesNoopStrict(T):
             with self.subTest(name=name):
                 self.vetoed(out)
 
+    def test_movement_beside_noop_is_vetoed(self):
+        for name, out in self.MOVEMENT:
+            with self.subTest(name=name):
+                _, t = self.vetoed(out)
+                self.assertIn("code movement beside a no-op", t[0])
+
     def test_r3a_cases_fail_closed_with_stale_or_foreign_receipt(self):
         for rec in ({"kind": "plugin-check", "outcome": "success"},
                     dict(GOOD, finished_at="2020-01-01T00:00:00+00:00")):
@@ -1000,7 +1096,12 @@ class YesNoopStrict(T):
 
     def test_real_upstream_noop_runs_are_silent_and_reset(self):
         for name, out in (("noop", REAL_YES_NOOP), ("noop-crlf", REAL_YES_NOOP.replace("\n", "\r\n")),
-                          ("held", REAL_YES_HELD), ("fork-ahead", REAL_YES_FORK),
+                          ("held", REAL_YES_HELD), ("stable-ahead", REAL_YES_AHEAD),
+                          ("fork-main-no-upstream", REAL_YES_FORK), ("noop-full-tail", REAL_YES_NOOP_TAIL),
+                          ("sgr-banner", "\x1b[1m⚕ Updating Hermes Agent...\x1b[0m\n" + YES_NOOP),
+                          ("neutral-unlisted-lines", "⚕ Updating Hermes Agent...\n→ Fleet: 2 running service(s)"
+                           " across profiles: default, work\n→ Restarting gateway(s) paused by an interrupted"
+                           " `hermes update`...\n◆ Some future maintenance step\n" + YES_NOOP),
                           ("bare-legacy", YES_NOOP)):
             with self.subTest(name=name):
                 b = self.box()
@@ -1016,10 +1117,32 @@ class YesNoopStrict(T):
                 self.assertIsNone(b.st("last_install_ts"))
                 self.assertIn("no-op: beaten", b.log())
 
+    def test_legacy_banner_noop_runs_are_legitimate(self):
+        # B700: the real legacy no-op stdout (banner + fetch + conclusion), healthy gateway, an old
+        # streak of 8 and a pending drain marker: silent, streak reset, no install, marker cleared.
+        for name, out in (("v2026.7.20", LEGACY_YES_NOOP_0720), ("v2026.3.12", LEGACY_YES_NOOP_0312)):
+            with self.subTest(name=name):
+                b = self.box()
+                b.seed("consec_real_fails", "8")
+                b.seed("drain_pending", "1")
+                b.scenario(LEGACY_AVAIL, yes=out)
+                p = b.run(apply="1", now=T0)
+                self.assertTrue(b.yes_called())
+                self.assertEqual(p.returncode, 0, b.log())
+                self.assertEqual(b.texts(), [])
+                self.assertEqual(b.st("consec_real_fails"), "0", b.log())
+                self.assertIsNone(b.st("last_install_ts"))
+                self.assertIsNone(b.st("drain_pending"), b.log())
+                self.assertIn("no-op: beaten", b.log())
+                self.assertNotIn("vetoed", b.log())
+
     def test_real_upstream_install_run_installs(self):
-        # Install output never goes through the no-op veto: its column-0 movement lines and the
-        # completion line are evidence, the receipt decides.
-        for name, rec in (("legacy-receipt", GOOD), ("correlated", None)):
+        # Install output never goes through the no-op veto: its movement lines and the completion
+        # line are evidence, the receipt decides. The shallow run also prints two upstream lines
+        # with an "available" keyword (update_cmd.py:1938, update_cmd_maint.py:185).
+        for name, rec, out in (("legacy-receipt", GOOD, REAL_YES_INSTALL), ("correlated", None, REAL_YES_INSTALL),
+                               ("shallow-legacy", GOOD, REAL_YES_INSTALL_SHALLOW),
+                               ("shallow-correlated", None, REAL_YES_INSTALL_SHALLOW)):
             with self.subTest(name=name):
                 b = self.box()
                 if rec is None:
@@ -1030,7 +1153,7 @@ class YesNoopStrict(T):
                     with open(b.stub_hermes, "w") as f:
                         f.write(s.replace(a, a + RealMovement.CORR, 1))
                     rec = GOOD
-                b.scenario(UP_AVAIL, yes=REAL_YES_INSTALL, receipt=rec)
+                b.scenario(UP_AVAIL, yes=out, receipt=rec)
                 p = b.run(apply="1")   # real clock: the stub's receipt finished_at is "now"
                 self.assertEqual(p.returncode, 0, b.log())
                 self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$")

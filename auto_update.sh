@@ -41,10 +41,13 @@
 #     different verdicts = unknown (counted, alerted at 3) — never "no update", never install.
 #   - --yes no-op with no receipt for this run is accepted only on an exact upstream --yes no-op
 #     sentence (update_cmd.py:1730/:1731/:1915, optional " [<branch> @ <sha>]" suffix) and only
-#     after the veto: ✗ / error words / an available-or-rollback verdict, ANY other no-op-shaped
-#     line ("✓ Already up to date? …", the --check sentences), or an unrecognized column-0
-#     ✓/→/⚕/☤ line outside the known upstream --yes log whitelist. Indented progress lines stay
-#     compatible. A vetoed no-op is a REAL FAILURE (counted, alerted, exit 1, no reset).
+#     after the veto, which judges only the lines that CLAIM a conclusion (they contain a
+#     conclusion keyword: up to date, holding at this build, no newer release, release / update
+#     available, newer than the, nothing to update, …). Each such line must be a whole upstream
+#     sentence, else vetoed. Banners and progress lines carry no keyword and pass as neutral (no
+#     line whitelist). Also vetoed: ✗ / error words, an available-or-rollback verdict, a line
+#     announcing code movement (Post-swap hand-off, Pulling updates, Code updated!, …). A vetoed
+#     no-op is a REAL FAILURE (counted, alerted, exit 1, no reset).
 #   - every legitimate no-op exit (check-time and --yes) resets consec_real_fails after the drain
 #     recheck, so an old streak cannot swallow the next unrelated failure's first alert.
 #   - check alerts: first at the 3rd consecutive problem, then every AU_CHECK_ALERT_INTERVAL s
@@ -620,83 +623,136 @@ verdict_detail() {
 # (update_cmd_check.py:200/:208/:222; v2026.6.19 main.py:7913/:8004 and v2026.7.20 main.py:8876/
 # :8985/:9003, all inside _cmd_update_check); no --yes path ever printed it.
 V_YES_NOOP='^(✓ Already up to date!|✓ Up to date with your fork \(official repo not checked\)\.|✓ Holding at this build until a newer [^[:space:]]+ release ships\.)( \[[^][]+ @ [0-9a-f]{4,40}\])?$'
-# Column-0 ✓ / → / ⚕ / ☤ lines are where upstream puts conclusions; its step logs are indented
-# ("  ✓ Skills are up to date", "  ✓ Restarted <unit>", "  (…)") and stay compatible. The
-# column-0 lines that a no-op --yes run can legitimately print are whitelisted here, each from
-# upstream origin/main (67e4d22). Lines that announce MOVEMENT (→ Switching to source commit,
-# → Found N new commit(s), → Pulling updates..., → Pulling from upstream..., → Syncing fork...,
-# → Rolling back to, ✓ Code updated!, ZIP update lines) are deliberately NOT here: beside a no-op
-# sentence they contradict it, so the run is vetoed and alerted.
-_YL=(
-    '☤ Updating Hermes Agent\.\.\.'                                   # update_cmd.py:1810
-    '→ (Release|Latest release): ('"$_V_LBL|$_V_LBL_AHEAD"')'              # update_cmd_check.py:267
-    '→ This build is newer than the [^[:space:]]+ release [0-9a-f]{7,40}: that release predates the gateway runtime your sessions use, so there is nothing to update to yet\.'  # update_cmd_check.py:323-324
-    '→ Fetching updates\.\.\.'                                                 # update_cmd.py:1893
-    '→ Fleet: [0-9]+ running service\(s\) across profiles: .+'                  # update_cmd.py:1544
-    '→ Source subscription moved to [^[:space:]]+'                              # update_cmd.py:811
-    '→ Adding upstream remote\.\.\.|→ Fetching upstream\.\.\.'                 # update_cmd_git.py:362/:399 (via update_cmd.py:1443)
-    '→ Discarded npm lockfile churn \([0-9]+ file\(s\)\)|→ Normalized line-ending churn \([0-9]+ file\(s\)\)'  # update_cmd_git.py:698/:751
-    '→ Local changes detected:|→ Local changes detected — stashing before update\.\.\.|→ Restoring local changes\.\.\.'  # update_cmd_stash.py:182/:252/:592
-    '→ Discarded local changes \(you chose not to keep them\)\.|→ Discarded local source changes \(updates\.non_interactive_local_changes=discard\)\.'  # update_cmd_stash.py:208/:733
-    '→ Leaving [0-9]+ untracked entr(y|ies) in place \(the update does not touch them\)\.'  # update_cmd_stash.py:226-227
-    '→ Clearing unmerged index entries from a previous conflict\.\.\.|→ Making [0-9]+ intent-to-add file\(s\) stashable\.\.\.'  # update_cmd_stash.py:237/:246
-    '→ Syncing bundled skills\.\.\.|→ Syncing bundled skills to all profiles\.\.\.'  # update_cmd_maint.py:1048/:838
-    '→ Seeded \.env for [0-9]+ profile\(s\) \(empty placeholder\): .+'       # update_cmd_maint.py:852
-    '→ Windows cua-driver refresh deferred \(autostart registration requires UAC\)\.|→ Preparing pinned cua-driver \(Computer Use\)\.\.\.'  # update_cmd_maint.py:868/:871
-    '→ Installing .+ \(default tool; opt out with `hermes pm install --without .+`\)\.\.\.'  # update_cmd_maint.py:908
-    '→ Checking configuration for new options\.\.\.|✓ Configuration updated!'  # update_cmd_config.py:181/:252
-    '→ Stopping Windows gateway process\(es\) before updating Hermes\.\.\.'    # update_cmd_windows.py:1040
-    '✓ Gateway (profile [^[:space:]]+ )?started via cold-start after update \(PID: [0-9, ]+\)'  # update_cmd_windows.py:1109/:1172
-    '→ Gateway restart deferred \(--no-gateway-restart\); restart gateways separately\.'  # update_completion.py:450
-    '→ Post-swap hand-off: completing the update in a fresh interpreter \(.+\)'  # update_handoff.py:143
-    '→ Restarting gateway\(s\) paused by an interrupted `hermes update`\.\.\.'  # update_pause_record.py:971
-    '→ Waiting for a running Hermes update to release this checkout\.\.\.|→ Waiting for another Hermes desktop dependency install or build to finish\.\.\.'  # desktop_build_lock.py:85/:111
-    '✓ Desktop .+ is up to date \(content stamp matches\)'                      # main_desktop.py:1787
-    '→ Restarting externally-supervised gateway \(PID [0-9]+\) — draining in-flight runs \(up to [0-9]+s\)\.\.\.|✓ Gateway relaunched by its supervisor \(PID [0-9]+\)'  # gateway_supervised_restart.py:87-88/:93
-    '→ Migrating per-profile gateways onto one multiplexed default gateway\.\.\.|✓ Already multiplexed — nothing to do\.'  # gateway_migrate.py:1294/:1039
-)
-_IFS_SAVE=$IFS; IFS='|'; V_YES_LOG="^(${_YL[*]})\$"; IFS=$_IFS_SAVE; unset _IFS_SAVE _YL
+# --- which --yes lines are judged (PATCH3, B700/B801/B802) ----------------------------------
+# Only a line that CLAIMS a conclusion is judged. A line claims one when, after removing SGR
+# colour codes, a trailing CR and surrounding whitespace, it contains a conclusion keyword (any
+# case, "up to date" also hyphenated). Keywords and where upstream prints them (origin/main
+# 67e4d22 unless noted):
+#   up to date            update_cmd.py:1730/:1731; update_cmd_check.py:112/:200/:208/:222;
+#                         step reports update_cmd_maint.py:516, update_cmd_config.py:259,
+#                         update_cmd_git.py:421, source_build.py:276/:282/:348/:350,
+#                         update_receipt.py:1244
+#   holding at this build update_cmd.py:1915; update_cmd_check.py:115
+#   no newer release      update_cmd_check.py:110
+#   nothing to update     update_cmd_check.py:323-324
+#   newer than the        update_cmd_check.py:119 (rollback verdict), :323
+#   release available     update_cmd_check.py:123
+#   update(s) available   update_cmd_check.py:212/:214/:225; update_cmd.py:1938;
+#                         update_cmd_maint.py:185
+#   release status, release check, channel status: never printed by any upstream --yes path; a
+#                         line about the release / channel status is a claim about the outcome
+#                         (the r3/r4 "→ Release status could not be verified" vetoes stay).
+# A judged line passes only if it is a WHOLE upstream sentence from one of the three tables
+# below and holds no extra keyword (so a free slot cannot smuggle a second claim):
+#   V_YES_NOOP       the no-op conclusions (the only lines that make the run a no-op)
+#   V_YES_HELD_WHY   the held explanation that precedes the held conclusion
+#   V_YES_STEP       upstream step reports that name their own subject ("Skills are up to date")
+# Anything else that claims a conclusion is vetoed. Lines WITHOUT a keyword (banners such as
+# "☤/⚕ Updating Hermes Agent...", "→ Fetching updates...", "→ Fleet: …", maintenance logs) are
+# neutral: there is deliberately no whitelist for them.
+RE_YES_CONCL='(up[ -]?to[ -]?date|holding at this build|no newer release|nothing (new )?to update|newer than the|release available|updates? available|release status|release check|channel status)'
+# The available / rollback class, for the veto reason only: such a line beside a no-op conflicts.
+RE_YES_CONFLICT='(newer than the|release available|updates? available)'
+# Lines that announce that code moved or is being swapped. Beside a no-op they contradict it
+# (movement + nothing to do), so the run is vetoed. Where upstream prints them (origin/main):
+#   post-swap hand-off              update_handoff.py:143
+#   switching to source commit      update_cmd.py:1931
+#   found N new commit(s)           update_cmd.py:1933
+#   switched the running checkout   update_cmd.py:1935
+#   pulling updates                 update_cmd.py:1940
+#   resetting to match remote       update_cmd.py:877
+#   rolling back to                 update_cmd.py:915
+#   falling back to zip download    update_cmd.py:1667
+#   pulling from upstream, commit(s) behind upstream   update_cmd_git.py:423
+#   syncing fork                    update_cmd_git.py:487
+#   code updated                    update_completion.py:427
+#   downloading latest version, items from zip   update_cmd_zip.py:576/:597
+#   update complete                 update_cmd_maint.py:356 (completion line)
+RE_YES_MOVE='(post-swap hand-off|switching to source commit|new commit|switched the running checkout|pulling (updates|from upstream)|resetting to match remote|rolling back to|falling back to zip|syncing fork|behind upstream|code updated|downloading latest version|items from zip|update complete)'
+# The held explanation, update_cmd_check.py:323-324 (hold_channel_release_behind_runtime). It is
+# printed on the --yes held path just before the held conclusion; it carries two keywords.
+V_YES_HELD_WHY='^→ This build is newer than the [A-Za-z0-9_.-]+ release [0-9a-f]{7,40}: that release predates the gateway runtime your sessions use, so there is nothing to update to yet\.$'
+# Upstream step reports that contain a keyword about their OWN subject, whole sentence each:
+#   ✓ Skills are up to date             update_cmd_maint.py:516 (v2026.3.12 main.py:1595/:1715,
+#                                       v2026.7.20 main.py:10550)
+#   ✓ Configuration is up to date       update_cmd_config.py:259 (v2026.3.12 main.py:1755,
+#                                       v2026.7.20 main.py:10739)
+#   ✓ Fork is up to date with upstream  update_cmd_git.py:421 (v2026.7.20 main.py:7126)
+#   ✓ TUI is up to date / ✓ Web UI is up to date   source_build.py:276/:282
+#   ✓ Desktop app is up to date[: no desktop build input changed since <sha12>]  source_build.py:348/:350
+#   ✓ Desktop app up to date            v2026.7.20 main.py:10495
+#   ✓ <profile> (pid <pid>) @ <sha> — up to date   update_receipt.py:1244 (fleet row)
+#   ◆ Search index update available     update_cmd_maint.py:185 (post-update notice, printed on
+#                                       the no-op tail too: update_cmd_maint.py:1072)
+V_YES_STEP='^(✓ Skills are up to date|✓ Configuration is up to date|✓ Fork is up to date with upstream|✓ TUI is up to date|✓ Web UI is up to date|✓ Desktop app is up to date(: no desktop build input changed since [0-9a-f]{7,40})?|✓ Desktop app up to date|✓ [^[:space:]]+ \(pid [0-9]+\) @ [0-9a-f]{4,40} — up to date|◆ Search index update available)$'
+
+# Strip SGR / other CSI escapes, one trailing CR and surrounding whitespace into YT.
+yes_trim() {
+    local t="${1%$'\r'}" esc=$'\e'
+    while [[ $t =~ ${esc}\[[0-9\;?]*[A-Za-z] ]]; do t="${t/"${BASH_REMATCH[0]}"/}"; done
+    t="${t#"${t%%[![:space:]]*}"}"
+    YT="${t%"${t##*[![:space:]]}"}"
+}
+# Number of conclusion keywords in $1 (lower-case text) into KWN.
+yes_kw_count() {
+    local s="$1"
+    KWN=0
+    while [[ $s =~ $RE_YES_CONCL ]]; do KWN=$((KWN + 1)); s="${s/"${BASH_REMATCH[0]}"/ }"; done
+}
 
 # --yes no-op veto. The no-op stands ("nothing installed, nothing wrong") only if
 #   - at least one line is an exact upstream no-op sentence (V_YES_NOOP), and
 #   - no line is ✗ / names error, failed or timed out (any case) / is an available or rollback
 #     verdict, and
-#   - no OTHER line is shaped like a no-op claim (RE_NOOP: "✓ Already up to date? …",
-#     "✓ Already up to date. (cached …)", "→ Holding at this build? …", the --check sentences —
-#     a no-op conclusion must be upstream's own --yes sentence, any indentation), and
-#   - no column-0 ✓ / → / ⚕ / ☤ line is unrecognized (classify_line = unknown and not V_YES_LOG).
-# Indented lines and lines without those glyphs are ordinary progress output and stay compatible.
-# Echoes the reason and returns 0 when vetoed; returns 1 (no output) when the no-op may stand.
+#   - no line announces code movement (RE_YES_MOVE), and
+#   - every line that claims a conclusion (RE_YES_CONCL) is a whole upstream sentence from
+#     V_YES_NOOP / V_YES_HELD_WHY / V_YES_STEP with no extra keyword ("✓ Already up to date? …",
+#     "✓ Already up to date. (cached …)", the --check sentences, "→ Fleet: … Already up to date"
+#     are all vetoed), and
+#   - the held explanation appears only together with the held conclusion.
+# Every other line is neutral. Echoes the reason and returns 0 when vetoed; returns 1 (no output)
+# when the no-op may stand.
 yes_noop_veto() {
-    local raw line t seen=0
+    local raw t lc seen=0 held=0 why=0
     while IFS= read -r raw; do
-        line="${raw%$'\r'}"
-        t="${line#"${line%%[![:space:]]*}"}"
-        t="${t%"${t##*[![:space:]]}"}"
-        classify_line "$line"
+        yes_trim "$raw"; t=$YT
+        [ -n "$t" ] || continue
+        classify_line "$t"
         case "$CL" in
             error)
                 printf 'error line: %s' "$(printf '%s' "$t" | head -c 200)"; return 0 ;;
             available|rollback)
                 printf 'conflicting %s verdict: %s' "$CL" "$(printf '%s' "$t" | head -c 200)"; return 0 ;;
         esac
-        if [[ $t =~ $V_YES_NOOP ]]; then seen=1; continue; fi
-        if [[ $line =~ $RE_NOOP ]]; then
-            printf 'no-op line is not an upstream --yes sentence: %s' "$(printf '%s' "$t" | head -c 200)"; return 0
+        lc="${t,,}"
+        if [[ $lc =~ $RE_YES_MOVE ]]; then
+            printf 'code movement beside a no-op: %s' "$(printf '%s' "$t" | head -c 200)"; return 0
         fi
-        if [ "$CL" = unknown ] && [[ $line =~ ^(✓|→|⚕|☤) ]] && ! [[ $t =~ $V_YES_LOG ]]; then
-            printf 'unrecognized conclusion line: %s' "$(printf '%s' "$t" | head -c 200)"; return 0
+        [[ $lc =~ $RE_YES_CONCL ]] || continue          # no conclusion claimed: neutral
+        yes_kw_count "$lc"
+        if [ "$KWN" -eq 1 ] && [[ $t =~ $V_YES_NOOP ]]; then
+            seen=1
+            case "$t" in "✓ Holding at this build until "*) held=1 ;; esac
+            continue
         fi
+        if [ "$KWN" -eq 2 ] && [[ $t =~ $V_YES_HELD_WHY ]]; then why=1; continue; fi
+        if [ "$KWN" -eq 1 ] && [[ $t =~ $V_YES_STEP ]]; then continue; fi
+        if [[ $lc =~ $RE_YES_CONFLICT ]]; then
+            printf 'conflicting conclusion line, not an upstream --yes sentence: %s' "$(printf '%s' "$t" | head -c 200)"; return 0
+        fi
+        printf 'no-op line is not an upstream --yes sentence: %s' "$(printf '%s' "$t" | head -c 200)"; return 0
     done <<< "$1"
-    [ "$seen" -eq 1 ] && return 1
-    printf 'no upstream --yes no-op sentence'
-    return 0
+    if [ "$seen" -ne 1 ]; then printf 'no upstream --yes no-op sentence'; return 0; fi
+    if [ "$why" -eq 1 ] && [ "$held" -ne 1 ]; then
+        printf 'held explanation without the held conclusion'; return 0
+    fi
+    return 1
 }
 # The accepted no-op sentence, for the log (call only after the veto passed).
 yes_noop_line() {
     local raw t
     while IFS= read -r raw; do
-        t="${raw%$'\r'}"; t="${t#"${t%%[![:space:]]*}"}"; t="${t%"${t##*[![:space:]]}"}"
+        yes_trim "$raw"; t=$YT
         if [[ $t =~ $V_YES_NOOP ]]; then printf '%s' "$t" | head -c 200; return 0; fi
     done <<< "$1"
 }
@@ -1047,9 +1103,9 @@ if [ "$STATUS" -eq 0 ]; then
         if printf '%s\n' "$UPDATE_OUT" | grep -qE "$RE_NOOP"; then
             # A no-op-shaped line alone never decides: the conclusion must be upstream's exact
             # --yes no-op sentence, and a ✗ line, an error / failed / timed out line, an
-            # available / rollback verdict, any other no-op-shaped line, or an unrecognized
-            # column-0 conclusion line means the run is NOT a harmless no-op. That is a REAL
-            # FAILURE (counted, alerted, exit 1, the streak is NOT reset).
+            # available / rollback verdict, a code-movement line, or any line claiming a
+            # conclusion that is not a whole upstream sentence means the run is NOT a harmless
+            # no-op. That is a REAL FAILURE (counted, alerted, exit 1, the streak is NOT reset).
             if VETO=$(yes_noop_veto "$UPDATE_OUT"); then
                 real_failure_exit "no-op line vetoed ($VETO)"
             fi
