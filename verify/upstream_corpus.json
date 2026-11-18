@@ -1,0 +1,8573 @@
+{
+"excluded_tags": {
+"abandoned": 82,
+"build-metadata": 1,
+"canary": 44,
+"not-a-version": 22,
+"rc": 92
+},
+"parse_errors": {},
+"prints_per_tag": {
+"v0.21.6": 542,
+"v0.21.7": 544,
+"v0.22.0": 546,
+"v0.22.1": 549,
+"v0.22.2": 546,
+"v0.22.3": 553,
+"v0.22.4": 553,
+"v0.22.5": 558,
+"v0.22.6": 568,
+"v0.22.7": 568,
+"v0.23.0": 568,
+"v0.23.1": 565,
+"v0.23.2": 574,
+"v2026.3.12": 58,
+"v2026.3.17": 101,
+"v2026.3.23": 114,
+"v2026.3.28": 127,
+"v2026.3.30": 135,
+"v2026.4.13": 158,
+"v2026.4.16": 161,
+"v2026.4.23": 177,
+"v2026.4.3": 171,
+"v2026.4.30": 211,
+"v2026.4.8": 155,
+"v2026.5.16": 245,
+"v2026.5.28": 274,
+"v2026.5.29": 274,
+"v2026.5.29.2": 274,
+"v2026.5.7": 221,
+"v2026.6.19": 318,
+"v2026.6.5": 302,
+"v2026.7.1": 334,
+"v2026.7.20": 365,
+"v2026.7.30": 424,
+"v2026.7.7": 342,
+"v2026.7.7.2": 342,
+"v2026.8.13": 441,
+"v2026.8.16": 474,
+"v2026.8.16.2": 474,
+"v2026.8.18": 492,
+"v2026.8.19": 498,
+"v2026.8.27": 572,
+"v2026.8.3": 438,
+"v2026.8.31": 603,
+"v2026.9.11": 518,
+"v2026.9.14": 520,
+"v2026.9.21": 575,
+"v2026.9.24": 581,
+"v2026.9.7": 516
+},
+"schema": 1,
+"tags": [
+"v2026.3.12",
+"v2026.3.17",
+"v2026.3.23",
+"v2026.3.28",
+"v2026.3.30",
+"v2026.4.3",
+"v2026.4.8",
+"v2026.4.13",
+"v2026.4.16",
+"v2026.4.23",
+"v2026.4.30",
+"v2026.5.7",
+"v2026.5.16",
+"v2026.5.28",
+"v2026.5.29",
+"v2026.5.29.2",
+"v2026.6.5",
+"v2026.6.19",
+"v2026.7.1",
+"v2026.7.7",
+"v2026.7.7.2",
+"v2026.7.20",
+"v2026.7.30",
+"v2026.8.3",
+"v2026.8.13",
+"v2026.8.16",
+"v2026.8.16.2",
+"v2026.8.18",
+"v2026.8.19",
+"v2026.8.27",
+"v2026.8.31",
+"v2026.9.7",
+"v2026.9.11",
+"v2026.9.14",
+"v2026.9.21",
+"v2026.9.24",
+"v0.21.6",
+"v0.21.7",
+"v0.22.0",
+"v0.22.1",
+"v0.22.2",
+"v0.22.3",
+"v0.22.4",
+"v0.22.5",
+"v0.22.6",
+"v0.22.7",
+"v0.23.0",
+"v0.23.1",
+"v0.23.2"
+],
+"templates": [
+{
+"at": "hermes_cli/main.py:10038@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Import probes unavailable — cannot confirm venv package health.",
+"tags": 9
+},
+{
+"at": "hermes_cli/main.py:10044@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  → Detected corrupted venv packages via import probes: <<', '.join(broken)>>; repairing...",
+"tags": 9
+},
+{
+"at": "hermes_cli/main.py:10051@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ✓ Venv repair succeeded",
+"tags": 9
+},
+{
+"at": "hermes_cli/main.py:10056@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Venv repair incomplete. Run manually, then `hermes update`:",
+"tags": 9
+},
+{
+"at": "hermes_cli/main.py:10057@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "    <<' '.join(install_cmd_prefix)>> install --force-reinstall <<manual>>",
+"tags": 9
+},
+{
+"at": "hermes_cli/main.py:10110@v2026.8.19",
+"first": "v2026.7.30",
+"last": "v2026.8.19",
+"reach": [
+"yes"
+],
+"t": "<<recommended_update_command_for_method(install_method)>>",
+"tags": 7
+},
+{
+"at": "hermes_cli/main.py:10189@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Optional extras failed, reinstalling base dependencies and retrying extras individually...",
+"tags": 26
+},
+{
+"at": "hermes_cli/main.py:10205@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ✓ Reinstalled optional extras individually: <<', '.join(installed_extras)>>",
+"tags": 26
+},
+{
+"at": "hermes_cli/main.py:10209@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Skipped optional extras that still failed: <<', '.join(failed_extras)>>",
+"tags": 26
+},
+{
+"at": "hermes_cli/main.py:10287@v2026.8.31",
+"first": "v2026.7.1",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Verification: <<len(missing)>> console script(s) missing on disk: <<', '.join(missing)>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/main.py:10291@v2026.8.31",
+"first": "v2026.7.1",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  → Reinstalling entry points with --reinstall...",
+"tags": 13
+},
+{
+"at": "hermes_cli/main.py:10301@v2026.8.31",
+"first": "v2026.7.1",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Entry point repair failed; try `hermes update --force` after closing other hermes processes.",
+"tags": 13
+},
+{
+"at": "hermes_cli/main.py:10309@v2026.8.31",
+"first": "v2026.7.1",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Still missing after repair: <<', '.join(still_missing)>>. Workaround: python -m hermes_cli.main <command>",
+"tags": 13
+},
+{
+"at": "hermes_cli/main.py:10314@v2026.8.31",
+"first": "v2026.7.1",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ✓ All console entry points restored",
+"tags": 13
+},
+{
+"at": "hermes_cli/main.py:10331@v2026.7.20",
+"first": "v2026.5.28",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "    cd <<PROJECT_ROOT>> && git reset --hard <<pre_pull_sha>>",
+"tags": 9
+},
+{
+"at": "hermes_cli/main.py:10337@v2026.7.20",
+"first": "v2026.5.28",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "    cd <<PROJECT_ROOT>> && git reflog && git reset --hard <prev-sha>",
+"tags": 9
+},
+{
+"at": "hermes_cli/main.py:10430@v2026.8.31",
+"first": "v2026.6.5",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Verification: <<len(missing)>> declared dep(s) missing after install: <<', '.join(missing[:8])>><<'...' if len(missing) > 8 else ''>>",
+"tags": 15
+},
+{
+"at": "hermes_cli/main.py:10434@v2026.8.31",
+"first": "v2026.6.5",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  → Reinstalling base group with --reinstall to repair...",
+"tags": 15
+},
+{
+"at": "hermes_cli/main.py:10453@v2026.8.31",
+"first": "v2026.6.5",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Repair install failed; check `hermes update` output above.",
+"tags": 15
+},
+{
+"at": "hermes_cli/main.py:10475@v2026.8.31",
+"first": "v2026.6.5",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  → Force-installing remaining missing dep(s): <<', '.join(specs)>>",
+"tags": 15
+},
+{
+"at": "hermes_cli/main.py:10484@v2026.8.31",
+"first": "v2026.6.5",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not install: <<', '.join(still_missing)>>. Run `hermes update --force` after closing other hermes processes.",
+"tags": 15
+},
+{
+"at": "hermes_cli/main.py:10492@v2026.8.31",
+"first": "v2026.6.5",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Still missing after repair: <<', '.join(final_missing)>>. Run `hermes update --force` after closing other hermes processes.",
+"tags": 15
+},
+{
+"at": "hermes_cli/main.py:10497@v2026.8.31",
+"first": "v2026.6.5",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ✓ All declared core dependencies now installed",
+"tags": 15
+},
+{
+"at": "hermes_cli/main.py:11331@v2026.7.20",
+"first": "v2026.6.19",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "  ⚠ systemctl timed out during the <<scope>>-scope gateway restart (<<exc.cmd if exc.cmd else 'unknown command'>>). Check the gateway with: hermes gateway status",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:11347@v2026.6.5",
+"first": "v2026.5.7",
+"last": "v2026.6.5",
+"reach": [
+"yes"
+],
+"t": "  ✗ <<svc_name>> failed to stay running after restart.\n    Check logs: journalctl <<_scope_flag>>-u <<svc_name>> --since '2 min ago'\n    Recover manually:\n      systemctl <<_scope_flag>>reset-failed <<svc_name>>\n      systemctl <<_scope_flag>>restart <<svc_name>>",
+"tags": 6
+},
+{
+"at": "hermes_cli/main.py:1768@v2026.3.12",
+"first": "v2026.3.12",
+"last": "v2026.3.12",
+"reach": [
+"yes"
+],
+"t": "→ Gateway service is running — restarting to pick up changes...",
+"tags": 1
+},
+{
+"at": "hermes_cli/main.py:2093@v2026.3.17",
+"first": "v2026.3.17",
+"last": "v2026.3.17",
+"reach": [
+"yes"
+],
+"t": "✗ Update pulled new code, but restoring local changes failed.",
+"tags": 1
+},
+{
+"at": "hermes_cli/main.py:2099@v2026.3.17",
+"first": "v2026.3.17",
+"last": "v2026.3.17",
+"reach": [
+"yes"
+],
+"t": "Resolve manually with: git stash apply <<stash_ref>>",
+"tags": 1
+},
+{
+"at": "hermes_cli/main.py:2148@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<json.dumps(holders, indent=2)>>",
+"tags": 15
+},
+{
+"at": "hermes_cli/main.py:2211@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<describe_holder(_update_lock.holder)>>",
+"tags": 27
+},
+{
+"at": "hermes_cli/main.py:2230@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<refusal or f'✗ Update failed: {exc}'>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/main.py:2243@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<refusal>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/main.py:2960@v2026.4.8",
+"first": "v2026.3.23",
+"last": "v2026.4.8",
+"reach": [
+"yes"
+],
+"t": "\nReset working tree to clean state so Hermes can run?",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:2961@v2026.4.8",
+"first": "v2026.3.23",
+"last": "v2026.4.8",
+"reach": [
+"yes"
+],
+"t": "  (You can re-apply your changes later with: git stash apply)",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:2962@v2026.4.8",
+"first": "v2026.3.23",
+"last": "v2026.4.8",
+"reach": [
+"yes"
+],
+"t": "[Y/n] ",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:2975@v2026.4.8",
+"first": "v2026.3.23",
+"last": "v2026.4.8",
+"reach": [
+"yes"
+],
+"t": "Working tree left as-is (may have conflict markers).",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:2976@v2026.4.8",
+"first": "v2026.3.23",
+"last": "v2026.4.8",
+"reach": [
+"yes"
+],
+"t": "Resolve conflicts manually, then run: git stash drop",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:2978@v2026.4.8",
+"first": "v2026.3.23",
+"last": "v2026.4.8",
+"reach": [
+"yes"
+],
+"t": "Restore your changes with: git stash apply <<stash_ref>>",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:3024@v2026.3.30",
+"first": "v2026.3.23",
+"last": "v2026.3.30",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Optional extras failed, installing base dependencies...",
+"tags": 3
+},
+{
+"at": "hermes_cli/main.py:3244@v2026.3.30",
+"first": "v2026.3.17",
+"last": "v2026.3.30",
+"reach": [
+"yes"
+],
+"t": "✓ Gateway restarted via launchd.",
+"tags": 4
+},
+{
+"at": "hermes_cli/main.py:3246@v2026.3.30",
+"first": "v2026.3.17",
+"last": "v2026.3.30",
+"reach": [
+"yes"
+],
+"t": "⚠ Gateway restart failed: <<start.stderr.strip()>>",
+"tags": 4
+},
+{
+"at": "hermes_cli/main.py:3598@v2026.4.3",
+"first": "v2026.3.12",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "✓ Gateway restarted.",
+"tags": 6
+},
+{
+"at": "hermes_cli/main.py:3608@v2026.4.3",
+"first": "v2026.3.17",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "  Linger must be enabled for the gateway user service to function.",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:3609@v2026.4.3",
+"first": "v2026.3.17",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "  Run:  sudo loginctl enable-linger <<_username>>",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:3611@v2026.4.3",
+"first": "v2026.3.17",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "  Then restart the gateway:",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:3619@v2026.4.3",
+"first": "v2026.4.3",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "→ Restarting system gateway service...",
+"tags": 1
+},
+{
+"at": "hermes_cli/main.py:3625@v2026.4.3",
+"first": "v2026.4.3",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "✓ Gateway restarted (system service).",
+"tags": 1
+},
+{
+"at": "hermes_cli/main.py:3627@v2026.4.3",
+"first": "v2026.3.12",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "⚠ Gateway restart failed: <<restart.stderr.strip()>>",
+"tags": 6
+},
+{
+"at": "hermes_cli/main.py:3628@v2026.4.3",
+"first": "v2026.4.3",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "  System services may require root.  Try:",
+"tags": 1
+},
+{
+"at": "hermes_cli/main.py:3629@v2026.4.3",
+"first": "v2026.4.3",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "    sudo systemctl restart <<_gw_service_name>>",
+"tags": 1
+},
+{
+"at": "hermes_cli/main.py:3634@v2026.4.3",
+"first": "v2026.3.17",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "→ Restarting gateway service...",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:3639@v2026.4.3",
+"first": "v2026.4.3",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "⚠ Gateway restart failed: <<stderr>>",
+"tags": 1
+},
+{
+"at": "hermes_cli/main.py:3640@v2026.4.3",
+"first": "v2026.3.12",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "  Try manually: hermes gateway restart",
+"tags": 6
+},
+{
+"at": "hermes_cli/main.py:3644@v2026.4.3",
+"first": "v2026.3.17",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "→ Stopped gateway process (PID <<existing_pid>>)",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:3648@v2026.4.3",
+"first": "v2026.3.17",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "⚠ Permission denied killing gateway PID <<existing_pid>>",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:3650@v2026.4.3",
+"first": "v2026.3.17",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "  ℹ️  Gateway was running manually (not as a service).",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:3651@v2026.4.3",
+"first": "v2026.3.17",
+"last": "v2026.4.3",
+"reach": [
+"yes"
+],
+"t": "  Restart it with: hermes gateway run",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:5555@v2026.5.7",
+"first": "v2026.4.13",
+"last": "v2026.5.7",
+"reach": [
+"yes"
+],
+"t": "Web UI frontend not built and npm is not available.",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:5556@v2026.5.7",
+"first": "v2026.4.13",
+"last": "v2026.5.7",
+"reach": [
+"yes"
+],
+"t": "Install Node.js, then run:  cd web && npm install && npm run build",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:5558@v2026.5.7",
+"first": "v2026.4.13",
+"last": "v2026.5.7",
+"reach": [
+"yes"
+],
+"t": "→ Building web UI...",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:5561@v2026.5.7",
+"first": "v2026.4.13",
+"last": "v2026.5.7",
+"reach": [
+"yes"
+],
+"t": "  <<'✗' if fatal else '⚠'>> Web UI npm install failed",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:5570@v2026.5.7",
+"first": "v2026.4.13",
+"last": "v2026.5.7",
+"reach": [
+"yes"
+],
+"t": "  <<'✗' if fatal else '⚠'>> Web UI build failed",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:5575@v2026.5.7",
+"first": "v2026.4.13",
+"last": "v2026.5.7",
+"reach": [
+"yes"
+],
+"t": "  Run manually:  cd web && npm install && npm run build",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:5577@v2026.5.7",
+"first": "v2026.4.13",
+"last": "v2026.5.7",
+"reach": [
+"yes"
+],
+"t": "  ✓ Web UI built",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:5809@v2026.5.7",
+"first": "v2026.4.30",
+"last": "v2026.5.7",
+"reach": [
+"yes"
+],
+"t": "    ✗ failed to stop PID <<pid>>: <<reason>>",
+"tags": 2
+},
+{
+"at": "hermes_cli/main.py:6355@v2026.7.20",
+"first": "v2026.4.30",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "⟲ Stopping <<len(pids)>> dashboard process(es) (<<reason>>)",
+"tags": 12
+},
+{
+"at": "hermes_cli/main.py:6419@v2026.7.20",
+"first": "v2026.4.30",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "    ✓ stopped PID <<pid>>",
+"tags": 12
+},
+{
+"at": "hermes_cli/main.py:6421@v2026.7.20",
+"first": "v2026.5.16",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "    ✗ failed to stop PID <<pid>>: <<err_msg>>",
+"tags": 10
+},
+{
+"at": "hermes_cli/main.py:6424@v2026.7.20",
+"first": "v2026.4.30",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "  Restart the dashboard when you're ready:",
+"tags": 12
+},
+{
+"at": "hermes_cli/main.py:6436@v2026.4.30",
+"first": "v2026.4.30",
+"last": "v2026.4.30",
+"reach": [
+"check",
+"yes"
+],
+"t": "✗ Failed to fetch from origin.",
+"tags": 1
+},
+{
+"at": "hermes_cli/main.py:6454@v2026.4.30",
+"first": "v2026.4.30",
+"last": "v2026.4.30",
+"reach": [
+"check",
+"yes"
+],
+"t": "⚕ Update available: <<behind>> <<commits_word>> behind origin/main.",
+"tags": 1
+},
+{
+"at": "hermes_cli/main.py:6615@v2026.8.31",
+"first": "v2026.5.16",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "<<text>>",
+"tags": 19
+},
+{
+"at": "hermes_cli/main.py:6618@v2026.8.31",
+"first": "v2026.5.16",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "<<text.encode(encoding, errors='replace').decode(encoding, errors='replace')>>",
+"tags": 19
+},
+{
+"at": "hermes_cli/main.py:6928@v2026.8.31",
+"first": "v2026.8.16",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ A previous update left the desktop bundle incomplete (<<dist_dir>>); rebuilding it",
+"tags": 6
+},
+{
+"at": "hermes_cli/main.py:6969@v2026.5.16",
+"first": "v2026.5.16",
+"last": "v2026.5.16",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not quarantine <<shim.name>>: <<e>>",
+"tags": 1
+},
+{
+"at": "hermes_cli/main.py:6989@v2026.4.30",
+"first": "v2026.3.30",
+"last": "v2026.4.30",
+"reach": [
+"yes"
+],
+"t": "→ Syncing bundled skills to other profiles...",
+"tags": 7
+},
+{
+"at": "hermes_cli/main.py:7059@v2026.4.30",
+"first": "v2026.3.30",
+"last": "v2026.4.30",
+"reach": [
+"yes"
+],
+"t": "  ℹ Non-interactive session — skipping config migration prompt.",
+"tags": 7
+},
+{
+"at": "hermes_cli/main.py:7060@v2026.4.30",
+"first": "v2026.3.30",
+"last": "v2026.4.30",
+"reach": [
+"yes"
+],
+"t": "    Run 'hermes config migrate' later to apply any new config/env options.",
+"tags": 7
+},
+{
+"at": "hermes_cli/main.py:7378@v2026.4.30",
+"first": "v2026.4.16",
+"last": "v2026.4.30",
+"reach": [
+"yes"
+],
+"t": "  ✗ <<svc_name>> failed to stay running after restart.\n    Check logs: journalctl --user -u <<svc_name>> --since '2 min ago'\n    Restart manually: systemctl <<'--user ' if scope == 'user' else ''>>restart <<svc_name>>",
+"tags": 3
+},
+{
+"at": "hermes_cli/main.py:7437@v2026.4.30",
+"first": "v2026.4.8",
+"last": "v2026.4.30",
+"reach": [
+"yes"
+],
+"t": "  → Stopped <<len(killed_pids)>> manual gateway process(es)",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:7858@v2026.5.16",
+"first": "v2026.3.28",
+"last": "v2026.5.16",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Currently on <<label>> — switching to main for update...",
+"tags": 10
+},
+{
+"at": "hermes_cli/main.py:7907@v2026.7.20",
+"first": "v2026.5.16",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "  Backends keep their previously-installed version; rerun",
+"tags": 10
+},
+{
+"at": "hermes_cli/main.py:7908@v2026.7.20",
+"first": "v2026.5.16",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "  `hermes update` once the upstream issue is resolved.",
+"tags": 10
+},
+{
+"at": "hermes_cli/main.py:7953@v2026.5.16",
+"first": "v2026.3.28",
+"last": "v2026.5.16",
+"reach": [
+"yes"
+],
+"t": "  Try manually: git fetch origin && git reset --hard origin/main",
+"tags": 10
+},
+{
+"at": "hermes_cli/main.py:8327@v2026.5.29.2",
+"first": "v2026.4.23",
+"last": "v2026.5.29.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ <<label>>",
+"tags": 7
+},
+{
+"at": "hermes_cli/main.py:8330@v2026.5.29.2",
+"first": "v2026.4.23",
+"last": "v2026.5.29.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ npm install failed in <<label>>",
+"tags": 7
+},
+{
+"at": "hermes_cli/main.py:8715@v2026.7.7.2",
+"first": "v2026.4.30",
+"last": "v2026.7.7.2",
+"reach": [
+"yes"
+],
+"t": "  Disable:  omit --backup (backups are off by default)",
+"tags": 11
+},
+{
+"at": "hermes_cli/main.py:8716@v2026.7.7.2",
+"first": "v2026.4.30",
+"last": "v2026.7.7.2",
+"reach": [
+"yes"
+],
+"t": "            set updates.pre_update_backup: false in config.yaml",
+"tags": 11
+},
+{
+"at": "hermes_cli/main.py:8857@v2026.7.20",
+"first": "v2026.7.20",
+"last": "v2026.7.20",
+"reach": [
+"check",
+"yes"
+],
+"t": "⚠ <<format_unsupported_install_warning(method)>>",
+"tags": 1
+},
+{
+"at": "hermes_cli/main.py:8870@v2026.7.20",
+"first": "v2026.5.28",
+"last": "v2026.7.20",
+"reach": [
+"check",
+"yes"
+],
+"t": "⚠ --branch is ignored for PyPI installs (would have checked '<<branch>>').",
+"tags": 9
+},
+{
+"at": "hermes_cli/main.py:8873@v2026.7.20",
+"first": "v2026.5.16",
+"last": "v2026.7.20",
+"reach": [
+"check",
+"yes"
+],
+"t": "✗ Could not reach PyPI to check for updates.",
+"tags": 10
+},
+{
+"at": "hermes_cli/main.py:8878@v2026.7.20",
+"first": "v2026.5.16",
+"last": "v2026.7.20",
+"reach": [
+"check",
+"yes"
+],
+"t": "⚕ Update available on PyPI.",
+"tags": 10
+},
+{
+"at": "hermes_cli/main.py:8917@v2026.8.18",
+"first": "v2026.5.28",
+"last": "v2026.8.18",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<shim.name>> is locked by another process; scheduled replacement on next reboot.",
+"tags": 15
+},
+{
+"at": "hermes_cli/main.py:8921@v2026.8.18",
+"first": "v2026.5.28",
+"last": "v2026.8.18",
+"reach": [
+"yes"
+],
+"t": "    The new shim was written at the same path, but a reboot is needed to fully unload the old one.",
+"tags": 15
+},
+{
+"at": "hermes_cli/main.py:8955@v2026.5.29.2",
+"first": "v2026.3.12",
+"last": "v2026.5.29.2",
+"reach": [
+"yes"
+],
+"t": "  curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash",
+"tags": 16
+},
+{
+"at": "hermes_cli/main.py:9143@v2026.5.29.2",
+"first": "v2026.4.30",
+"last": "v2026.5.29.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Pre-update snapshot: <<snap_id>>",
+"tags": 6
+},
+{
+"at": "hermes_cli/main.py:9292@v2026.6.19",
+"first": "v2026.6.5",
+"last": "v2026.6.19",
+"reach": [
+"yes"
+],
+"t": "  ⚠️  cron/jobs.json was emptied during this update — restored <<cron_restore['job_count']>> job(s) from pre-update snapshot <<cron_restore['snapshot_id']>>.",
+"tags": 2
+},
+{
+"at": "hermes_cli/main.py:9314@v2026.5.29.2",
+"first": "v2026.5.28",
+"last": "v2026.5.29.2",
+"reach": [
+"yes"
+],
+"t": "→ Core update complete. Building dashboard (optional)...",
+"tags": 3
+},
+{
+"at": "hermes_cli/main.py:9397@v2026.8.31",
+"first": "v2026.8.19",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "→ Windows: <<shim.name>> cannot replace itself while it runs; finishing the dependency install under the venv Python.",
+"tags": 3
+},
+{
+"at": "hermes_cli/main.py:9401@v2026.8.31",
+"first": "v2026.8.19",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  The code update is already applied. The install continues below and this shell returns right away.",
+"tags": 3
+},
+{
+"at": "hermes_cli/main.py:9408@v2026.8.31",
+"first": "v2026.8.19",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not hand the dependency install off <<shim.name>>.",
+"tags": 3
+},
+{
+"at": "hermes_cli/main.py:9409@v2026.8.31",
+"first": "v2026.8.19",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "    Continuing in-process; if it cannot replace the shim, run:",
+"tags": 3
+},
+{
+"at": "hermes_cli/main.py:9585@v2026.8.31",
+"first": "v2026.5.28",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not quarantine <<shim.name>> (<<last_exc.__class__.__name__>>: another process is holding it open).",
+"tags": 18
+},
+{
+"at": "hermes_cli/main.py:9589@v2026.8.31",
+"first": "v2026.5.28",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "    Close Hermes Desktop, exit other `hermes` REPLs, stop the gateway, or pause AV scanning, then re-run `hermes update`.",
+"tags": 18
+},
+{
+"at": "hermes_cli/main.py:9708@v2026.7.7.2",
+"first": "v2026.6.5",
+"last": "v2026.7.7.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Pre-update snapshot: <<pre_update_snapshot_id>>",
+"tags": 5
+},
+{
+"at": "hermes_cli/main.py:9824@v2026.7.20",
+"first": "v2026.7.20",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "⚠ <<format_unsupported_install_warning(_install_method_for_warning)>>",
+"tags": 1
+},
+{
+"at": "hermes_cli/main.py:9867@v2026.7.20",
+"first": "v2026.5.16",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "→ Current version: <<__version__>>",
+"tags": 10
+},
+{
+"at": "hermes_cli/main.py:9868@v2026.7.20",
+"first": "v2026.5.16",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "→ Checking PyPI for updates...",
+"tags": 10
+},
+{
+"at": "hermes_cli/main.py:9890@v2026.7.20",
+"first": "v2026.6.5",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "✗ Detected a uv-tool install but managed uv install failed.",
+"tags": 6
+},
+{
+"at": "hermes_cli/main.py:9891@v2026.7.20",
+"first": "v2026.6.5",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "  Install uv manually: https://docs.astral.sh/uv/getting-started/installation/",
+"tags": 6
+},
+{
+"at": "hermes_cli/main.py:9911@v2026.7.20",
+"first": "v2026.5.16",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "→ Running: <<' '.join(cmd)>>",
+"tags": 10
+},
+{
+"at": "hermes_cli/main.py:9917@v2026.7.20",
+"first": "v2026.5.16",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "✗ Update failed",
+"tags": 10
+},
+{
+"at": "hermes_cli/main.py:9920@v2026.7.20",
+"first": "v2026.5.16",
+"last": "v2026.7.20",
+"reach": [
+"yes"
+],
+"t": "✓ Update complete! Restart hermes to use the new version.",
+"tags": 10
+},
+{
+"at": "hermes_cli/update_cmd.py:1006@v2026.9.24",
+"first": "v2026.5.28",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  <<track_result.stderr.strip().splitlines()[0]>>",
+"tags": 23
+},
+{
+"at": "hermes_cli/update_cmd.py:10079@v2026.8.31",
+"first": "v2026.7.1",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  → <<proc.profile>>: draining gateway PID <<pid>> (up to <<int(_drain_budget)>>s)...",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:10097@v2026.8.31",
+"first": "v2026.8.16",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<proc.profile>>: gateway event loop is unresponsive — skipping drain, forcing a bounded stop...",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd.py:10149@v2026.8.31",
+"first": "v2026.5.7",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ✓ Restarting manual gateway profile(s): <<names>>",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd.py:1035@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Fast-forward failed; refusing to reset because history divergence was not proven.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1038@v0.23.2",
+"first": "v2026.7.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  <<detail>>",
+"tags": 30
+},
+{
+"at": "hermes_cli/update_cmd.py:1040@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  HEAD is still an ancestor of <<merge_ref>>.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1042@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Could not verify whether HEAD is an ancestor of <<merge_ref>>.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1045@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  <<ancestry_detail>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1046@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Resolve the Git error and re-run `hermes update`; no reset was attempted.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:10741@v2026.8.31",
+"first": "v2026.6.5",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "      … and <<extra>> more",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd.py:1077@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Could not resolve <<merge_ref>> to a commit. No update was applied.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1082@v2026.8.31",
+"first": "v2026.5.16",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "ℹ Skill curator — last run <<when>>",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd.py:1084@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ <<merge_ref>> resolves to <<target_sha[:10]>>, not the selected channel commit <<expected_sha[:10]>>. No update was applied.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1092@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ <<refused>>.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1154@v2026.9.14",
+"first": "v2026.8.27",
+"last": "v2026.9.14",
+"reach": [
+"yes"
+],
+"t": "✗ <<stage>>: <<e>>",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd.py:1155@v2026.9.24",
+"first": "v2026.8.27",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "<<_format_concurrent_instances_message(non_gateway, scripts_dir)>>",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd.py:1157@v2026.9.14",
+"first": "v2026.8.27",
+"last": "v2026.9.14",
+"reach": [
+"yes"
+],
+"t": "  The git update already finished. Re-downloading the source ZIP cannot fix a dependency install error and would overwrite local files.",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd.py:1161@v2026.9.14",
+"first": "v2026.8.27",
+"last": "v2026.9.14",
+"reach": [
+"yes"
+],
+"t": "  Retry through the venv interpreter:",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd.py:1207@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ The branch moved to <<landed[:10]>> after <<target[:10]>> was selected.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1235@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<reason>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1236@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  No update was applied; your install is unchanged.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1250@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Switching to '<<branch>>' stopped part-way; the next `hermes` launch puts the checkout back.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1265@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ <<detail>>.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1270@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  <<detail.splitlines()[0]>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1282@v2026.9.11",
+"first": "v2026.3.12",
+"last": "v2026.9.11",
+"reach": [
+"yes"
+],
+"t": "⚕ Updating Hermes Agent...",
+"tags": 33
+},
+{
+"at": "hermes_cli/update_cmd.py:1321@v0.23.2",
+"first": "v2026.8.18",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Update finished — code update SKIPPED<<_branch_head_suffix(git_cmd, _m().PROJECT_ROOT)>>",
+"tags": 22
+},
+{
+"at": "hermes_cli/update_cmd.py:1326@v0.23.2",
+"first": "v2026.8.18",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Checkout was parked on '<<current_branch>>' (fully merged) — switching back to <<branch>>...",
+"tags": 22
+},
+{
+"at": "hermes_cli/update_cmd.py:1338@v0.23.2",
+"first": "v2026.5.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Branch '<<branch>>' does not exist locally or on origin.",
+"tags": 36
+},
+{
+"at": "hermes_cli/update_cmd.py:1341@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ℹ On branch '<<current_branch>>' — updating it in place from origin/<<branch>> (no branch switch; local commits preserved).",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd.py:1366@v0.23.2",
+"first": "v2026.8.18",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Currently on detached HEAD — switching to <<branch>> for update...",
+"tags": 22
+},
+{
+"at": "hermes_cli/update_cmd.py:1448@v0.23.2",
+"first": "v2026.3.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ℹ️  Local changes preserved in stash (ref: <<auto_stash_ref>>)",
+"tags": 46
+},
+{
+"at": "hermes_cli/update_cmd.py:1449@v0.23.2",
+"first": "v2026.3.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Restore manually with: git stash apply",
+"tags": 46
+},
+{
+"at": "hermes_cli/update_cmd.py:1456@v2026.8.31",
+"first": "v2026.8.18",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "⚠ CODE UPDATE SKIPPED — checkout is parked on '<<current_branch>>'",
+"tags": 4
+},
+{
+"at": "hermes_cli/update_cmd.py:1464@v2026.8.31",
+"first": "v2026.8.18",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  To resolve, inspect the branch and switch back yourself:",
+"tags": 4
+},
+{
+"at": "hermes_cli/update_cmd.py:1465@v2026.8.31",
+"first": "v2026.8.18",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "    git -C <<cwd>> status",
+"tags": 4
+},
+{
+"at": "hermes_cli/update_cmd.py:1466@v2026.8.31",
+"first": "v2026.8.18",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "    git -C <<cwd>> checkout <<target_branch>> && hermes update",
+"tags": 4
+},
+{
+"at": "hermes_cli/update_cmd.py:1467@v2026.8.31",
+"first": "v2026.8.18",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  (commit or stash your work on the branch first if you want to keep it)",
+"tags": 4
+},
+{
+"at": "hermes_cli/update_cmd.py:1489@v2026.8.31",
+"first": "v2026.8.27",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "⚠ Checkout was parked on '<<current_branch>>' with <<unmerged_count>> commit(s) not merged into origin/<<target_branch>>.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:1493@v2026.8.31",
+"first": "v2026.8.27",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  Switching to <<target_branch>> so the update can proceed — your commit(s) are safe on '<<current_branch>>'.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:1498@v2026.8.31",
+"first": "v2026.8.27",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  To pick the work back up later:",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:1499@v2026.8.31",
+"first": "v2026.8.27",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "    git checkout <<current_branch>>",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:1500@v2026.8.31",
+"first": "v2026.8.18",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "<<bar>>",
+"tags": 4
+},
+{
+"at": "hermes_cli/update_cmd.py:1535@v2026.9.24",
+"first": "v2026.8.18",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "✓ Code updated!<<_branch_head_suffix(git_cmd, _m().PROJECT_ROOT)>>",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd.py:1544@v0.23.2",
+"first": "v2026.8.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Fleet: <<_n>> running service(s) across profiles: <<_profiles>>",
+"tags": 21
+},
+{
+"at": "hermes_cli/update_cmd.py:1567@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Not a git repository. Please reinstall:",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd.py:1568@v0.23.2",
+"first": "v2026.6.5",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash",
+"tags": 33
+},
+{
+"at": "hermes_cli/update_cmd.py:1587@v0.23.2",
+"first": "v0.23.2",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ git resolves this checkout to the enclosing repository <<enclosing>>; refusing to stash, reset or clean it.",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd.py:1589@v0.23.2",
+"first": "v0.23.2",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<_damaged_checkout_message(_m().PROJECT_ROOT)>>",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd.py:1602@v0.23.2",
+"first": "v2026.4.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Updating from fork:",
+"tags": 44
+},
+{
+"at": "hermes_cli/update_cmd.py:1603@v0.23.2",
+"first": "v2026.4.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  <<origin_url>>",
+"tags": 44
+},
+{
+"at": "hermes_cli/update_cmd.py:1624@v0.23.2",
+"first": "v2026.8.16",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Code did not move — update was a no-op.",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd.py:1625@v0.23.2",
+"first": "v2026.8.16",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  HEAD is pinned to <<pre_pull_sha[:10]>> (detached checkout); origin/<<branch>> advanced but the working tree stayed put.",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd.py:1628@v0.23.2",
+"first": "v2026.8.16",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Reattach to the branch and retry: git -C <<_m().PROJECT_ROOT>> checkout <<branch>> && hermes update",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd.py:1641@v0.23.2",
+"first": "v2026.8.18",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Update pulled origin/<<branch>>, but the checkout is on '<<post_pull_branch>>' — not claiming success.",
+"tags": 22
+},
+{
+"at": "hermes_cli/update_cmd.py:1644@v0.23.2",
+"first": "v2026.8.18",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Switch to the target branch and retry: git -C <<_m().PROJECT_ROOT>> checkout <<branch>> && hermes update",
+"tags": 22
+},
+{
+"at": "hermes_cli/update_cmd.py:1654@v2026.9.24",
+"first": "v2026.8.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  (removed stale git lock(s): <<', '.join(cleared)>>)",
+"tags": 11
+},
+{
+"at": "hermes_cli/update_cmd.py:1663@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<unrestored>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1666@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ <<stage>>: <<e>>",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd.py:1667@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Falling back to ZIP download...",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd.py:1676@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ <<stage>> (the code update itself succeeded).",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd.py:1679@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Hermes may not start until the dependencies are installed. Fix the error above",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd.py:1680@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  (usually network or disk space), then run `hermes update` again.",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd.py:1682@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  If `hermes update` itself will not start, retry through the venv interpreter:",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd.py:1683@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    venv\\Scripts\\python.exe -c \"from hermes_cli.main import main; main()\" update --yes",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd.py:1687@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ <<stage>>.",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd.py:1688@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Details: <<e>>",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd.py:1719@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Checkout was parked on '<<current_branch>>' — switched back to <<branch>>; <<_count>> unmerged commit(s) kept on '<<current_branch>>'.",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd.py:1723@v0.23.2",
+"first": "v2026.8.18",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Checkout was parked on '<<current_branch>>' (fully merged) — switched back to <<branch>>.",
+"tags": 22
+},
+{
+"at": "hermes_cli/update_cmd.py:1748@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Checkout no longer matches the selected channel commit. No completion was applied.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1787@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Cannot update while a Git <<git_operation>> is in progress in <<root>>.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1788@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Finish it or run `git <<git_operation>> --abort`, then re-run `hermes update`.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1802@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  (removed .git/index.lock left by a git that was killed)",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1804@v0.23.2",
+"first": "v0.22.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  (removed <<lock>> left by a git that was killed)",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd.py:1810@v0.23.2",
+"first": "v2026.9.14",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "☤ Updating Hermes Agent...",
+"tags": 16
+},
+{
+"at": "hermes_cli/update_cmd.py:1859@v0.21.6",
+"first": "v0.21.6",
+"last": "v0.21.6",
+"reach": [
+"yes"
+],
+"t": "✗ Could not resolve the <<selected_channel>> source channel: <<exc>>. No update was applied.",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd.py:1872@v0.21.6",
+"first": "v0.21.6",
+"last": "v0.21.6",
+"reach": [
+"yes"
+],
+"t": "→ Latest release: <<target.label>>",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd.py:1893@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Fetching updates...",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd.py:1898@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ git still crashed after marking this checkout's packs. See 'Fetch fails with should_include_obj' in https://hermes-agent.nousresearch.com/docs/getting-started/updating",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1931@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Switching to source commit <<release_sha[:10]>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1933@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Found <<commit_count>> new commit(s)",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd.py:1935@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Switched the running checkout to <<branch>> (no new commits to count)",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:1938@v0.23.2",
+"first": "v2026.8.16",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Updates available (commit count unknown on this shallow checkout)",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd.py:1940@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Pulling updates...",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd.py:2058@v2026.8.31",
+"first": "v2026.8.27",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  Stash or commit your changes, then rerun `hermes update`.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:2075@v2026.8.31",
+"first": "v2026.3.12",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "✓ Updated <<update_count>> items from ZIP",
+"tags": 31
+},
+{
+"at": "hermes_cli/update_cmd.py:2113@v2026.8.3",
+"first": "v2026.6.5",
+"last": "v2026.8.3",
+"reach": [
+"yes"
+],
+"t": "  ⚠ npm install failed in repo root",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd.py:2131@v2026.8.3",
+"first": "v2026.6.5",
+"last": "v2026.8.3",
+"reach": [
+"yes"
+],
+"t": "  ✓ repo root + ui-tui, web workspaces (desktop skipped)",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd.py:2134@v2026.8.3",
+"first": "v2026.6.5",
+"last": "v2026.8.3",
+"reach": [
+"yes"
+],
+"t": "  ⚠ npm workspace install failed",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd.py:2273@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ✓ Auto-restored from snapshot <<_snap_dir.name>>",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd.py:2363@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "<<push.stdout.strip()>>",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd.py:2384@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "<<push.stderr.strip()>>",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd.py:2401@v2026.8.27",
+"first": "v2026.3.17",
+"last": "v2026.8.27",
+"reach": [
+"yes"
+],
+"t": "Restore local changes now? [Y/n]",
+"tags": 29
+},
+{
+"at": "hermes_cli/update_cmd.py:2407@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  <<push.stderr.strip().splitlines()[0]>>",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd.py:2688@v2026.8.31",
+"first": "v2026.3.17",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "<<restore.stdout.strip()>>",
+"tags": 30
+},
+{
+"at": "hermes_cli/update_cmd.py:2690@v2026.8.31",
+"first": "v2026.3.17",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "<<restore.stderr.strip()>>",
+"tags": 30
+},
+{
+"at": "hermes_cli/update_cmd.py:2783@v2026.8.31",
+"first": "v2026.3.17",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "<<drop.stdout.strip()>>",
+"tags": 30
+},
+{
+"at": "hermes_cli/update_cmd.py:2785@v2026.8.31",
+"first": "v2026.3.17",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "<<drop.stderr.strip()>>",
+"tags": 30
+},
+{
+"at": "hermes_cli/update_cmd.py:2786@v2026.8.31",
+"first": "v2026.3.17",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  The stash was left in place. You can remove it manually after checking the result.",
+"tags": 30
+},
+{
+"at": "hermes_cli/update_cmd.py:2805@v2026.8.18",
+"first": "v2026.5.7",
+"last": "v2026.8.18",
+"reach": [
+"check",
+"yes"
+],
+"t": "✗ Failed to fetch.",
+"tags": 17
+},
+{
+"at": "hermes_cli/update_cmd.py:2835@v2026.8.31",
+"first": "v2026.6.5",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  <<drop.stderr.strip().splitlines()[0]>>",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd.py:2930@v2026.8.19",
+"first": "v2026.5.28",
+"last": "v2026.8.19",
+"reach": [
+"check",
+"yes"
+],
+"t": "<<format_docker_update_message()>>",
+"tags": 16
+},
+{
+"at": "hermes_cli/update_cmd.py:2934@v2026.8.19",
+"first": "v2026.7.30",
+"last": "v2026.8.19",
+"reach": [
+"check",
+"yes"
+],
+"t": "<<recommended_update_command_for_method(method)>>",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd.py:2985@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "ℹ Your fork is not tracking the official Hermes repository.",
+"tags": 26
+},
+{
+"at": "hermes_cli/update_cmd.py:2986@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  This means you may miss updates from NousResearch/hermes-agent.",
+"tags": 26
+},
+{
+"at": "hermes_cli/update_cmd.py:2994@v2026.8.31",
+"first": "v2026.8.31",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  Skipping upstream setup (non-interactive run).",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd.py:2995@v2026.8.31",
+"first": "v2026.8.31",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  Add it later with: git remote add upstream https://github.com/NousResearch/hermes-agent.git",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd.py:3029@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  Skipped. Run 'git remote add upstream https://github.com/NousResearch/hermes-agent.git' to add later.",
+"tags": 26
+},
+{
+"at": "hermes_cli/update_cmd.py:3039@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "→ Fetching upstream...",
+"tags": 26
+},
+{
+"at": "hermes_cli/update_cmd.py:304@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Fetched the commit history this shallow checkout was missing",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:3064@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "ℹ Your fork has <<origin_ahead>> commit(s) not on upstream.",
+"tags": 26
+},
+{
+"at": "hermes_cli/update_cmd.py:3065@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  Skipping upstream sync to preserve your changes.",
+"tags": 26
+},
+{
+"at": "hermes_cli/update_cmd.py:3066@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  If you want to merge upstream changes, run:",
+"tags": 26
+},
+{
+"at": "hermes_cli/update_cmd.py:3067@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "    git pull upstream main",
+"tags": 26
+},
+{
+"at": "hermes_cli/update_cmd.py:3077@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "→ Fork is <<upstream_ahead>> commit(s) behind upstream",
+"tags": 26
+},
+{
+"at": "hermes_cli/update_cmd.py:3078@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "→ Pulling from upstream...",
+"tags": 26
+},
+{
+"at": "hermes_cli/update_cmd.py:307@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not fetch the missing commit history (<<detail[0]>>); a very stale install may time out",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:3099@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ℹ Got updates from upstream but couldn't push to fork (no write access?)",
+"tags": 26
+},
+{
+"at": "hermes_cli/update_cmd.py:3102@v2026.8.31",
+"first": "v2026.4.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "    Your local repo is updated, but your fork on GitHub may be behind.",
+"tags": 26
+},
+{
+"at": "hermes_cli/update_cmd.py:3388@v2026.8.31",
+"first": "v2026.8.27",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ✓ No running gateways — nothing to restart.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:343@v2026.9.24",
+"first": "v2026.8.27",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "✗ Cannot continue the update: live Hermes launcher(s) could not be",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd.py:344@v2026.9.24",
+"first": "v2026.8.27",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  moved aside:",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd.py:347@v2026.9.24",
+"first": "v2026.8.27",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Another process is holding this install's venv — typically Hermes",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd.py:3486@v2026.8.13",
+"first": "v2026.7.1",
+"last": "v2026.8.13",
+"reach": [
+"yes"
+],
+"t": "  ✓ Starting Windows gateway after update (PID <<pid>>)",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd.py:348@v2026.9.24",
+"first": "v2026.8.27",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Desktop, a gateway, or another hermes REPL — and mutating the venv",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd.py:349@v2026.9.24",
+"first": "v2026.8.27",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  now would strand it half-updated.",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd.py:350@v2026.9.24",
+"first": "v2026.8.27",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  The dependency install has been deferred: close the process(es)",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd.py:351@v2026.9.24",
+"first": "v2026.8.27",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  above, then run any `hermes` command to finish it automatically.",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd.py:3657@v2026.8.31",
+"first": "v2026.8.16",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<name>> failed to restore: <<reason>>",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd.py:3744@v2026.8.31",
+"first": "v2026.5.16",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<feature>> failed to refresh: <<reason>>",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd.py:375@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  → <<prompt_text>> → <<default or '(empty)'>> (gateways are paused for the update)",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:3906@v2026.8.16",
+"first": "v2026.7.30",
+"last": "v2026.8.16",
+"reach": [
+"yes"
+],
+"t": "⚠ Update incomplete — some gateway units were not restarted:",
+"tags": 4
+},
+{
+"at": "hermes_cli/update_cmd.py:3923@v2026.8.3",
+"first": "v2026.3.12",
+"last": "v2026.8.3",
+"reach": [
+"yes"
+],
+"t": "✓ Already up to date!",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd.py:409@v0.23.2",
+"first": "v2026.4.8",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  (no response after <<int(timeout)>>s, using default: <<default>>)",
+"tags": 43
+},
+{
+"at": "hermes_cli/update_cmd.py:4558@v2026.8.19",
+"first": "v2026.4.8",
+"last": "v2026.8.19",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Gateway restart failed: <<stderr>>",
+"tags": 23
+},
+{
+"at": "hermes_cli/update_cmd.py:4589@v2026.8.18",
+"first": "v2026.6.5",
+"last": "v2026.8.18",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Desktop build failed (non-fatal; run `hermes desktop` to retry)",
+"tags": 12
+},
+{
+"at": "hermes_cli/update_cmd.py:4594@v2026.8.3",
+"first": "v2026.3.12",
+"last": "v2026.8.3",
+"reach": [
+"yes"
+],
+"t": "✓ Update complete!",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd.py:4679@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ state.db integrity check FAILED after snapshot: <<_msg>>",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd.py:4727@v2026.8.16.2",
+"first": "v2026.5.28",
+"last": "v2026.8.16.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Currently on <<label>> — switching to <<branch>> for update...",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd.py:4806@v2026.8.31",
+"first": "v2026.4.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  Saved:    <<display_path>> (<<size_str>>, <<elapsed>>s)",
+"tags": 21
+},
+{
+"at": "hermes_cli/update_cmd.py:4852@v2026.8.18",
+"first": "v2026.3.28",
+"last": "v2026.8.18",
+"reach": [
+"check",
+"yes"
+],
+"t": "✗ Network error — cannot reach the remote repository.",
+"tags": 25
+},
+{
+"at": "hermes_cli/update_cmd.py:4857@v2026.8.18",
+"first": "v2026.3.28",
+"last": "v2026.8.18",
+"reach": [
+"check",
+"yes"
+],
+"t": "✗ Authentication failed — check your git credentials or SSH key.",
+"tags": 25
+},
+{
+"at": "hermes_cli/update_cmd.py:4861@v2026.8.18",
+"first": "v2026.3.28",
+"last": "v2026.8.18",
+"reach": [
+"yes"
+],
+"t": "✗ Failed to fetch updates from origin.",
+"tags": 25
+},
+{
+"at": "hermes_cli/update_cmd.py:491@v2026.8.31",
+"first": "v2026.7.1",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠️  cron/jobs.json lost jobs during this update — restored <<cron_restore['job_count']>> job(s) from pre-update snapshot <<cron_restore['snapshot_id']>>.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:500@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Last output:",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd.py:510@v2026.8.31",
+"first": "v2026.8.27",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠️  Profile '<<_restored['profile']>>': cron/jobs.json lost jobs during this update — restored <<_restored['job_count']>> job(s) from pre-update snapshot <<_restored['snapshot_id']>>.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:5166@v2026.8.19",
+"first": "v2026.5.28",
+"last": "v2026.8.19",
+"reach": [
+"yes"
+],
+"t": "<<_format_concurrent_instances_message(concurrent, scripts_dir)>>",
+"tags": 16
+},
+{
+"at": "hermes_cli/update_cmd.py:5248@v2026.8.16.2",
+"first": "v2026.3.12",
+"last": "v2026.8.16.2",
+"reach": [
+"yes"
+],
+"t": "✓ Code updated!",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd.py:5531@v2026.8.31",
+"first": "v2026.8.31",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "✗ Refusing to stop the gateway process tree because this updater is running inside it (gateway PID(s): <<rendered>>).",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd.py:5535@v2026.8.31",
+"first": "v2026.8.31",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  On Windows, taskkill /T would terminate the updater before the update can run.",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd.py:5539@v2026.8.31",
+"first": "v2026.8.31",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  From a chat platform, use `/update` instead.",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd.py:553@v2026.9.24",
+"first": "v2026.5.7",
+"last": "v2026.9.24",
+"reach": [
+"check",
+"yes"
+],
+"t": "→ Fetching from upstream...",
+"tags": 25
+},
+{
+"at": "hermes_cli/update_cmd.py:5540@v2026.8.31",
+"first": "v2026.8.31",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  Otherwise, run `hermes update` from a separate terminal.",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd.py:5846@v2026.8.18",
+"first": "v2026.7.20",
+"last": "v2026.8.18",
+"reach": [
+"yes"
+],
+"t": "⚠ Update partially complete — Node.js dependencies for <<', '.join(node_failures)>> did not refresh.",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd.py:588@v2026.9.11",
+"first": "v2026.9.7",
+"last": "v2026.9.11",
+"reach": [
+"check",
+"yes"
+],
+"t": "⚕ Update available: <<behind>> <<'commit' if behind == 1 else 'commits'>> behind <<compare_branch>>.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:630@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "<<refusal.message>>",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd.py:636@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "✗ Not a git repository — cannot check for updates.",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd.py:649@v2026.9.24",
+"first": "v2026.7.7",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Recreating virtual environment...",
+"tags": 17
+},
+{
+"at": "hermes_cli/update_cmd.py:6537@v2026.8.31",
+"first": "v2026.8.27",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "✓ Gateway started via cold-start after update (PID: <<', '.join(map(str, ready_pids))>>)",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:665@v2026.9.24",
+"first": "v2026.7.7",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "⚠ Venv still unhealthy after repair: <<detail_after>>",
+"tags": 17
+},
+{
+"at": "hermes_cli/update_cmd.py:666@v0.23.2",
+"first": "v2026.5.28",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "✗ Branch '<<branch>>' not found on <<compare_branch.split('/', 1)[0]>>.",
+"tags": 36
+},
+{
+"at": "hermes_cli/update_cmd.py:666@v2026.9.24",
+"first": "v2026.7.7",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Close all Hermes windows/gateways and re-run: hermes update",
+"tags": 17
+},
+{
+"at": "hermes_cli/update_cmd.py:668@v2026.9.24",
+"first": "v2026.7.7",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "✓ Dependencies repaired!",
+"tags": 17
+},
+{
+"at": "hermes_cli/update_cmd.py:7072@v2026.8.31",
+"first": "v2026.8.27",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ✓ Restarted supervised gateway(s) in a fresh process (systemd-verified active): <<', '.join(sorted(verified))>>",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:7077@v2026.8.31",
+"first": "v2026.8.27",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Relaunch attempted in a fresh process but not supervisor-verified (check these gateways manually): <<', '.join(sorted(relaunch_attempted))>>",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:721@v0.23.0",
+"first": "v2026.9.14",
+"last": "v0.23.0",
+"reach": [
+"check",
+"yes"
+],
+"t": "☤ Update available: <<behind>> <<'commit' if behind == 1 else 'commits'>> behind <<compare_branch>>.",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd.py:722@v2026.9.24",
+"first": "v2026.8.19",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Finishing the dependency install handed off by hermes.exe...",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd.py:723@v0.23.0",
+"first": "v2026.9.14",
+"last": "v0.23.0",
+"reach": [
+"check",
+"yes"
+],
+"t": "☤ Update available (behind <<compare_branch>>).",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd.py:724@v2026.9.24",
+"first": "v2026.7.7",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "⚠ Checkout is current, but the venv is unhealthy:",
+"tags": 17
+},
+{
+"at": "hermes_cli/update_cmd.py:7265@v2026.8.31",
+"first": "v2026.8.27",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ✓ Restarted Windows gateway service(s): <<', '.join(restarted_services)>>",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:726@v2026.9.24",
+"first": "v2026.7.7",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Repairing Python dependencies...",
+"tags": 17
+},
+{
+"at": "hermes_cli/update_cmd.py:728@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "⚠ Checkout is current, but its dependencies were never synced after the last pull:",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:729@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  <<stale_detail>>",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:730@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Syncing Python dependencies...",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:7352@v2026.8.31",
+"first": "v2026.6.19",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ✓ Restarting Windows gateway profile(s): <<', '.join(relaunched)>>",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd.py:7356@v2026.8.31",
+"first": "v2026.7.1",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ✓ Restarting <<unmapped_relaunched>> unmapped Windows gateway process(es)",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:7432@v2026.8.19",
+"first": "v2026.3.12",
+"last": "v2026.8.19",
+"reach": [
+"yes"
+],
+"t": "⚠ Git update failed: <<e>>",
+"tags": 29
+},
+{
+"at": "hermes_cli/update_cmd.py:7442@v2026.8.19",
+"first": "v2026.3.12",
+"last": "v2026.8.19",
+"reach": [
+"yes"
+],
+"t": "✗ Update failed: <<e>>",
+"tags": 29
+},
+{
+"at": "hermes_cli/update_cmd.py:769@v2026.9.24",
+"first": "v2026.7.30",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "⚠ Restart required to finish the managed Python runtime repair.",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd.py:770@v2026.9.24",
+"first": "v2026.7.30",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Any running Hermes gateways, Desktop backends, or other long-lived processes still use the previous runtime.",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd.py:773@v2026.9.24",
+"first": "v2026.7.30",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Restart each of them to pick up the repaired runtime.",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd.py:7997@v2026.8.31",
+"first": "v2026.8.3",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<len(_gateway_holders)>> gateway process(es) still hold the venv after the pause; stopping them",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd.py:8023@v2026.8.31",
+"first": "v2026.8.19",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<len(_ledger_backends)>> ledger-identified orphaned Hermes backend process(es) hold the venv; stopping their trees",
+"tags": 3
+},
+{
+"at": "hermes_cli/update_cmd.py:8043@v2026.8.31",
+"first": "v2026.8.13",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<len(_orphan_backends)>> orphaned Desktop backend process(es) still hold the venv; stopping their trees",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd.py:8064@v2026.8.31",
+"first": "v2026.8.27",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<len(_serve_entries)>> manual serve/dashboard backend(s) hold the venv; stopping them for the update (they will be relaunched on their recorded endpoints)",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd.py:811@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Source subscription moved to <<request['channel_retirement']['destination']>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:8122@v2026.8.31",
+"first": "v2026.8.19",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<len(_handoff_backends)>> Hermes backend process(es) still hold the venv after the Desktop hand-off; stopping their trees",
+"tags": 3
+},
+{
+"at": "hermes_cli/update_cmd.py:8131@v2026.8.31",
+"first": "v2026.7.7",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "<<_format_venv_python_holders_message(_venv_holders)>>",
+"tags": 12
+},
+{
+"at": "hermes_cli/update_cmd.py:831@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Checkout is on custom branch '<<_cur_branch>>' — merging origin/<<branch>> instead of resetting so local commits survive...",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd.py:838@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Merge conflict between local commits and upstream — update stopped, nothing was changed.",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd.py:839@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Resolve manually: cd <<_m().PROJECT_ROOT>> && git merge origin/<<branch>>",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd.py:840@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Then re-run the update. Local work is untouched.",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd.py:848@v2026.9.24",
+"first": "v2026.5.28",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "✗ Pulled code has a syntax error in a critical file:",
+"tags": 23
+},
+{
+"at": "hermes_cli/update_cmd.py:855@v2026.9.24",
+"first": "v2026.5.28",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Rolling back to <<pre_pull_sha[:10]>>...",
+"tags": 23
+},
+{
+"at": "hermes_cli/update_cmd.py:862@v2026.9.24",
+"first": "v2026.7.30",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "    cd <<_m().PROJECT_ROOT>> && git reset --hard <<pre_pull_sha>>",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd.py:863@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<head>>backed up current HEAD to <<rescue_ref>> before resetting. This backup expires after <<_ORPHAN_RESCUE_REF_MAX_AGE_DAYS>> days.",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd.py:869@v0.23.2",
+"first": "v2026.9.24",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    <<dropped or 'Some'>> commit(s) not on origin/<<branch>> leave the branch; list them with: git log origin/<<branch>>..<<rescue_ref>>",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd.py:873@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<head>>attempted to back up current HEAD to <<rescue_ref>> before resetting, but the backup write failed (pre-reset SHA was <<pre_pull_sha>>).",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd.py:877@v0.23.2",
+"first": "v2026.3.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Fast-forward not possible (history diverged), resetting to match remote...",
+"tags": 46
+},
+{
+"at": "hermes_cli/update_cmd.py:880@v0.23.2",
+"first": "v2026.3.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Failed to reset to origin/<<branch>>.",
+"tags": 46
+},
+{
+"at": "hermes_cli/update_cmd.py:882@v0.23.2",
+"first": "v2026.3.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  <<reset_result.stderr.strip()>>",
+"tags": 46
+},
+{
+"at": "hermes_cli/update_cmd.py:883@v0.23.2",
+"first": "v2026.5.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Try manually: git fetch origin && git reset --hard origin/<<branch>>",
+"tags": 36
+},
+{
+"at": "hermes_cli/update_cmd.py:8979@v2026.8.31",
+"first": "v2026.5.16",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  → Termux detected: using uv + curated termux-all optional profile...",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd.py:9008@v2026.8.31",
+"first": "v2026.5.16",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  → Termux detected: using curated termux-all optional profile...",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd.py:904@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<header>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:905@v0.23.2",
+"first": "v2026.5.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  <<failing_path>>",
+"tags": 36
+},
+{
+"at": "hermes_cli/update_cmd.py:9157@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "⚠ state.db is corrupted after update: <<_state_ok.get('message', 'unknown error')>>",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd.py:915@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Rolling back to <<rollback_branch if parked else pre_pull_sha[:10]>>...",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:9177@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ✓ Auto-restored from pre-update snapshot (<<_pre_snap_id>>)",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd.py:9187@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ✗ Auto-restore file copy failed: <<_exc>>",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd.py:9191@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ✗ Pre-update snapshot also failed integrity",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd.py:9195@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Pre-update snapshot does not contain state.db",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd.py:9199@v2026.8.31",
+"first": "v2026.7.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  ⚠ No pre-update snapshot was taken",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd.py:927@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not write the interrupted-pull marker (<<exc>>); rolling back without it.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:9285@v2026.8.31",
+"first": "v2026.3.30",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  <<p.name>>: <<status>>",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd.py:953@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ Could not check out <<rollback_branch>>; restoring its commit detached.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:957@v0.23.2",
+"first": "v2026.5.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Rollback complete — your install is unchanged.",
+"tags": 36
+},
+{
+"at": "hermes_cli/update_cmd.py:958@v0.23.2",
+"first": "v2026.5.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Try ``hermes update`` again later once a fix lands.",
+"tags": 36
+},
+{
+"at": "hermes_cli/update_cmd.py:960@v0.23.2",
+"first": "v2026.5.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ Rollback failed. Recover manually with:",
+"tags": 36
+},
+{
+"at": "hermes_cli/update_cmd.py:961@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    cd <<root>> && git <<shlex.join(rollback_args)>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:963@v0.23.2",
+"first": "v2026.5.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    (<<rollback_result.stderr.strip().splitlines()[0]>>)",
+"tags": 36
+},
+{
+"at": "hermes_cli/update_cmd.py:966@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  The next `hermes` launch also finishes the rollback to <<pre_pull_sha[:10]>> on its own.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd.py:968@v0.23.2",
+"first": "v2026.5.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Could not capture pre-pull SHA — recover manually with:",
+"tags": 36
+},
+{
+"at": "hermes_cli/update_cmd.py:969@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    cd <<_m().PROJECT_ROOT>> && git reflog && git reset --hard <prev-sha>",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd.py:9800@v2026.8.31",
+"first": "v2026.8.16",
+"last": "v2026.8.31",
+"reach": [],
+"t": "  ⚠ <<svc_name>>: gateway event loop is unresponsive — skipping drain, forcing a bounded stop...",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd.py:9808@v2026.8.31",
+"first": "v2026.4.23",
+"last": "v2026.8.31",
+"reach": [
+"yes"
+],
+"t": "  → <<svc_name>>: draining (up to <<int(_drain_budget)>>s)...",
+"tags": 22
+},
+{
+"at": "hermes_cli/update_cmd.py:989@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ The checkout landed on <<landed[:10]>>, not the selected commit <<target_sha[:10]>> (a ref moved during the update).",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_check.py:103@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "✗ Could not resolve the <<selected_channel>> source channel: <<exc>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_check.py:108@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "→ <<selected_channel>> retired; source destination: <<target.channel>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_check.py:110@v0.23.2",
+"first": "v0.21.7",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "✓ No newer release: <<target.label>>.",
+"tags": 12
+},
+{
+"at": "hermes_cli/update_cmd_check.py:112@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "✓ Up to date with the latest release (<<target.label>>).",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_check.py:115@v0.23.2",
+"first": "v0.22.5",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "→ Holding at this build: <<target.label>> predates the gateway runtime your sessions use.",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd_check.py:116@v0.23.2",
+"first": "v0.22.5",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "  `hermes update` stays on this build; the next release that includes the runtime installs normally (`hermes update --set-channel main` follows every commit).",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd_check.py:119@v0.23.2",
+"first": "v0.22.0",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "→ This checkout is newer than the selected release: <<target.label>>.",
+"tags": 11
+},
+{
+"at": "hermes_cli/update_cmd_check.py:120@v0.23.2",
+"first": "v0.22.0",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "  `hermes update` moves it back to that release (`hermes update --set-channel main` follows every commit).",
+"tags": 11
+},
+{
+"at": "hermes_cli/update_cmd_check.py:123@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "→ Selected release available: <<target.label>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_check.py:124@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "  Run `hermes update` to install it.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_check.py:143@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "→ Fetching from <<remote>>...",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_check.py:164@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "→ Fetching from origin...",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_check.py:180@v0.23.2",
+"first": "v2026.9.14",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "  (restored <<repaired>> broken shallow boundary(ies))",
+"tags": 16
+},
+{
+"at": "hermes_cli/update_cmd_check.py:183@v0.23.2",
+"first": "v2026.9.11",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "  (pruned <<pruned>> stale shallow graft(s) left by past depth-1 checks)",
+"tags": 17
+},
+{
+"at": "hermes_cli/update_cmd_check.py:212@v0.23.2",
+"first": "v2026.8.16",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "⚕ Update available: <<counted>> <<commits_word>> behind <<compare_branch>>.",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_check.py:214@v0.23.2",
+"first": "v2026.7.1",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "⚕ Update available (behind <<compare_branch>>).",
+"tags": 28
+},
+{
+"at": "hermes_cli/update_cmd_check.py:222@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "✓ Already up to date.",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_check.py:225@v0.23.2",
+"first": "v2026.5.7",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "⚕ Update available: <<behind>> <<commits_word>> behind <<compare_branch>>.",
+"tags": 33
+},
+{
+"at": "hermes_cli/update_cmd_check.py:228@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "  Run '<<recommended_update_command()>>' to install.",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_check.py:252@v0.23.2",
+"first": "v0.21.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Update channel: <<selected>>",
+"tags": 12
+},
+{
+"at": "hermes_cli/update_cmd_check.py:258@v0.23.2",
+"first": "v0.21.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Could not resolve the <<selected>> source channel: <<exc>>. No update was applied.",
+"tags": 12
+},
+{
+"at": "hermes_cli/update_cmd_check.py:263@v0.23.2",
+"first": "v0.21.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ <<selected>> retired; source destination: <<target.channel>>",
+"tags": 12
+},
+{
+"at": "hermes_cli/update_cmd_check.py:267@v0.23.2",
+"first": "v0.21.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ <<'Release' if target.ahead else 'Latest release'>>: <<target.label>>",
+"tags": 12
+},
+{
+"at": "hermes_cli/update_cmd_check.py:305@v0.23.2",
+"first": "v0.22.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Could not fetch the <<tag>> tag (<<reason>>); the version shown may name the previous release until the next update fetches it.",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_check.py:323@v0.23.2",
+"first": "v0.22.5",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ This build is newer than the <<channel>> release <<target_ref[:12]>>: that release predates the gateway runtime your sessions use, so there is nothing to update to yet.",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd_check.py:325@v0.23.2",
+"first": "v0.22.5",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Hermes stays on <<head[:12]>> until a newer <<channel>> release ships. To follow every commit instead: `hermes update --set-channel main`.",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd_check.py:49@v0.23.2",
+"first": "v2026.8.16",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "  (removed stale git lock: <<lock_path>>)",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_check.py:52@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "  (removed <<len(swept)>> aborted-fetch pack temp file(s))",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_check.py:62@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  (git cleanup: erased <<tidy.erased>> duplicate pack(s), <<tidy.freed_bytes / 1000000.0>> MB freed; merged <<tidy.merged>>; <<tidy.packs_left>> left)",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_check.py:65@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  (git cleanup stopped at its <<TIDY_BUDGET_SECONDS>>s limit; the next update continues it)",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_check.py:97@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "→ Update channel: <<selected_channel>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_commit.py:211@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not record the restart this update still owes for <<sha[:10]>> (<<exc>>); run `hermes gateway restart` once the update is done.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_commit.py:611@v0.23.2",
+"first": "v0.21.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Syntax preflight skipped (slow object fetch); the post-update check still runs.",
+"tags": 12
+},
+{
+"at": "hermes_cli/update_cmd_config.py:112@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠️  <<_cron_line(cron_restore)>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_config.py:121@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ⚠️  <<_prompt_line(prompt_restore)>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_config.py:127@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠️  <<_cfg_line(cfg_restore)>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_config.py:132@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠️  Profile '<<_restored['profile']>>': <<_cron_line(_restored)>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_config.py:137@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ⚠️  Profile '<<_prompt_restored['profile']>>': <<_prompt_line(_prompt_restored)>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_config.py:142@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠️  Profile '<<_cfg_restored['profile']>>': <<_cfg_line(_cfg_restored)>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_config.py:150@v0.23.2",
+"first": "v2026.5.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ℹ --yes: auto-applying config migration (skipping API-key prompts).",
+"tags": 38
+},
+{
+"at": "hermes_cli/update_cmd_config.py:155@v0.23.2",
+"first": "v2026.5.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ℹ Non-interactive session — applying safe config migrations.",
+"tags": 38
+},
+{
+"at": "hermes_cli/update_cmd_config.py:163@v0.23.2",
+"first": "v2026.8.13",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not read input (encoding issue). Skipping. Run 'hermes config migrate' manually to configure.",
+"tags": 25
+},
+{
+"at": "hermes_cli/update_cmd_config.py:181@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Checking configuration for new options...",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_config.py:192@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠️  Could not check config version.",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_config.py:193@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "     Run 'hermes config migrate' to check manually.",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_config.py:209@v0.23.2",
+"first": "v2026.6.5",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ℹ Updating config format (v<<current_ver>> → v<<latest_ver>>)…",
+"tags": 33
+},
+{
+"at": "hermes_cli/update_cmd_config.py:213@v0.23.2",
+"first": "v2026.6.5",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Config format updated (no new settings to configure)",
+"tags": 33
+},
+{
+"at": "hermes_cli/update_cmd_config.py:221@v0.23.2",
+"first": "v2026.8.16",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ℹ <<_note>>",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_config.py:223@v0.23.2",
+"first": "v2026.8.16",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠️  <<_warn>>",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_config.py:225@v0.23.2",
+"first": "v2026.6.5",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠️  Config format update failed: <<_mig_err>>",
+"tags": 33
+},
+{
+"at": "hermes_cli/update_cmd_config.py:226@v0.23.2",
+"first": "v2026.6.5",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "     Run 'hermes config migrate' to retry.",
+"tags": 33
+},
+{
+"at": "hermes_cli/update_cmd_config.py:234@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠️  <<len(missing_env)>> new required setting(s) need configuration",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_config.py:237@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ℹ️  <<len(missing_config)>> new config option(s) available",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_config.py:252@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✓ Configuration updated!",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_config.py:254@v0.23.2",
+"first": "v2026.4.8",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ℹ API keys require manual entry: hermes config migrate",
+"tags": 43
+},
+{
+"at": "hermes_cli/update_cmd_config.py:257@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "Skipped. Run 'hermes config migrate' later to configure.",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_config.py:259@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Configuration is up to date",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_config.py:267@v0.23.2",
+"first": "v0.23.2",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ⚠️  Profile '<<_name>>': config migration stopped at v<<sibling_stopped[_name]>> (v<<_from_ver>> → v<<_to_ver>> applied)",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd_config.py:270@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Profile '<<_name>>': config format updated (v<<_from_ver>> → v<<_to_ver>>)",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_config.py:272@v0.23.2",
+"first": "v0.22.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "      <<_note>>",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_config.py:291@v0.23.2",
+"first": "v2026.6.5",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  <<label>>:",
+"tags": 33
+},
+{
+"at": "hermes_cli/update_cmd_config.py:300@v0.23.2",
+"first": "v2026.6.5",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "      • <<name>>",
+"tags": 33
+},
+{
+"at": "hermes_cli/update_cmd_config.py:300@v0.23.2",
+"first": "v2026.6.5",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "      • <<name>> — <<desc>>",
+"tags": 33
+},
+{
+"at": "hermes_cli/update_cmd_config.py:302@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "      … and <<len(items) - len(shown)>> more",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1050@v2026.9.24",
+"first": "v2026.8.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "✗ This updater process has already loaded native venv modules that",
+"tags": 11
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1051@v2026.9.24",
+"first": "v2026.8.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  the dependency sync must replace:",
+"tags": 11
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1053@v2026.9.24",
+"first": "v2026.8.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "    <<name>>",
+"tags": 11
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1055@v2026.9.24",
+"first": "v2026.8.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  On Windows a mapped extension cannot be replaced by the process",
+"tags": 11
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1056@v2026.9.24",
+"first": "v2026.8.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  holding it. The code update has been applied; only the dependency",
+"tags": 11
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1057@v2026.9.24",
+"first": "v2026.8.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  sync has been deferred: the next `hermes` launch will complete it",
+"tags": 11
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1058@v2026.9.24",
+"first": "v2026.8.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  in a fresh process before anything imports these modules.",
+"tags": 11
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1075@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ✓ Installed the rebuilt Desktop app at <<app>>",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1077@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<problem>>",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1079@v2026.9.24",
+"first": "v2026.7.1",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ✓ Desktop app up to date",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1103@v2026.9.24",
+"first": "v2026.6.5",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Checking if desktop app needs rebuilding...",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1130@v2026.9.24",
+"first": "v2026.8.19",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Desktop build failed (run `hermes desktop` to retry)",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1133@v2026.9.24",
+"first": "v2026.7.1",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "<<tail>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1135@v2026.9.24",
+"first": "v2026.7.1",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Full build log: <<_dhh()>>/logs/update.log",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1226@v2026.9.24",
+"first": "v2026.8.31",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "\n✗ Update stopped: this install's venv contains files owned by another user.",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1227@v2026.9.24",
+"first": "v2026.8.31",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Updating now would fail midway (Permission denied) and leave Hermes broken.",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1228@v2026.9.24",
+"first": "v2026.8.31",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  This usually happens after running hermes or pip with sudo. Offending paths:",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1230@v2026.9.24",
+"first": "v2026.8.31",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "    - <<p>> (owner uid <<uid>>)",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1231@v2026.9.24",
+"first": "v2026.8.31",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "\n  Fix ownership, then re-run the update:",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1232@v2026.9.24",
+"first": "v2026.8.31",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "    sudo chown -R $(id -un): <<project_root>>",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1233@v2026.9.24",
+"first": "v2026.8.31",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "    hermes update",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1234@v2026.9.24",
+"first": "v2026.8.31",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "\n  Nothing in the venv was modified.",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1259@v2026.9.24",
+"first": "v2026.8.19",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Python dependencies unchanged — skipping reinstall",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1280@v2026.9.24",
+"first": "v2026.9.7",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  → Termux detected: using <<uv_note>>curated termux-all optional profile...",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1288@v2026.9.24",
+"first": "v2026.5.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  → Termux/Android detected: prebuilding psutil with Linux source path compatibility...",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1310@v2026.9.24",
+"first": "v2026.7.30",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Lazy-refresh recovery incomplete — run `hermes` again to finish import-based venv repair.",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1325@v2026.9.24",
+"first": "v2026.8.3",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<failing_module>> still fails to import after updating:",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1326@v2026.9.24",
+"first": "v2026.8.3",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "      <<import_error>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1327@v2026.9.24",
+"first": "v2026.8.3",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "    Run `hermes update` again — if it persists, reinstall:",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:1328@v2026.9.24",
+"first": "v2026.8.3",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "    https://hermes-agent.nousresearch.com",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:347@v2026.9.24",
+"first": "v2026.8.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Restoring <<len(missing)>> Hermes Tools dependency set(s)...",
+"tags": 11
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:360@v2026.9.24",
+"first": "v2026.8.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ✓ <<len(restored)>> restored: <<', '.join(restored)>>",
+"tags": 11
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:362@v2026.9.24",
+"first": "v2026.9.7",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<name>> failed to restore: <<_clip(reason)>>",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:398@v2026.9.24",
+"first": "v2026.5.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Refreshing <<len(active)>> active lazy backend(s)...",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:407@v2026.9.24",
+"first": "v2026.5.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Lazy refresh failed unexpectedly: <<exc>>",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:417@v2026.9.24",
+"first": "v2026.5.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ↑ <<len(refreshed)>> refreshed: <<', '.join(refreshed)>>",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:419@v2026.9.24",
+"first": "v2026.5.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ✓ <<len(current)>> already current",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:424@v2026.9.24",
+"first": "v2026.5.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  · <<len(skipped)>> skipped (<<reason>>): <<names>>",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:430@v2026.9.24",
+"first": "v2026.9.7",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<feature>> failed to refresh: <<_clip(status.split(': ', 1)[-1])>>",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:433@v2026.9.24",
+"first": "v2026.7.30",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Lazy refresh failed; rerun `hermes update` once resolved.",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:441@v2026.9.24",
+"first": "v2026.7.30",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Lazy backend(s) keep their previous version until refresh succeeds.",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:444@v2026.9.24",
+"first": "v2026.7.30",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Lazy backend(s) keep their previous version; probed packages look intact.",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:445@v2026.9.24",
+"first": "v2026.7.30",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Rerun `hermes update` once the upstream issue is resolved.",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:448@v2026.9.24",
+"first": "v2026.7.30",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Leaving `.lazy-refresh-incomplete` until import probes can confirm health.",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:487@v2026.9.24",
+"first": "v2026.7.30",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Refreshing active memory provider dependencies (<<provider>>)...",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:492@v2026.9.24",
+"first": "v2026.7.30",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<provider>> dependencies failed to refresh: <<exc>>",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:519@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Plugin Python dependencies not re-applied: <<exc>>",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:522@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ✓ Plugin Python dependencies re-applied: <<', '.join(report.installed)>>",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:524@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ✗ Plugin '<<name>>' DISABLED: <<reason>>. Fix the plugin's declared dependencies, then `hermes plugins enable <<name>>`.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:527@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Plugin Python dependencies not re-applied: <<report.failed>>",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:538@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Memory provider migration skipped: <<exc>>",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:579@v2026.9.24",
+"first": "v2026.5.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  → Termux detected: trying to install uv for faster dependency updates...",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:700@v2026.9.24",
+"first": "v2026.8.13",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Node.js refresh failed for: <<', '.join(node_failures)>>",
+"tags": 12
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:701@v2026.9.24",
+"first": "v2026.8.13",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "    Fix npm and re-run `hermes update`.",
+"tags": 12
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:748@v2026.9.24",
+"first": "v2026.7.20",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Skipped: only a Windows npm is reachable from this WSL shell.",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:749@v2026.9.24",
+"first": "v2026.7.20",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "    Install Node.js inside the WSL distro (nvm, or your distro's",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:750@v2026.9.24",
+"first": "v2026.7.20",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "    package manager), then re-run `hermes update`.",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:764@v2026.9.24",
+"first": "v2026.8.13",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Warming npx cache for agent-browser...",
+"tags": 12
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:776@v2026.9.24",
+"first": "v2026.3.12",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Updating Node.js dependencies...",
+"tags": 36
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:796@v2026.9.24",
+"first": "v2026.8.13",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ✓ ui-tui, web workspaces installed (desktop skipped)",
+"tags": 12
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:798@v2026.9.24",
+"first": "v2026.8.13",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ npm install failed",
+"tags": 12
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:801@v2026.9.24",
+"first": "v2026.4.23",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "    <<stderr.splitlines()[-1]>>",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:803@v2026.9.24",
+"first": "v2026.7.20",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Node.js dependency refresh did not complete cleanly; the",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:804@v2026.9.24",
+"first": "v2026.7.20",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "    installation may be in a mixed state (updated code, stale Node",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_deps.py:805@v2026.9.24",
+"first": "v2026.7.20",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "    deps). Fix npm and re-run `hermes update`.",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1006@v0.23.2",
+"first": "v2026.8.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Failed to restart <<label>>: <<stderr>>\n    Recover manually: launchctl kickstart -k <<domain>>/<<label>>",
+"tags": 21
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1015@v0.23.2",
+"first": "v2026.8.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ <<label>> failed to come back after restart.\n    Check logs, then: launchctl kickstart -k <<domain>>/<<label>>",
+"tags": 21
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1021@v0.23.2",
+"first": "v2026.8.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ launchctl timed out restarting <<label>>; continuing with remaining gateways",
+"tags": 21
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1119@v0.23.2",
+"first": "v2026.8.16",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Update incomplete — gateway auto-restart failed: <<exc>>",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1122@v0.23.2",
+"first": "v2026.8.16",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Gateway process(es) still running pre-update code: <<listed>>",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1124@v0.23.2",
+"first": "v2026.8.16",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Any gateway still running is serving pre-update code",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1125@v0.23.2",
+"first": "v2026.8.16",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  (mixed sys.modules) against the updated checkout.",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1126@v0.23.2",
+"first": "v2026.8.16",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Restart it manually, then verify:",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1127@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    hermes gateway restart",
+"tags": 29
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1128@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    hermes gateway status",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:112@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not record the pending gateway-restart obligation (state dir not writable) — restart gateways with `hermes gateway restart` if this update is interrupted.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1162@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  → <<label>>: update is running inside this gateway's process tree — signalling restart and letting the gateway drain itself (avoids the cron-update deadlock, #100179)",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1172@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<label>>: gateway event loop is unresponsive — skipping drain, forcing a bounded stop...",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1178@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "  → <<label>>: draining (up to <<drain_budget>>s)...",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1285@v0.23.2",
+"first": "v2026.9.24",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<svc_name>> lacks RestartPreventExitStatus=<<GATEWAY_FATAL_CONFIG_EXIT_CODE>>: a permanent refusal (exit <<GATEWAY_FATAL_CONFIG_EXIT_CODE>>) would crash-loop it instead of parking.\n    Repair: <<'sudo ' if system else ''>>hermes gateway install<<' --system' if system else ''>>",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1307@v2026.9.24",
+"first": "v2026.8.19",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  → <<label>>: draining (up to <<int(drain_budget)>>s)...",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1345@v0.23.2",
+"first": "v2026.6.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  → <<svc_name>>: waiting for systemd auto-restart (~<<int(_restart_sec)>>s; no root for an immediate restart)...",
+"tags": 32
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1355@v0.23.2",
+"first": "v2026.4.23",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<svc_name>> drained but didn't relaunch — forcing restart",
+"tags": 40
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1361@v0.23.2",
+"first": "v2026.6.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<svc_name>> is a system service and restarting it needs root.\n    Restart it manually to load the new version:\n      sudo systemctl restart <<svc_name>>\n    To let `hermes update` restart it automatically, allow\n    passwordless sudo for systemctl, or run updates with sudo.",
+"tags": 32
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1375@v0.23.2",
+"first": "v2026.4.8",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Failed to restart <<svc_name>>: <<restart.stderr.strip()>>",
+"tags": 43
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1383@v0.23.2",
+"first": "v2026.4.16",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<svc_name>> died after restart, retrying...",
+"tags": 41
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1387@v0.23.2",
+"first": "v2026.4.16",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ <<svc_name>> recovered on retry",
+"tags": 41
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1392@v0.23.2",
+"first": "v2026.6.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ <<svc_name>> failed to stay running after restart.\n    Check logs: <<_sudo_hint>>journalctl <<_scope_flag>>-u <<svc_name>> --since '2 min ago'\n    Recover manually:\n      <<_sudo_hint>>systemctl <<_scope_flag>>reset-failed <<svc_name>>\n      <<_sudo_hint>>systemctl <<_scope_flag>>restart <<svc_name>>",
+"tags": 32
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1418@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ systemctl timed out listing <<scope>>-scope gateway units (<<exc.cmd if exc.cmd else 'unknown command'>>). Check the gateway with: hermes gateway status",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1428@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ⚠ systemctl timed out restarting <<svc_name>> (<<exc.cmd if exc.cmd else 'unknown command'>>); continuing with remaining gateways",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1455@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  • <<unit_key>> is a legacy per-profile unit sharing one host gateway process with <<owner_key>>; restarting it again would restart that process twice. Fold the units together with: hermes gateway migrate",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1590@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<proc.profile>>: could not arm an automatic gateway restart for PID <<pid>> — stopping it instead so it cannot keep running pre-update code",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1629@v0.23.2",
+"first": "v2026.4.8",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Restarted <<svc>>",
+"tags": 43
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1631@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Restarting manual gateway profile(s): <<', '.join(out.relaunched_profiles)>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1634@v0.23.2",
+"first": "v2026.7.20",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Handed gateway profile(s) back to their external supervisor: <<names>>",
+"tags": 28
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1637@v0.23.2",
+"first": "v2026.5.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  → Stopped <<unmapped_count>> manual gateway process(es)",
+"tags": 38
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:1659@v0.23.2",
+"first": "v2026.5.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<len(_stuck)>> gateway process(es) ignored SIGTERM — force-killing",
+"tags": 38
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:499@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ A previous `hermes update` pulled new code but did not restart running gateways.",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:500@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Gateways may still be serving pre-update modules (mixed sys.modules).",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:502@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Run `hermes update` or `hermes gateway restart`.",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:554@v2026.9.14",
+"first": "v2026.8.27",
+"last": "v2026.9.14",
+"reach": [
+"yes"
+],
+"t": "  ✗ <<current_label>> restarted but launchd is not supervising it.\n    Check logs, then: hermes gateway restart",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:674@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ✓ This host's gateway was already restarted for this update — not restarting it again.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:676@v2026.9.24",
+"first": "v2026.8.27",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Restarting gateways left on pre-update code...",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:701@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ✓ Every running gateway already serves the checkout code — nothing to restart.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:722@v0.22.5",
+"first": "v2026.9.24",
+"last": "v0.22.5",
+"reach": [
+"yes"
+],
+"t": "<<describe_skipped_runtime('systemd unit', svc_name, home)>>",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:734@v0.22.5",
+"first": "v2026.9.24",
+"last": "v0.22.5",
+"reach": [
+"yes"
+],
+"t": "<<describe_skipped_runtime('gateway process', f'PID {pid}', home)>>",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:745@v2026.9.24",
+"first": "v2026.8.27",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ✓ Pending fleet restart completed.",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:777@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Gateway restart skipped (--no-gateway-restart).",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:778@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Code and dependencies are updated; gateways still serve pre-update code.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:779@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Restart them separately: `hermes gateway restart` or a daily-restart cron.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:780@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  (fleet restart deferred — marker kept for catch-up)",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:806@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  (fleet restart deferred — --no-gateway-restart; marker kept)",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:807@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Restart separately: `hermes gateway restart` or next non-cron update.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:811@v2026.9.24",
+"first": "v2026.8.27",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Running the pending fleet restart...",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:813@v2026.9.24",
+"first": "v2026.8.27",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Fleet restart incomplete. Recover with: hermes gateway restart",
+"tags": 7
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:814@v0.23.2",
+"first": "v2026.8.16.2",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Update incomplete — some units were not restarted:",
+"tags": 23
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:816@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    - <<name>>",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:821@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Listed services may be deregistered from launchd, or still",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:822@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  running pre-update code (mixed sys.modules). Recover with:",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:824@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    launchctl list | grep <label>",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:825@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/<label>.plist",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:827@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Skipped units may still be running pre-update code (mixed",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:828@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  sys.modules). Restart them manually, then verify:",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:829@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ✓ Update receipt settled: <<len(fleet)>> gateway(s) serve the checkout code.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:831@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    systemctl --user restart <unit>   # user-scope",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:831@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Fleet restart ran, but gateways are still off the checkout code. Recover with: hermes gateway restart",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:832@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    sudo systemctl restart <unit>     # system-scope",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:834@v0.23.2",
+"first": "v2026.8.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    launchctl kickstart -k gui/$UID/<label>   # macOS (or user/$UID)",
+"tags": 21
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:884@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Gateway restart failed: <<stderr>>\n    The gateway may be DOWN on pre-update code. Recover manually: hermes gateway restart",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:893@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not restart the gateway (<<e.__class__.__name__>>: <<e>>).\n    Recover manually: hermes gateway restart",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:919@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ <<current_label>> restarted but launchd is not supervising a new process for it.\n    Check logs, then: hermes gateway restart",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:956@v0.23.1",
+"first": "v2026.9.24",
+"last": "v0.23.1",
+"reach": [
+"yes"
+],
+"t": "<<describe_skipped_runtime('launchd job', label, foreign_home)>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:968@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ↻ legacy-labelled units of this install join the restart: <<', '.join(legacy_labels)>>",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_fleet.py:977@v0.23.2",
+"first": "v0.23.2",
+"last": "v0.23.2",
+"reach": [],
+"t": "<<notice>>",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd_fleet_unit_budget.py:115@v0.23.2",
+"first": "v0.22.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⏳ systemctl <<verb>> <<svc_name>> timed out after <<timeout>>s; systemd's job is still running after <<waited>>s (<<active>>/<<state.get('SubState', '?')>>)",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_fleet_unit_budget.py:119@v0.23.2",
+"first": "v0.22.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⏳ systemctl <<verb>> <<svc_name>> timed out after <<timeout>>s; systemd finished the job after <<waited>>s (<<active>>)",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_fleet_verify.py:177@v0.23.2",
+"first": "v0.22.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ✓ <<unit>> finished restarting onto the new code after the restart phase stopped waiting",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_fleet_verify.py:33@v0.23.2",
+"first": "v2026.4.23",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Legacy Hermes gateway unit(s) detected:",
+"tags": 40
+},
+{
+"at": "hermes_cli/update_cmd_fleet_verify.py:352@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "Tip: You can now select a provider and model:",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_fleet_verify.py:353@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  hermes model              # Select provider and model",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_fleet_verify.py:36@v0.23.2",
+"first": "v2026.4.23",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    <<path>>  (<<scope>> scope)",
+"tags": 40
+},
+{
+"at": "hermes_cli/update_cmd_fleet_verify.py:387@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\n⚠ Fleet version check returned no rows even though gateway runtimes were expected — verification incomplete.",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_fleet_verify.py:38@v0.23.2",
+"first": "v2026.4.23",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  These pre-rename units (hermes.service) fight the current",
+"tags": 40
+},
+{
+"at": "hermes_cli/update_cmd_fleet_verify.py:39@v0.23.2",
+"first": "v2026.4.23",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  hermes-gateway.service for the bot token and cause SIGTERM",
+"tags": 40
+},
+{
+"at": "hermes_cli/update_cmd_fleet_verify.py:40@v0.23.2",
+"first": "v2026.4.23",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  flap loops. Remove them with:",
+"tags": 40
+},
+{
+"at": "hermes_cli/update_cmd_fleet_verify.py:42@v0.23.2",
+"first": "v2026.4.23",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    hermes gateway migrate-legacy",
+"tags": 40
+},
+{
+"at": "hermes_cli/update_cmd_fleet_verify.py:44@v0.23.2",
+"first": "v2026.4.23",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  (add `sudo` if any are in system scope)",
+"tags": 40
+},
+{
+"at": "hermes_cli/update_cmd_fleet_verify.py:461@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ⚠ A gateway owed a restart by a previous update is still not serving this checkout.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_fleet_verify.py:504@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ⚠ Gateway multiplex migration did not finish: <<exc>> (run `hermes gateway migrate` later)",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_force_stop.py:192@v0.23.2",
+"first": "v0.23.2",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<_describe(entry, work)>>",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd_force_stop.py:201@v0.23.2",
+"first": "v0.23.2",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ gateway PID <<entry['pid']>> still stopping <<FORCE_KILL_AFTER_S>>s after the stop — killing it",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd_force_stop.py:206@v0.23.2",
+"first": "v0.23.2",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⏹ <<_names([entry])>>: also stopped <<swept>> background process(es) it left behind",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd_force_stop.py:208@v0.23.2",
+"first": "v0.23.2",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ℹ <<_names([entry])>>: left <<skipped>> recorded background process(es) running that another process (or an older Hermes) recorded",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd_git.py:136@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ HEAD is detached at <<sha[:12]>>, which no branch or tag contains, and backing it up to <<rescue_ref>> failed.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_git.py:138@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Update stopped so those commits are not orphaned. Keep them with: git -C <<cwd>> branch <name> <<sha[:12]>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_git.py:144@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<count or 'Some'>> commit(s) made on the detached HEAD are on no branch — backed up to <<rescue_ref>> before moving HEAD. This backup expires after <<_ORPHAN_RESCUE_REF_MAX_AGE_DAYS>> days.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_git.py:146@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    List them with: git log <<rescue_ref>> --not --branches --tags --remotes",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_git.py:247@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\n<<_BAR>>\n⚠ CODE UPDATE SKIPPED — checkout is parked on '<<current_branch>>'",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_git.py:248@v0.23.2",
+"first": "v2026.8.18",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Not auto-switching to <<target_branch>>: <<why>>.",
+"tags": 22
+},
+{
+"at": "hermes_cli/update_cmd_git.py:250@v0.23.2",
+"first": "v2026.8.18",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  This checkout is <<behind>> commit(s) BEHIND origin/<<target_branch>> — the code you are running is stale.",
+"tags": 22
+},
+{
+"at": "hermes_cli/update_cmd_git.py:251@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\n  To resolve, inspect the branch and switch back yourself:\n    git -C <<cwd>> status\n    git -C <<cwd>> checkout <<target_branch>> && hermes update\n  (commit or stash your work on the branch first if you want to keep it)\n<<_BAR>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_git.py:264@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\n<<_BAR>>\n⚠ Checkout was parked on '<<current_branch>>' with <<unmerged_count>> commit(s) not merged into origin/<<target_branch>>.\n  Switching to <<target_branch>> so the update can proceed — your commit(s) are safe on '<<current_branch>>'.\n\n  To pick the work back up later:\n    git checkout <<current_branch>>\n<<_BAR>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_git.py:316@v2026.9.24",
+"first": "v2026.9.7",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ✓ Updated from upstream\n→ Syncing fork...",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_git.py:343@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\nℹ Your fork is not tracking the official Hermes repository.\n  This means you may miss updates from NousResearch/hermes-agent.\n",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_git.py:348@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Skipping upstream setup (non-interactive run).\n  Add it later with: <<_UPSTREAM_ADD_CMD>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_git.py:359@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Skipped. Run '<<_UPSTREAM_ADD_CMD>>' to add later.",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_git.py:362@v0.23.2",
+"first": "v2026.4.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Adding upstream remote...",
+"tags": 44
+},
+{
+"at": "hermes_cli/update_cmd_git.py:364@v0.23.2",
+"first": "v2026.4.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ Failed to add upstream remote. Skipping upstream sync.",
+"tags": 44
+},
+{
+"at": "hermes_cli/update_cmd_git.py:366@v0.23.2",
+"first": "v2026.4.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Added upstream: https://github.com/NousResearch/hermes-agent.git",
+"tags": 44
+},
+{
+"at": "hermes_cli/update_cmd_git.py:399@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\n→ Fetching upstream...",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_git.py:403@v0.23.2",
+"first": "v2026.4.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ Failed to fetch upstream. Skipping upstream sync.",
+"tags": 44
+},
+{
+"at": "hermes_cli/update_cmd_git.py:411@v0.23.2",
+"first": "v2026.4.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ Could not compare branches. Skipping upstream sync.",
+"tags": 44
+},
+{
+"at": "hermes_cli/update_cmd_git.py:414@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\nℹ Your fork has <<origin_ahead>> commit(s) not on upstream.\n  Skipping upstream sync to preserve your changes.\n  If you want to merge upstream changes, run:\n    git pull upstream main",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_git.py:421@v0.23.2",
+"first": "v2026.4.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Fork is up to date with upstream",
+"tags": 44
+},
+{
+"at": "hermes_cli/update_cmd_git.py:423@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\n→ Fork is <<upstream_ahead>> commit(s) behind upstream\n→ Pulling from upstream...",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_git.py:431@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ Could not resolve HEAD. Skipping upstream sync.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_git.py:457@v0.23.2",
+"first": "v2026.4.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ Failed to pull from upstream. You may need to resolve conflicts manually.",
+"tags": 44
+},
+{
+"at": "hermes_cli/update_cmd_git.py:459@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    (<<detail>>)",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_git.py:466@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ HEAD is on <<(landed or '?')[:10]>> after the upstream merge, not <<upstream[:10]>>.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_git.py:468@v0.23.2",
+"first": "v2026.4.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Updated from upstream",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_git.py:487@v0.23.2",
+"first": "v2026.4.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Syncing fork...",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_git.py:489@v0.23.2",
+"first": "v2026.4.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Fork synced with upstream",
+"tags": 44
+},
+{
+"at": "hermes_cli/update_cmd_git.py:491@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ℹ Got updates from upstream but couldn't push to fork (no write access?)\n    Your local repo is updated, but your fork on GitHub may be behind.",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_git.py:537@v0.22.2",
+"first": "v2026.3.28",
+"last": "v0.22.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "  <<stderr.splitlines()[0]>>",
+"tags": 38
+},
+{
+"at": "hermes_cli/update_cmd_git.py:582@v0.23.2",
+"first": "v2026.8.19",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "<<_classify_fetch_failure(stderr)>>",
+"tags": 21
+},
+{
+"at": "hermes_cli/update_cmd_git.py:582@v0.23.2",
+"first": "v0.22.5",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "<<_damaged_checkout_message(Path(root))>>",
+"tags": 6
+},
+{
+"at": "hermes_cli/update_cmd_git.py:588@v0.23.2",
+"first": "v0.22.3",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "  ... (<<len(lines) - 15>> more lines omitted)",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd_git.py:668@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Detected a broken git trampoline and could not locate a real git binary — the update will fall back to the ZIP path.",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_git.py:670@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Detected a broken git trampoline; switching to real git at <<real_git>>",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_git.py:698@v0.23.2",
+"first": "v2026.6.5",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Discarded npm lockfile churn (<<len(dirty)>> file(s))",
+"tags": 33
+},
+{
+"at": "hermes_cli/update_cmd_git.py:751@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Normalized line-ending churn (<<len(eol_only)>> file(s))",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:1008@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ℹ macOS: if Hermes re-prompts for permissions you already granted (toggle shows ON), the stored grant is stale — run `tccutil reset ScreenCapture com.nousresearch.hermes` (repeat per affected service), toggle it ON in System Settings, then fully quit & relaunch once.",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:1034@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ✓ Fetched release history (commits only) for version identity",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:1037@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ⚠ Could not refresh release history (<<detail[0]>>); the version label may be stale or unknown until the next update",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:103@v0.23.2",
+"first": "v2026.5.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Preview now:  hermes curator run --dry-run",
+"tags": 38
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:1047@v0.23.2",
+"first": "v2026.6.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Model catalog cache refreshed from checkout",
+"tags": 32
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:104@v0.23.2",
+"first": "v2026.5.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Pause it:     hermes curator pause",
+"tags": 38
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:105@v0.23.2",
+"first": "v2026.5.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Docs:         https://hermes-agent.nousresearch.com/docs/user-guide/features/curator",
+"tags": 38
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:1061@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Syncing bundled skills...",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:168@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "◆ Session database optimization incomplete",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:169@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  A previous `hermes sessions optimize-storage` run was interrupted. Search still works; re-run the command to resume and finish reclaiming disk:",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:174@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    hermes sessions optimize-storage",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:182@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "◆ Session database upgrade required",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:183@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Your search index uses the OLD storage layout and should be upgraded. The new layout typically frees ~60% of state.db (≈<<est_reclaim>> GB of your current <<size_gb>> GB) and is required for continued optimal operation.",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:190@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "◆ Reclaim ~60% of your session database disk",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:191@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Your search index uses the old storage layout. Upgrading it typically frees ~60% of state.db — about <<est_reclaim>> GB of your current <<size_gb>> GB.",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:198@v0.23.2",
+"first": "v0.22.3",
+"last": "v0.23.2",
+"reach": [],
+"t": "◆ Search index rebuild required by your notice policy",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:200@v0.23.2",
+"first": "v0.22.3",
+"last": "v0.23.2",
+"reach": [],
+"t": "◆ Search index update available",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:201@v0.23.2",
+"first": "v0.22.3",
+"last": "v0.23.2",
+"reach": [],
+"t": "  Your search index is on the compact layout from an earlier optimization, but a later release changed it. Running the command again rebuilds it in the current layout.",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:206@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Run when convenient:  hermes sessions optimize-storage",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:207@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  It runs in the foreground with a progress bar, is safe to interrupt/re-run, and never changes your conversations.",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:234@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "ℹ Skill curator — last run <<_format_time_ago(last_run_at)>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:236@v0.23.2",
+"first": "v2026.5.16",
+"last": "v0.23.2",
+"reach": [
+"check",
+"yes"
+],
+"t": "  <<line>>",
+"tags": 37
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:237@v0.23.2",
+"first": "v2026.5.16",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  (This message shows once per curator run. View anytime: hermes curator status)",
+"tags": 37
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:251@v2026.9.24",
+"first": "v2026.7.20",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ℹ Leaving running dashboard process(es) untouched because the",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:252@v2026.9.24",
+"first": "v2026.7.20",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "    Node.js dependency refresh did not complete.",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:304@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Could not refresh running dashboard/serve process(es): <<exc>>",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:305@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  If one is still running, restart it so it serves the updated code:",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:306@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    hermes dashboard --port <port>   (or: systemctl --user restart hermes-dashboard)",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:313@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ A web dashboard/serve process was stopped during update and could not be auto-restarted.",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:314@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Re-launch it when you want the web UI back:",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:315@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    hermes dashboard --port <port>",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:326@v0.23.2",
+"first": "v2026.8.18",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<message>><<_branch_head_suffix()>>",
+"tags": 22
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:329@v0.23.2",
+"first": "v2026.8.13",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "=== hermes-update completed <<action_id>> ===",
+"tags": 25
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:386@v2026.9.24",
+"first": "v2026.8.19",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "⚠ Update partially complete — <<'; '.join(parts)>>.",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:388@v2026.9.24",
+"first": "v2026.7.20",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Code and Python deps are updated, but the dashboard/TUI may",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:389@v2026.9.24",
+"first": "v2026.7.20",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  be in a mixed state until the Node deps are rebuilt.",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:391@v2026.9.24",
+"first": "v2026.8.19",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Run `hermes desktop` to retry the desktop rebuild.",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:408@v2026.9.14",
+"first": "v2026.9.7",
+"last": "v2026.9.14",
+"reach": [
+"yes"
+],
+"t": "⚠ Update partially complete — <<_SQLITE_WAL_BUG_DETAIL.format(sqlite_info.sqlite_version_string)>>.",
+"tags": 3
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:409@v2026.9.14",
+"first": "v2026.9.7",
+"last": "v2026.9.14",
+"reach": [
+"yes"
+],
+"t": "  Rebuild the Hermes venv with a uv-managed Python, restart Hermes, then verify with `hermes doctor`.",
+"tags": 3
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:425@v0.23.2",
+"first": "v0.22.1",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ✗ Auto-restore refused or failed; state.db was not restored.",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:426@v0.23.2",
+"first": "v0.22.1",
+"last": "v0.23.2",
+"reach": [],
+"t": "    Stop the owning runtime and close database handles before retrying.",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:427@v0.23.2",
+"first": "v0.22.1",
+"last": "v0.23.2",
+"reach": [],
+"t": "    If the canonical runtime epoch is unreadable, do not restore in place:",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:428@v0.23.2",
+"first": "v0.22.1",
+"last": "v0.23.2",
+"reach": [],
+"t": "    use `hermes sessions recover --source <snapshot> --output <separate-path>`",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:429@v0.23.2",
+"first": "v0.22.1",
+"last": "v0.23.2",
+"reach": [],
+"t": "    to salvage transcripts into a separate output.",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:432@v0.22.2",
+"first": "v2026.8.27",
+"last": "v0.22.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ Auto-restore refused: process(es) <<holders>> still hold state.db or its WAL open. Stop them (hermes gateway stop), then restore manually with /snapshot restore.",
+"tags": 11
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:446@v0.22.2",
+"first": "v2026.9.7",
+"last": "v0.22.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ Auto-restore refused: <<exc>> Close the in-process database handles (or restart Hermes) and retry.",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:448@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ state.db is corrupted after update (<<label>>): <<ok.get('message', 'unknown error')>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:451@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ No pre-update snapshot for this home",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:452@v2026.9.14",
+"first": "v2026.9.7",
+"last": "v2026.9.14",
+"reach": [
+"yes"
+],
+"t": "  The Python runtime remediation did not complete. Run `hermes update` again; if SQLite is unchanged, rebuild the Hermes venv with a uv-managed Python, restart Hermes, then verify with `hermes doctor`.",
+"tags": 3
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:461@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Auto-restored from snapshot <<snap_dir.name>> (<<label>>)",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:463@v0.23.2",
+"first": "v0.22.1",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ✗ Auto-restore did not complete; see the restore diagnostic above.",
+"tags": 9
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:465@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ Auto-restore file copy failed: <<exc>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:467@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ No valid pre-update snapshot found for this home",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:483@v0.22.2",
+"first": "v2026.7.30",
+"last": "v0.22.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ Auto-restore FAILED — restored copy also failed integrity",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:519@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  + <<len(result['copied'])>> new: <<', '.join(result['copied'])>>",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:521@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ↑ <<len(result['updated'])>> updated: <<', '.join(result['updated'])>>",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:523@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ~ <<len(result['user_modified'])>> user-modified (kept)",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:524@v0.23.2",
+"first": "v2026.6.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    → see them: hermes skills list-modified  (diff/reset to resume updates)",
+"tags": 32
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:526@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  − <<len(result['cleaned'])>> removed from manifest",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:528@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  → <<len(result['relocated'])>> moved to new upstream paths: <<', '.join(result['relocated'])>>",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:530@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Skills are up to date",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:603@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not update <<cfg>>: <<e>>",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:605@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Added /usr/local/bin to PATH in <<cfg>>",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:608@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    (reload your shell or run 'source ~/.bashrc' to pick it up)",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:627@v2026.9.24",
+"first": "v2026.7.30",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ✓ Installed hermes-acp launcher → <<acp_cmd>>",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:664@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ state.db integrity check FAILED after snapshot: <<_integrity.get('message', 'unknown error')>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:667@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Snapshot does not contain state.db (was skipped or too large).",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:669@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Snapshot copy is valid — continuing update.",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:670@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    If state.db is lost after update it will be auto-restored.",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:672@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✗ Snapshot copy ALSO failed integrity — the source was already corrupted before the backup.",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:685@v0.23.2",
+"first": "v2026.7.20",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "◆ Pre-update snapshot: <<snapshot_id>>",
+"tags": 28
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:695@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "◆ Sibling profile snapshot(s): <<', '.join(sorted(_sibling_snaps))>>",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:712@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Pre-update backup: could not load backup module (<<exc>>); continuing update.",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:721@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "◆ Creating pre-update backup...",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:726@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Backup failed: <<exc>>",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:727@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Continuing with update.",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:733@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Backup skipped (no files found or write failed); continuing update.",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:750@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Saved:    <<display_path>> (<<format_bytes(size_bytes)>>, <<elapsed>>s)",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:751@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Restore:  hermes import <<out_path>>",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:752@v0.23.2",
+"first": "v2026.7.20",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Disable:  set updates.pre_update_backup: quick (or off) in config.yaml",
+"tags": 28
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:769@v0.23.2",
+"first": "v2026.4.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "◆ Pre-update backup: skipped (--no-backup)",
+"tags": 39
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:787@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Pre-update snapshot FAILED — no recovery point was saved<<snapshot_detail>>.",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:788@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Continuing with update (set updates.pre_update_backup: off to silence this).",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:816@v0.23.2",
+"first": "v2026.3.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Cleared <<removed>> stale __pycache__ director<<'y' if removed == 1 else 'ies'>>",
+"tags": 45
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:818@v0.23.2",
+"first": "v0.23.1",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ✓ Removed <<pruned>> director<<'y' if pruned == 1 else 'ies'>> the new version no longer has",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:851@v0.23.2",
+"first": "v2026.5.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Syncing bundled skills to all profiles...",
+"tags": 38
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:854@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  <<p.name>>: <<_profile_skill_sync_status(seed_profile_skills(p.path, quiet=True))>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:856@v0.23.2",
+"first": "v2026.3.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  <<p.name>>: error (<<pe>>)",
+"tags": 45
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:857@v0.22.5",
+"first": "v2026.6.19",
+"last": "v0.22.5",
+"reach": [
+"yes"
+],
+"t": "→ Seeded .env for <<len(backfilled)>> profile(s) (copied from default): <<', '.join(backfilled)>>",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:865@v0.23.2",
+"first": "v0.22.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "→ Seeded .env for <<len(backfilled)>> profile(s) (empty placeholder): <<', '.join(backfilled)>>",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:870@v0.23.0",
+"first": "v2026.4.3",
+"last": "v0.23.0",
+"reach": [
+"yes"
+],
+"t": "\n-> Honcho: synced <<synced>> profile(s)",
+"tags": 42
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:881@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "\n→ Windows cua-driver refresh deferred (autostart registration requires UAC).",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:882@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "  Run `hermes computer-use install --upgrade` in an interactive terminal.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:884@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "\n→ Preparing pinned cua-driver (Computer Use)...",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:885@v2026.9.24",
+"first": "v2026.5.16",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Refreshing cua-driver (Computer Use)...",
+"tags": 24
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:907@v2026.9.24",
+"first": "v2026.9.7",
+"last": "v2026.9.24",
+"reach": [],
+"t": "\n<<colour>>⚠  <<lines[0]>>\u001b[0m\n   <<lines[1]>>",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:921@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "\n→ Installing <<name>> (default tool; opt out with `hermes pm install --without <<name>>`)...",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:925@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ⚠ <<name>> was not installed: <<exc>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:926@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "    Retry with: hermes pm install <<name>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:934@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [],
+"t": "\n\u001b[1;33mℹ  <<notice>>\u001b[0m",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:97@v0.23.2",
+"first": "v2026.5.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "ℹ Skill curator",
+"tags": 38
+},
+{
+"at": "hermes_cli/update_cmd_maint.py:98@v0.23.2",
+"first": "v2026.5.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Background skill maintenance is enabled. First pass is deferred ~<<days>>d after installation; only agent-created skills are in scope and nothing is ever auto-deleted (archive is recoverable).",
+"tags": 38
+},
+{
+"at": "hermes_cli/update_cmd_posix_pause.py:504@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⏳ Waiting up to <<budget>>s for in-flight turns on <<_names(waiting)>> to finish before the update...",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_posix_pause.py:536@v0.23.2",
+"first": "v0.23.2",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<_names([entry])>>: event loop is unresponsive — forcing a bounded stop",
+"tags": 1
+},
+{
+"at": "hermes_cli/update_cmd_posix_pause.py:649@v0.23.2",
+"first": "v0.23.1",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not prepare the restart environment for <<entry['home']>>: <<exc>>",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_cmd_posix_pause.py:664@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not list the running gateways (<<exc>>); they keep running and are restarted after the update",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_posix_pause.py:696@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not record the gateways to pause (<<exc>>); they keep running and are restarted after the update",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_posix_pause.py:706@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not pause every gateway (<<exc>>); restarting them, the update continues without the pause",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_posix_pause.py:710@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<again>>; they restart once the dependencies are synced",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_posix_pause.py:716@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⏸ Paused for the update: <<_describe(token)>> (restarted once the dependencies are synced)",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_posix_pause.py:775@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ▶ Restarted paused gateway(s): <<', '.join(restarted)>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_posix_pause.py:97@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not adopt gateways an earlier update paused: <<exc>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_stale_survivors.py:46@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<len(pids)>> gateway process(es) still run the pre-update code — requesting a restart",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_stale_survivors.py:63@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<label>>: could not be signalled (<<exc>>) — restart it by hand",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_stale_survivors.py:70@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  → Stopped <<len(manual)>> manual gateway process(es) that had no supervisor to respawn them",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_stale_survivors.py:71@v0.23.2",
+"first": "v2026.4.8",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    Restart manually: hermes gateway run",
+"tags": 43
+},
+{
+"at": "hermes_cli/update_cmd_stale_survivors.py:73@v0.23.2",
+"first": "v2026.4.8",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    (or: hermes -p <profile> gateway run  for each profile)",
+"tags": 43
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:182@v0.23.2",
+"first": "v0.22.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Local changes detected:",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:185@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<line>>",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:187@v0.23.2",
+"first": "v0.22.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  (<<len(changes.leave_untracked)>> other untracked entr<<'y stays' if len(changes.leave_untracked) == 1 else 'ies stay'>> in place either way.)",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:189@v0.23.2",
+"first": "v0.22.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "Keep these changes after updating? [Y/n]  (n deletes them now)",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:202@v2026.9.21",
+"first": "v2026.3.17",
+"last": "v2026.9.21",
+"reach": [
+"yes"
+],
+"t": "  Look for commit <<stash_ref>>, then drop its selector with: git stash drop stash@{N}",
+"tags": 34
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:208@v0.23.2",
+"first": "v0.22.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Discarded local changes (you chose not to keep them).",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:226@v0.23.2",
+"first": "v0.22.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Leaving <<len(changes.leave_untracked)>> untracked entr<<'y' if len(changes.leave_untracked) == 1 else 'ies'>> in place (the update does not touch them).",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:237@v0.23.2",
+"first": "v2026.4.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Clearing unmerged index entries from a previous conflict...",
+"tags": 44
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:246@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Making <<len(intent_to_add)>> intent-to-add file(s) stashable...",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:252@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Local changes detected — stashing before update...",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:275@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Could not stash local changes — update aborted.",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:277@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Commit, stash, or clean up your local changes manually, then re-run `hermes update`.",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:278@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  (An index entry from `git add -N` is the usual cause of this error; `git add` the",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:279@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "   paths it names, or `git reset` them, and the update will proceed.)",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:284@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Some untracked files could not be removed from the working tree (permission denied).",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:285@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    They were still saved to the stash and were left in place — the update will continue.",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:361@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ <<len(stale)>> leftover update autostash entr<<'y is' if len(stale) == 1 else 'ies are'>> more than <<_AUTOSTASH_WARN_AGE_DAYS>> days old:",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:367@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    <<selector>>  (<<_AUTOSTASH_NAME_PREFIX>><<stamp>>)",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:368@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  These hold local changes stashed by earlier updates and never",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:369@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  restored. Review with: git stash show -p <entry>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:370@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Restore with: git stash apply <entry>   Discard with: git stash drop <entry>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:394@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Check `git status` first so you don't accidentally reapply the same change twice.",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:395@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Find the saved entry with: git stash list --format='%gd %H %s'",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:397@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Remove it with: git stash drop <<stash_selector>>",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:399@v0.23.2",
+"first": "v2026.9.24",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Look for commit <<stash_ref>>, then drop it by index with: git stash drop <N>",
+"tags": 14
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:449@v0.23.2",
+"first": "v2026.8.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "ℹ️  Local changes were stashed before updating and were NOT re-applied (--keep-stash).",
+"tags": 21
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:459@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not enumerate untracked files while validating the restored stash.",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:468@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not enumerate tracked Python files restored from the stash.",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:532@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Restored local changes made the Hermes agent unexecutable.",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:533@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Health check failed: <<failing_target>>",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:536@v0.23.2",
+"first": "v2026.5.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    <<line>>",
+"tags": 36
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:550@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  The clean updated tree has been restored; the gateway was not restarted.",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:552@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ The clean updated tree could not be fully restored automatically.",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:553@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    Inspect `git status` and run `git reset --hard HEAD` before retrying.",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:554@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Platform connectivity alone does not mean the agent can execute turns.",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:555@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Your local changes remain preserved in stash: <<stash_ref>>",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:556@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Inspect them with: git stash show --stat <<stash_ref>>",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:557@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Restore manually after fixing them: git stash apply <<stash_ref>>",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:567@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:568@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Local changes were stashed before updating.",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:569@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Restoring them may reapply local customizations onto the updated codebase.",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:570@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Review the result afterward if Hermes behaves unexpectedly.",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:571@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "Restore local changes now? <<prompt_suffix>>",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:581@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "Skipped restoring local changes.",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:582@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "Your changes are still preserved in git stash.",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:583@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "Restore manually with: git stash apply <<stash_ref>>",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:592@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Restoring local changes...",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:607@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Some stashed untracked files already exist in the working tree and were kept as-is.",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:609@v0.23.2",
+"first": "v2026.3.23",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Update pulled new code, but restoring local changes hit conflicts.",
+"tags": 47
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:613@v0.23.2",
+"first": "v2026.3.23",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\nConflicted files:",
+"tags": 47
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:615@v0.23.2",
+"first": "v2026.3.23",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  • <<f>>",
+"tags": 47
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:616@v0.23.2",
+"first": "v2026.3.23",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\nYour stashed changes are preserved — nothing is lost.",
+"tags": 47
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:618@v0.23.2",
+"first": "v2026.3.23",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "Working tree reset to clean state.",
+"tags": 47
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:619@v0.23.2",
+"first": "v2026.4.13",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "Restore your changes later with: git stash apply <<stash_ref>>",
+"tags": 42
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:642@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Local changes were restored, but Hermes couldn't find the stash entry to drop.",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:648@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Local changes were restored, but Hermes couldn't drop the saved stash entry.",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:651@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<_STASH_LEFT_IN_PLACE>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:665@v0.23.2",
+"first": "v2026.8.31",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  The stash was not restored because its cleanup baseline is unknown.",
+"tags": 19
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:666@v0.23.2",
+"first": "v2026.8.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Restore manually with: git stash apply <<stash_ref>>",
+"tags": 21
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:696@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ The update added <<len(replaced)>> file(s) where you had untracked files of the same name:",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:698@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    <<path>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:699@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  The updated files are in place; your versions are kept in the stash, which was NOT dropped.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:700@v0.23.2",
+"first": "v2026.3.23",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Stash ref: <<stash_ref>>",
+"tags": 47
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:701@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Recover a file with: git show <<stash_ref>>^3:<path> > <path>.mine",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:706@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Local changes were restored on top of the updated codebase.",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:707@v0.23.2",
+"first": "v2026.3.17",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Review `git diff` / `git status` if Hermes behaves unexpectedly.",
+"tags": 48
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:720@v0.23.2",
+"first": "v2026.6.5",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Configured to discard local changes on non-interactive update, but Hermes couldn't find the stash entry to drop.",
+"tags": 33
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:728@v0.23.2",
+"first": "v2026.6.5",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "⚠ Configured to discard local changes, but Hermes couldn't drop the saved stash entry.",
+"tags": 33
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:733@v0.23.2",
+"first": "v2026.6.5",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Discarded local source changes (updates.non_interactive_local_changes=discard).",
+"tags": 33
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:81@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<prefix>><<text.strip()>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_stash.py:86@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  <<text.strip().splitlines()[0]>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1040@v0.23.2",
+"first": "v2026.6.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Stopping Windows gateway process(es) before updating Hermes...",
+"tags": 32
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1051@v0.23.2",
+"first": "v2026.6.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Paused gateway profile(s): <<', '.join(sorted(profiles))>>",
+"tags": 32
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1053@v0.23.2",
+"first": "v2026.6.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  → Force-stopped <<len(force_killed)>> gateway process(es)",
+"tags": 32
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1055@v0.23.2",
+"first": "v2026.6.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  → Stopped <<len(unmapped_pids)>> gateway process(es) without profile mapping",
+"tags": 32
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1057@v0.23.2",
+"first": "v2026.6.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    Restart manually after update: hermes gateway run",
+"tags": 32
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1109@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\n✓ Gateway profile <<name>> started via cold-start after update (PID: <<ready_pids[0]>>)",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1172@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\n✓ Gateway started via cold-start after update (PID: <<', '.join(map(str, ready_pids))>>)",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1197@v0.23.2",
+"first": "v2026.7.30",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Refreshed Windows gateway launcher scripts",
+"tags": 27
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1201@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ <<message>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1203@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ <<message>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1245@v2026.9.24",
+"first": "v2026.9.7",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "\n  ⚠ Windows gateway restart could not be verified — no stable gateway process appeared after relaunch.\n    (The respawned gateway may have been killed by a parent Job Object during updater teardown, #48820.)\n    Recover with: hermes gateway restart",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1252@v0.23.2",
+"first": "v2026.8.13",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Refreshed installer bootstrap-cache script(s): <<', '.join(sorted(refreshed))>>",
+"tags": 25
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1290@v2026.9.24",
+"first": "v2026.9.7",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "\n  ✓ Restarting Windows gateway profile(s): <<', '.join(relaunched)>>",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1293@v2026.9.24",
+"first": "v2026.9.7",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "<<lead>>  ✓ Restarting <<unmapped_relaunched>> unmapped Windows gateway process(es)",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1322@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Windows gateway service <<service_name>>: its gateway was not ready; next check after <<int(float(backoff['next_at']) - _time.time())>>s",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1338@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not restart Windows gateway service: <<service_name>>",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1340@v2026.9.24",
+"first": "v2026.8.13",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "<<message>>",
+"tags": 8
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1349@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\n  ✓ Restarted Windows gateway service(s): <<', '.join(restarted_services)>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1422@v2026.9.24",
+"first": "v2026.9.7",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "<<_format_venv_python_holders_message(holders)>>",
+"tags": 5
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1547@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\n  ✓ Restarting Windows gateway profile(s): <<', '.join(ready_profiles)>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1549@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Restarting <<len(ready_unmapped)>> unmapped Windows gateway process(es)",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1552@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "\n  ⚠ Windows gateway restart could not be verified for: <<', '.join(unready)>>\n    (The respawned gateway may have been killed by a parent Job Object during updater teardown, #48820.)\n    Recover with: hermes gateway restart",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1591@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Paused gateway(s) left stopped: <<why>>.\n    The next `hermes` command (or `hermes update`) restarts them.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:1660@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Windows gateway service restart incomplete: <<_windows_resume_exc>>",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:392@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ Refusing to stop the gateway process tree because this updater is running inside it (gateway PID(s): <<', '.join((str(pid) for pid in ancestors))>>).\n  On Windows, taskkill /T would terminate the updater before the update can run.\n  From a chat platform, use `/update` instead.\n  Otherwise, run `hermes update` from a separate terminal.",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:456@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ⟲ Relaunching stopped serve/dashboard backend(s)",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:459@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ⚠ Some stopped backends could not be relaunched automatically; restart them manually (hermes serve --host <ip> --port <port>).",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:836@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ✓ Paused Windows gateway service(s): <<', '.join(paused_services)>>",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_windows.py:929@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  → <<len(socket_acks)>> gateway(s) ACKed socket pause; waiting up to <<int(drain_timeout)>>s for graceful exit",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:344@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ ZIP fallback refused: <<reason>>.",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:345@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Overlaying the ZIP would overwrite uncommitted edits and permanently delete untracked files.",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:347@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  To inspect: git status --porcelain",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:464@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not remove the update's own copies of <<', '.join(left)>>; the next `hermes` launch removes them.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:465@v2026.9.24",
+"first": "v2026.3.12",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Updating Python dependencies...",
+"tags": 36
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:473@v2026.9.24",
+"first": "v2026.8.3",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "✗ Update left the install in an unimportable state:",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:474@v2026.9.24",
+"first": "v2026.8.3",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  <<failing_module>>: <<import_error>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:476@v2026.9.24",
+"first": "v2026.8.3",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  This usually means the copy was interrupted partway through.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:477@v2026.9.24",
+"first": "v2026.8.3",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  Re-run `hermes update` to complete it.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:518@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ ZIP fallback aborted before the swap: <<recheck_reason>>.",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:519@v0.23.2",
+"first": "v2026.8.27",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Files appeared in the checkout while the update was downloading; committing the swap would delete them.",
+"tags": 20
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:520@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "<<_STASH_HINT>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:576@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Downloading latest version...",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:583@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "→ Extracting...",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:597@v0.23.2",
+"first": "v2026.9.7",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✓ Updated <<len(staged)>> items from ZIP",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:607@v0.23.2",
+"first": "v2026.3.12",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ ZIP update failed: <<e>>",
+"tags": 49
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:609@v0.23.2",
+"first": "v2026.8.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Your existing install was left in place.",
+"tags": 26
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:610@v0.23.2",
+"first": "v2026.8.3",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  Re-run `hermes update` to retry; if the agent won't start, reinstall from https://hermes-agent.nousresearch.com",
+"tags": 26
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:630@v0.23.2",
+"first": "v2026.5.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "✗ --branch=<<branch>> is not supported on the Windows ZIP-fallback update path.",
+"tags": 36
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:631@v0.23.2",
+"first": "v2026.5.28",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  This path runs when git file I/O is broken on the system. Either resolve the git-side breakage (typically an antivirus or NTFS filter holding files open) and rerun `hermes update --branch <<branch>>`, or update against main with `hermes update`.",
+"tags": 36
+},
+{
+"at": "hermes_cli/update_cmd_zip.py:97@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Kept <<leftover>> aside as <<_keep_aside(Path(leftover)).name>>: nothing proves it is this update's.",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_handoff.py:143@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "→ Post-swap hand-off: completing the update in a fresh interpreter (<<handoff_path>>)",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_handoff.py:150@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not start the post-update interpreter: <<exc>>",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_handoff.py:151@v0.23.2",
+"first": "v2026.9.21",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  The code update is applied. Finish it with:",
+"tags": 15
+},
+{
+"at": "hermes_cli/update_handoff.py:152@v0.23.2",
+"first": "v2026.8.19",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "    <<subprocess.list2cmdline(cmd)>>",
+"tags": 18
+},
+{
+"at": "hermes_cli/update_handoff.py:170@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  ⚠ The hermes.exe process that started this update (PID <<pid>>) is still running after <<int(timeout)>>s; continuing.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_handoff.py:227@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "→ Windows: hermes.exe cannot replace itself while it runs; the update",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_handoff.py:228@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  continues under the venv Python. The code update is already applied and",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_handoff.py:229@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "  this shell returns right away; the install finishes below.",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_handoff.py:240@v2026.9.24",
+"first": "v2026.9.21",
+"last": "v2026.9.24",
+"reach": [
+"yes"
+],
+"t": "\n  Interrupted — waiting for the update child to finish its cleanup...",
+"tags": 2
+},
+{
+"at": "hermes_cli/update_pause_record.py:1063@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ⚠ Paused-gateway recovery skipped: <<exc>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_pause_record.py:487@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not record the stop request for gateway <<pid>>: <<exc>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_pause_record.py:533@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ⚠ Could not record the accepted stop request <<path>>: <<refused>>; <<exc>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_pause_record.py:557@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Could not update the paused-gateway record <<record_path()>>: <<exc>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_pause_record.py:607@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [
+"yes"
+],
+"t": "  ⚠ Set aside a malformed paused-gateway history (no paused set refers to it): <<corrupt>>",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_pause_record.py:971@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "→ Restarting gateway(s) paused by an interrupted `hermes update`...",
+"tags": 13
+},
+{
+"at": "hermes_cli/update_pause_record.py:979@v0.23.2",
+"first": "v0.21.6",
+"last": "v0.23.2",
+"reach": [],
+"t": "  ⚠ Could not restart every paused gateway: <<exc>>. Run `hermes update` or `hermes gateway start`.",
+"tags": 13
+}
+],
+"tool": "scripts/upstream_print_corpus.py"
+}

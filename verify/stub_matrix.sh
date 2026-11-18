@@ -155,13 +155,35 @@ PATH="$ROOT/bin:/usr/bin:/bin" HOME="$ROOT/home" bash "$ROOT/au_nobin.sh" >/dev/
 check "exit" 1 "$?"
 check "alerts" 1 "$(notifies)"
 
-echo "S16 *** exit0 + stale receipt + unrecognized output -> inconclusive, alert + exit 1 ***"
+echo "S16 *** exit0 + stale receipt + unrecognized output, HEAD unchanged -> legitimate no-op (PATCH4) ***"
+echo "      (the text is no longer judged: no error line and the checkout did not move = nothing"
+echo "       installed; silent exit 0, never marked installed, the stuck guard counts it)"
 reset_home; echo weirdyes > "$ROOT/mode"
 python3 -c "import json;json.dump({'finished_at':'2026-09-01T00:00:00+00:00','outcome':'success'},open('$ROOT/home/.hermes/logs/update_receipts/latest.json','w'))"
 rm -f "$ROOT/notify.calls"
 HOME="$ROOT/home" PATH="$ROOT/bin:/usr/bin:/bin" AU_POLL_EVERY=0 AU_POLL_TRIES=1 AU_APPLY=1 bash "$AU" >/dev/null 2>&1
+check "exit" 0 "$?"
+check "alerts" 0 "$(notifies)"
+check "never marked installed" absent "$([ -f "$ST/last_install_ts" ] && echo PRESENT || echo absent)"
+check "stuck-guard counter" 1 "$(counter consec_available_noop)"
+
+echo "S16b *** exit0 + no receipt + an error line -> real failure, alert + exit 1 ***"
+reset_home; echo erroryes > "$ROOT/mode"
+rm -f "$ROOT/notify.calls"
+HOME="$ROOT/home" PATH="$ROOT/bin:/usr/bin:/bin" AU_POLL_EVERY=0 AU_POLL_TRIES=1 AU_APPLY=1 bash "$AU" >/dev/null 2>&1
 check "exit" 1 "$?"
 check "alerts" 1 "$(notifies)"
+check "real-failure counter" 1 "$(counter consec_real_fails)"
+check "alert names the error line" yes "$(grep -q 'Lazy refresh failed' "$ROOT/notify.calls" && echo yes || echo no)"
+
+echo "S16c *** exit0 + no receipt + the checkout MOVED -> install unproven, alert + exit 1 + marker ***"
+reset_home; echo moveyes > "$ROOT/mode"
+rm -f "$ROOT/notify.calls"
+HOME="$ROOT/home" PATH="$ROOT/bin:/usr/bin:/bin" AU_POLL_EVERY=0 AU_POLL_TRIES=1 AU_APPLY=1 bash "$AU" >/dev/null 2>&1
+check "exit" 1 "$?"
+check "alerts" 1 "$(notifies)"
+check "drain marker set" PRESENT "$([ -f "$ST/drain_pending" ] && echo PRESENT || echo absent)"
+check "never marked installed" absent "$([ -f "$ST/last_install_ts" ] && echo PRESENT || echo absent)"
 
 echo "S17 *** notify delivery fails (proxy/curl down) -> counted + logged, not swallowed ***"
 reset_home; echo ok > "$ROOT/mode"; touch "$ROOT/curl_fail"

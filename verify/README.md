@@ -56,14 +56,17 @@ scenario is added). What each scenario must hold:
 The stable-channel / alerting behaviour of issue #1 is asserted in
 `scripts/check_compat_sanity.py` (a fake clock, per-scenario fake HOME, the same stub-first rule
 as this harness), not in `stub_matrix.sh`. `scripts/release_gate.sh` runs both (step 2 = matrix,
-step 3b = compat probe) and neuters each guard in step 4.
+step 3b = compat probe, step 3c = upstream print corpus over every official release) and neuters
+each guard in step 4.
 
 | acceptance point | test (`scripts/check_compat_sanity.py` unless noted) | gate teeth (step 4) |
 |---|---|---|
 | 6 stable shapes + main shapes classified right (incl. retired line, cleanup lines, CRLF, older ☤, a real `--check` capture); `No newer release` only with the ahead label | `StrictVerdicts.test_upstream_shapes_classify`, `Verdicts.*` | `anchor`, `unknownline`, `noneweraheadonly` |
 | error / near-miss / mixed / unknown-line / prefixed-available output never "no update", never install | `StrictVerdicts.test_error_and_unknown_shapes_fail_closed`, `StrictVerdicts.test_unknown_three_times_alerts_with_offending_line`, `Banners.*`, `Hardening.*` | `anchor`, `unknownline`, `errorword`, `availanchor` |
-| `--yes` no-op vetoed by ✗ / error words / conflicting verdict → real failure | `YesNoopVeto.*` | `noopveto`, `errorword` |
-| `--yes` no-op only on upstream's exact `--yes` sentence; every line claiming a conclusion (keyword) must be a whole upstream sentence, else real failure (r3A prefix cases, hidden tails, SGR); code movement beside a no-op → real failure; lines without a keyword are neutral (legacy `⚕` banner no-op runs stay silent, reset, clear a healthy drain marker); real upstream no-op runs (stable / held / stable-ahead / fork without upstream / full tail / CRLF) stay silent + reset; real upstream install runs (incl. shallow, with "available" lines) still install | `YesNoopStrict.*` (incl. `YesNoopStrict.test_legacy_banner_noop_runs_are_legitimate`, `YesNoopStrict.test_movement_beside_noop_is_vetoed`) | `noopstrict`, `conclusionwhole`, `movementveto` |
+| `--yes` without a receipt: a ✗-start or whole-word error line → real failure with the line in the alert (B500 rows 1/3, SGR, CRLF, typographic apostrophe, hyphen boundary, `0 failed`); `errors` / `unfailed` / mid-line ✗ are not errors; the 4 exempt upstream sentences pass only whole | `YesErrorVeto.*` | `yeserror`, `exemptwhole` |
+| `--yes` without a receipt and no error line: HEAD unchanged → legitimate no-op whatever the sentences say (r5A default / named profile `: up to date`, dashboard action id, legacy `⚕` banner runs, stable / held / stable-ahead / fork / full tail / CRLF, stale or foreign receipt; B500 rows 2/4), silent, reset, healthy marker cleared / unhealthy kept; HEAD moved → install unproven + marker; HEAD unreadable before / after / both → inconclusive; completion line → unproven; real install runs still install | `YesHeadState.*`; matrix S16/S16b/S16c | `headcompare`, `headunknown` |
+| stuck guard: available + nothing to do, 3rd in a row → alert with the `--yes` tail, then every `AU_CHECK_ALERT_INTERVAL`; undelivered retries; cleared by a proven install and by up-to-date / held / rollback; failures in between neither count nor clear | `StuckGuard.*` | `stuckguard`, `stuckclear` |
+| every official upstream release: `--check` conclusion templates classify (registered findings listed), every `--yes` error-word hit reviewed, exempt samples pass, error lines still vetoed | `scripts/upstream_print_corpus.py --gate` (gate step 3c) | `exemptwhole` |
 | every legitimate no-op resets `consec_real_fails` (old failure → no-op → new failure alerts at once) | `NoopResetsRealFails.*`; matrix S22 | `noopreset` |
 | exit≠0 multi-line output: the alert carries the real ✗ / error line, even after line 9 | `AlertSummary.*`, `Summary.*` | `summarypriority` |
 | check alerts by wall clock (first at 3rd, daily cadence with a 1h margin: start jitter and DST do not slip a day, undelivered retries) | `Cadence.*` (incl. `Cadence.test_daily_ticks_with_start_jitter_alert_every_day`, `Cadence.test_dst_short_day_still_alerts`) | `alertstamp`, `checkinterval` |

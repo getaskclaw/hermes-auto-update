@@ -100,6 +100,18 @@ else
     echo "PROBE FAILED: scripts/check_compat_sanity.py"; printf '%s\n' "$out" | tail -15; FAIL=1
 fi
 
+step "3c/4 upstream print corpus: every official release's print() templates vs the real rules"
+# (a) no --check conclusion template of any official release may judge `unknown` unless registered;
+# (b) every line the --yes error rule hits must be reviewed (error / exempt), exempt samples must
+# pass and every error line must still be vetoed. Runs on the stored snapshot (the recipient has no
+# upstream checkout); refresh it with: python3 -I scripts/upstream_print_corpus.py --write-snapshot
+printf -- "-- %s\n" scripts/upstream_print_corpus.py
+if out=$(python3 -I scripts/upstream_print_corpus.py ./auto_update.sh --gate 2>&1); then
+    printf '%s\n' "$out" | grep -E '^\((a|b)\)|^  \(a\) REGISTERED|^UPSTREAM CORPUS'
+else
+    echo "PROBE FAILED: scripts/upstream_print_corpus.py"; printf '%s\n' "$out" | tail -15; FAIL=1
+fi
+
 step "4/4 teeth: neutered builds must FAIL the probe that guards them"
 # A green probe proves the toolchain runs, not that it catches anything. For each guard
 # with a known neuter, break the source, feed the BROKEN copy to the probe, and require
@@ -128,30 +140,28 @@ EDITS = {
     "unknownline": ("            error|unknown) bad=1 ;;\n", "            error) bad=1 ;;\n            unknown) ;;\n"),
     # B300/B301: the error / failed / timed out word veto removed
     "errorword": ('    case "${l,,}" in *error*|*failed*|*"timed out"*) return 0 ;; esac\n', ""),
-    # B500: --yes no-op accepted on the broad no-op SHAPE again (pre-PATCH2 prefix acceptance)
-    "noopstrict": ('        if [ "$KWN" -eq 1 ] && [[ $t =~ $V_YES_NOOP ]]; then\n',
-                   '        if [[ $t =~ $RE_NOOP ]]; then\n'),
-    # B700/B802 (PATCH3): the "a conclusion line must be a whole upstream sentence" rule removed —
-    # a line claiming a conclusion that matches no table passes as neutral
-    "conclusionwhole": ("""        if [[ $lc =~ $RE_YES_CONFLICT ]]; then
-            printf 'conflicting conclusion line, not an upstream --yes sentence: %s' "$(printf '%s' "$t" | head -c 200)"; return 0
-        fi
-        printf 'no-op line is not an upstream --yes sentence: %s' "$(printf '%s' "$t" | head -c 200)"; return 0
-""", "        continue\n"),
-    # B801 (PATCH3): the movement-beside-no-op conflict veto removed
-    "movementveto": ('        if [[ $lc =~ $RE_YES_MOVE ]]; then\n', '        if false; then\n'),
+    # PATCH4 rule 1: the --yes error veto removed (an error line no longer fails a no-receipt run)
+    "yeserror": ('        if [ -n "$YES_ERR" ]; then\n', '        if false; then\n'),
+    # PATCH4 rule 3: the HEAD comparison removed (a moved checkout passes as a no-op)
+    "headcompare": ('        if [ "$PRE_HEAD" != "$POST_HEAD" ]; then\n', '        if false; then\n'),
+    # PATCH4 rule 2: unreadable HEAD no longer inconclusive (falls through to the comparison)
+    "headunknown": ('        if [ -z "$PRE_HEAD" ] || [ -z "$POST_HEAD" ]; then\n', '        if false; then\n'),
+    # PATCH4 stuck guard removed (available + nothing to do, forever, silently)
+    "stuckguard": ('        available_noop_count "$UPDATE_OUT"\n', '        :\n'),
+    # PATCH4 stuck guard not cleared by a proven install (next streak alerts too early)
+    "stuckclear": ('mark_installed() { date +%s > "$STATE_DIR/last_install_ts"; clear_available_noop; }',
+                   'mark_installed() { date +%s > "$STATE_DIR/last_install_ts"; }'),
+    # PATCH4 exemption table widened to any line (whole-sentence exemption lost)
+    "exemptwhole": ('    [ -n "$V_YES_EXEMPT" ] && [[ $1 =~ $V_YES_EXEMPT ]]\n', '    [ -n "$V_YES_EXEMPT" ]\n'),
     # B800: the available verdict no longer anchored at the start of the line
     "availanchor": ('V_AVAILABLE="^(→ Selected release available: ', 'V_AVAILABLE="(→ Selected release available: '),
     # B501/B600: the daily check re-alert default back to a zero-margin 86400
     "checkinterval": ('"${AU_CHECK_ALERT_INTERVAL-}" 82800)', '"${AU_CHECK_ALERT_INTERVAL-}" 86400)'),
     # B601: "No newer release" accepts the short label again
     "noneweraheadonly": ('✓ No newer release: $_V_LBL_AHEAD\\.|', '✓ No newer release: ($_V_LBL|$_V_LBL_AHEAD)\\.|'),
-    # B301: --yes no-op accepted without the veto
-    "noopveto": ('            if VETO=$(yes_noop_veto "$UPDATE_OUT"); then\n',
-                 '            if false; then VETO=\n'),
     # B306: the --yes no-op exit no longer resets the real-failure streak
-    "noopreset": ('            recheck_drain_marker; DRAIN_RC=$?\n            reset_real_fails\n',
-                  '            recheck_drain_marker; DRAIN_RC=$?\n'),
+    "noopreset": ('        reset_real_fails\n        available_noop_count "$UPDATE_OUT"\n',
+                  '        available_noop_count "$UPDATE_OUT"\n'),
     # B303: real-failure re-alert back to "first failure only"
     "realclock": ('    if [ "$REAL_F" -eq 1 ] || interval_due real_alert_last_ts "$AU_REALERT_SECS"; then\n',
                   '    if [ "$REAL_F" -eq 1 ]; then\n'),
@@ -203,11 +213,14 @@ neuter_and_run applygate "AU_APPLY gate defaulted open -> check_compat_sanity mu
 # other test cannot stand in for it.
 neuter_and_run anchor "B300 no-update sentence matched as a prefix -> StrictVerdicts must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed
 neuter_and_run unknownline "B300 unknown line ignored -> StrictVerdicts must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed
-neuter_and_run errorword "B300/B301 error-word veto removed -> StrictVerdicts + YesNoopVeto must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed YesNoopVeto.test_vetoed_noop_is_a_real_failure
-neuter_and_run noopveto "B301 --yes no-op veto removed -> YesNoopVeto must FAIL" "$PY_PROBE" YesNoopVeto
-neuter_and_run noopstrict "B500 --yes no-op accepted on a no-op-shaped prefix -> YesNoopStrict must FAIL" "$PY_PROBE" YesNoopStrict.test_r3a_noop_prefix_cases_fail_closed
-neuter_and_run conclusionwhole "B700/B802 conclusion line need not be a whole upstream sentence -> YesNoopStrict must FAIL" "$PY_PROBE" YesNoopStrict.test_other_noop_shaped_and_unknown_conclusion_lines_fail_closed
-neuter_and_run movementveto "B801 code movement beside a no-op not vetoed -> YesNoopStrict must FAIL" "$PY_PROBE" YesNoopStrict.test_movement_beside_noop_is_vetoed
+neuter_and_run errorword "B300 --check error-word veto removed -> StrictVerdicts must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed
+neuter_and_run yeserror "PATCH4 --yes error veto removed -> YesErrorVeto must FAIL" "$PY_PROBE" YesErrorVeto.test_error_line_is_a_real_failure
+neuter_and_run headcompare "PATCH4 HEAD comparison removed -> YesHeadState must FAIL" "$PY_PROBE" YesHeadState.test_head_moved_without_receipt_is_unproven
+neuter_and_run headunknown "PATCH4 unreadable HEAD not inconclusive -> YesHeadState must FAIL" "$PY_PROBE" YesHeadState.test_head_unreadable_is_inconclusive
+neuter_and_run stuckguard "PATCH4 stuck guard removed -> StuckGuard must FAIL" "$PY_PROBE" StuckGuard.test_third_consecutive_noop_alerts_with_output_then_daily StuckGuard.test_b500_no_error_rows_alert_on_the_third_tick
+neuter_and_run stuckclear "PATCH4 stuck guard not cleared by a proven install -> StuckGuard must FAIL" "$PY_PROBE" StuckGuard.test_proven_install_clears
+neuter_and_run exemptwhole "PATCH4 exemption no longer whole-sentence -> YesErrorVeto must FAIL" "$PY_PROBE" YesErrorVeto.test_error_line_is_a_real_failure
+neuter_and_run exemptwhole "PATCH4 exemption no longer whole-sentence -> the upstream corpus gate must FAIL" scripts/upstream_print_corpus.py --gate
 neuter_and_run availanchor "B800 available verdict matched after a prefix -> StrictVerdicts must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed
 neuter_and_run checkinterval "B501 zero-margin daily check re-alert -> Cadence jitter must FAIL" "$PY_PROBE" Cadence.test_daily_ticks_with_start_jitter_alert_every_day
 neuter_and_run noneweraheadonly "B601 short label after No newer release -> StrictVerdicts must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed

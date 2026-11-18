@@ -117,6 +117,8 @@ if [ "\${1:-}" = "update" ] && [ "\${2:-}" = "--yes" ]; then
     race_same) hold_repo; echo "✓ Code updated! [main @ \$(head -c 8 $ROOT/stub_pre_head)]"; echo "→ hermes-gateway: draining"; receipt partial_same; exit 1 ;;
     noop)     echo "✓ Already up to date! [main @ abc1234]"; exit 0 ;;   # update_cmd.py:1730 + suffix
     weirdyes) echo "⚕ something unexpected happened"; exit 0 ;;
+    erroryes) echo "⚕ Updating Hermes Agent..."; echo "  ⚠ Lazy refresh failed; rerun once resolved."; exit 0 ;;   # error word, no receipt
+    moveyes)  advance_repo; echo "⚕ Updating Hermes Agent..."; exit 0 ;;   # checkout moved, no receipt
     fail)     echo "✗ Update failed: merge conflict"; exit 1 ;;
     wedged)
         # Never returns. Tolerate SIGTERM so \`timeout -k\` must escalate to SIGKILL.

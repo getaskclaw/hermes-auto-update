@@ -39,15 +39,17 @@
 #     :143/:164 fetching) and the known `  (…)` cleanup lines (:49 :52 :62 :65 :180 :183). ANY
 #     other non-empty line, any ✗, any line containing error/failed/timed out (any case), or two
 #     different verdicts = unknown (counted, alerted at 3) — never "no update", never install.
-#   - --yes no-op with no receipt for this run is accepted only on an exact upstream --yes no-op
-#     sentence (update_cmd.py:1730/:1731/:1915, optional " [<branch> @ <sha>]" suffix) and only
-#     after the veto, which judges only the lines that CLAIM a conclusion (they contain a
-#     conclusion keyword: up to date, holding at this build, no newer release, release / update
-#     available, newer than the, nothing to update, …). Each such line must be a whole upstream
-#     sentence, else vetoed. Banners and progress lines carry no keyword and pass as neutral (no
-#     line whitelist). Also vetoed: ✗ / error words, an available-or-rollback verdict, a line
-#     announcing code movement (Post-swap hand-off, Pulling updates, Code updated!, …). A vetoed
-#     no-op is a REAL FAILURE (counted, alerted, exit 1, no reset).
+#   - --yes exit 0 with no receipt for this run is judged on OBSERVABLE STATE (PATCH4), never on
+#     the conclusion sentence: a completion line -> install unproven; a line starting with ✗ or
+#     holding a whole-word error word (error, failed, failure, timed out, could not, couldn't,
+#     cannot, unable to, traceback; four whole upstream sentences exempt) -> REAL FAILURE
+#     (counted, alerted with the line, exit 1, no reset); checkout HEAD before/after unreadable ->
+#     inconclusive, exit 1; HEAD moved -> install unproven, drain marker, exit 1; HEAD unchanged ->
+#     legitimate no-op. The rule is proven against every official release's print() templates
+#     (scripts/upstream_print_corpus.py). Stuck guard: --check said available and --yes had
+#     nothing to do, 3 times in a row -> alert (then every AU_CHECK_ALERT_INTERVAL), cleared by a
+#     proven install or an up-to-date / held / rollback check. (PATCH2/3's sentence tables —
+#     whole conclusion line, keyword table, movement words — are removed.)
 #   - every legitimate no-op exit (check-time and --yes) resets consec_real_fails after the drain
 #     recheck, so an old streak cannot swallow the next unrelated failure's first alert.
 #   - check alerts: first at the 3rd consecutive problem, then every AU_CHECK_ALERT_INTERVAL s
@@ -59,7 +61,7 @@
 #   - check alert summary picks ✗ / error / failed / timed out lines (+1 line of context) first,
 #     then fills with the remaining lines, then bounds the size.
 #   - behaviour change: exit 0 with no receipt for THIS run is no longer a success (completion
-#     text -> "install unproven", exit 1; unrecognized -> exit 1). Hermes builds that write no
+#     text -> "install unproven", exit 1; otherwise the PATCH4 state rules). Hermes builds that write no
 #     update receipt therefore alert on every install.
 # v5.12 (2026-09-17): notify proxy→direct fallback (to6429 incident). The updater kept
 #   "succeeding" for 14 ticks while its ONLY alert channel was dead: hardcoded default
@@ -423,16 +425,17 @@ recheck_drain_marker() {
 # next tick.
 # Line-anchored --yes patterns. Quoted diagnostic text in the middle of a line never matches.
 # RE_NOOP is deliberately BROAD: it finds every line SHAPED like a no-op claim (any indentation,
-# any tail). It routes the run into the no-op branch and makes the legacy-receipt rules stricter,
-# but it never accepts a no-op on its own: yes_noop_veto() accepts only V_YES_NOOP (below), and
-# vetoes every other no-op-shaped line as a real failure.
+# any tail). It only makes the receipt rules stricter (a no-op line never lets a legacy receipt
+# count as an install, and turns an evidence-less success receipt into "no receipt"). It never
+# decides that a run was a no-op: since PATCH4 that is the observable checkout HEAD (below).
 RE_COMPLETE='^[[:space:]]*(✓[[:space:]]*)?Update complete([^[:alnum:]_]|$)'
 RE_NOOP='^[[:space:]]*((✓|→)[[:space:]]*)?(Already up to date|Up to date|Holding at this build|No newer release)([^[:alnum:]_]|$)'
 
-mark_installed() { date +%s > "$STATE_DIR/last_install_ts"; }   # call ONLY on proven installs
+# call ONLY on proven installs. A proven install also ends the stuck guard's streak (PATCH4).
+mark_installed() { date +%s > "$STATE_DIR/last_install_ts"; clear_available_noop; }
 check_ok() { echo 0 > "$STATE_DIR/consec_check_fails"; rm -f "$STATE_DIR/check_alert_last_ts"; }
-# A conclusive updater run (proven install, or a legitimate no-op after the veto and the drain
-# recheck) ends the real-failure streak: the next unrelated failure must alert at once.
+# A conclusive updater run (proven install, or a legitimate no-op after the error veto, the HEAD
+# comparison and the drain recheck) ends the real-failure streak: the next unrelated failure must alert at once.
 reset_real_fails() { echo 0 > "$STATE_DIR/consec_real_fails"; rm -f "$STATE_DIR/real_alert_last_ts"; }
 # Leaving the "checkout newer than the selected release" state ends its reminder cycle.
 # rollback_notified is the pre-5.15 one-shot marker; removed wherever the stamp is.
@@ -607,84 +610,46 @@ verdict_detail() {
     [ -n "$found" ] || printf 'no verdict line'
 }
 
-# --- `hermes update --yes` no-op contract -----------------------------------------------------
-# On a no-op run upstream prints the whole maintenance tail and then ONE conclusion line,
-# _print_update_completion (update_cmd_maint.py:304-311) = "{message}{_branch_head_suffix()}",
-# suffix " [<branch|detached> @ <git rev-parse --short HEAD>]" or "" (update_cmd_git.py:160-175).
-# The message on the no-op path (_finish_already_up_to_date) is exactly one of:
-#   "✓ Already up to date!"                                    update_cmd.py:1730 (v0.23.1 :1726;
-#        v2026.9.24 update_cmd.py:764; bare print in v2026.3.12 main.py:1667, v2026.6.19
-#        main.py:8798, v2026.7.20 main.py:10256)
-#   "✓ Up to date with your fork (official repo not checked)."  update_cmd.py:1731 (v0.23.1 :1727;
-#        v2026.9.24 update_cmd.py:765)
-#   "✓ Holding at this build until a newer {channel} release ships."  update_cmd.py:1915
-#        (v0.23.1 :1911)
-# Nothing else is a --yes no-op. "✓ Already up to date." (period) is ONLY the --check sentence
-# (update_cmd_check.py:200/:208/:222; v2026.6.19 main.py:7913/:8004 and v2026.7.20 main.py:8876/
-# :8985/:9003, all inside _cmd_update_check); no --yes path ever printed it.
-V_YES_NOOP='^(✓ Already up to date!|✓ Up to date with your fork \(official repo not checked\)\.|✓ Holding at this build until a newer [^[:space:]]+ release ships\.)( \[[^][]+ @ [0-9a-f]{4,40}\])?$'
-# --- which --yes lines are judged (PATCH3, B700/B801/B802) ----------------------------------
-# Only a line that CLAIMS a conclusion is judged. A line claims one when, after removing SGR
-# colour codes, a trailing CR and surrounding whitespace, it contains a conclusion keyword (any
-# case, "up to date" also hyphenated). Keywords and where upstream prints them (origin/main
-# 67e4d22 unless noted):
-#   up to date            update_cmd.py:1730/:1731; update_cmd_check.py:112/:200/:208/:222;
-#                         step reports update_cmd_maint.py:516, update_cmd_config.py:259,
-#                         update_cmd_git.py:421, source_build.py:276/:282/:348/:350,
-#                         update_receipt.py:1244
-#   holding at this build update_cmd.py:1915; update_cmd_check.py:115
-#   no newer release      update_cmd_check.py:110
-#   nothing to update     update_cmd_check.py:323-324
-#   newer than the        update_cmd_check.py:119 (rollback verdict), :323
-#   release available     update_cmd_check.py:123
-#   update(s) available   update_cmd_check.py:212/:214/:225; update_cmd.py:1938;
-#                         update_cmd_maint.py:185
-#   release status, release check, channel status: never printed by any upstream --yes path; a
-#                         line about the release / channel status is a claim about the outcome
-#                         (the r3/r4 "→ Release status could not be verified" vetoes stay).
-# A judged line passes only if it is a WHOLE upstream sentence from one of the three tables
-# below and holds no extra keyword (so a free slot cannot smuggle a second claim):
-#   V_YES_NOOP       the no-op conclusions (the only lines that make the run a no-op)
-#   V_YES_HELD_WHY   the held explanation that precedes the held conclusion
-#   V_YES_STEP       upstream step reports that name their own subject ("Skills are up to date")
-# Anything else that claims a conclusion is vetoed. Lines WITHOUT a keyword (banners such as
-# "☤/⚕ Updating Hermes Agent...", "→ Fetching updates...", "→ Fleet: …", maintenance logs) are
-# neutral: there is deliberately no whitelist for them.
-RE_YES_CONCL='(up[ -]?to[ -]?date|holding at this build|no newer release|nothing (new )?to update|newer than the|release available|updates? available|release status|release check|channel status)'
-# The available / rollback class, for the veto reason only: such a line beside a no-op conflicts.
-RE_YES_CONFLICT='(newer than the|release available|updates? available)'
-# Lines that announce that code moved or is being swapped. Beside a no-op they contradict it
-# (movement + nothing to do), so the run is vetoed. Where upstream prints them (origin/main):
-#   post-swap hand-off              update_handoff.py:143
-#   switching to source commit      update_cmd.py:1931
-#   found N new commit(s)           update_cmd.py:1933
-#   switched the running checkout   update_cmd.py:1935
-#   pulling updates                 update_cmd.py:1940
-#   resetting to match remote       update_cmd.py:877
-#   rolling back to                 update_cmd.py:915
-#   falling back to zip download    update_cmd.py:1667
-#   pulling from upstream, commit(s) behind upstream   update_cmd_git.py:423
-#   syncing fork                    update_cmd_git.py:487
-#   code updated                    update_completion.py:427
-#   downloading latest version, items from zip   update_cmd_zip.py:576/:597
-#   update complete                 update_cmd_maint.py:356 (completion line)
-RE_YES_MOVE='(post-swap hand-off|switching to source commit|new commit|switched the running checkout|pulling (updates|from upstream)|resetting to match remote|rolling back to|falling back to zip|syncing fork|behind upstream|code updated|downloading latest version|items from zip|update complete)'
-# The held explanation, update_cmd_check.py:323-324 (hold_channel_release_behind_runtime). It is
-# printed on the --yes held path just before the held conclusion; it carries two keywords.
-V_YES_HELD_WHY='^→ This build is newer than the [A-Za-z0-9_.-]+ release [0-9a-f]{7,40}: that release predates the gateway runtime your sessions use, so there is nothing to update to yet\.$'
-# Upstream step reports that contain a keyword about their OWN subject, whole sentence each:
-#   ✓ Skills are up to date             update_cmd_maint.py:516 (v2026.3.12 main.py:1595/:1715,
-#                                       v2026.7.20 main.py:10550)
-#   ✓ Configuration is up to date       update_cmd_config.py:259 (v2026.3.12 main.py:1755,
-#                                       v2026.7.20 main.py:10739)
-#   ✓ Fork is up to date with upstream  update_cmd_git.py:421 (v2026.7.20 main.py:7126)
-#   ✓ TUI is up to date / ✓ Web UI is up to date   source_build.py:276/:282
-#   ✓ Desktop app is up to date[: no desktop build input changed since <sha12>]  source_build.py:348/:350
-#   ✓ Desktop app up to date            v2026.7.20 main.py:10495
-#   ✓ <profile> (pid <pid>) @ <sha> — up to date   update_receipt.py:1244 (fleet row)
-#   ◆ Search index update available     update_cmd_maint.py:185 (post-update notice, printed on
-#                                       the no-op tail too: update_cmd_maint.py:1072)
-V_YES_STEP='^(✓ Skills are up to date|✓ Configuration is up to date|✓ Fork is up to date with upstream|✓ TUI is up to date|✓ Web UI is up to date|✓ Desktop app is up to date(: no desktop build input changed since [0-9a-f]{7,40})?|✓ Desktop app up to date|✓ [^[:space:]]+ \(pid [0-9]+\) @ [0-9a-f]{4,40} — up to date|◆ Search index update available)$'
+# --- `hermes update --yes` without a receipt of this run (PATCH4) ---------------------------------
+# exit 0 and no install receipt of THIS run is judged on OBSERVABLE STATE, not on sentence shape.
+# (PATCH2/PATCH3 judged the conclusion sentence, a keyword table and a movement-word table; three
+# review rounds kept finding normal upstream lines it misjudged — `  default: up to date`, a
+# dashboard action id, the legacy banner — and abnormal ones it let through. That direction does not
+# converge.) The text is now used for ONE thing only: finding errors.
+#   0. a completion line (RE_COMPLETE)               -> install UNPROVEN (unchanged since 5.15)
+#   1. an error line (yes_error_line, below)         -> REAL FAILURE: counted, alerted with the
+#                                                       line, exit 1, the streak is NOT reset
+#   2. HEAD before / after unreadable (read_head)    -> inconclusive: alert, exit 1
+#   3. HEAD moved (PRE_HEAD != POST_HEAD)             -> install UNPROVEN: drain_pending, alert, exit 1
+#   4. HEAD unchanged                                 -> legitimate no-op: drain recheck,
+#                                                       reset_real_fails, never mark_installed,
+#                                                       silent exit 0 — plus the stuck guard below
+# The conclusion sentence, the keyword tables and the movement words are gone (no other caller).
+#
+# Error words (any case, whole word: the characters on both sides are not [[:alnum:]_], so
+# "0 failed" hits and "errors" / "unfailed" do not; multi-word forms allow any run of spaces):
+#   error, failed, failure, timed out, could not, couldn't (also ’), cannot, unable to, traceback
+# plus any line that STARTS with ✗ after SGR / CR / surrounding whitespace removal.
+# Every print() template of every official upstream release was scanned with this exact rule
+# (scripts/upstream_print_corpus.py; snapshot verify/upstream_corpus.json; every hit reviewed in
+# verify/upstream_error_review.json). A normal sentence that hits is exempted ONLY as its whole
+# upstream sentence, in V_YES_EXEMPT below, with its source.
+RE_YES_ERROR="(^|[^[:alnum:]_])(error|failed|failure|timed[[:space:]]+out|could[[:space:]]+not|couldn('|’)t|cannot|unable[[:space:]]+to|traceback)([^[:alnum:]_]|$)"
+# Whole upstream sentences that contain an error word but report normal progress. The PATCH4 scan
+# (49 official tags) found four among the distinct lines the rule hits; every other hit reports a
+# failure (each one is listed with its verdict in verify/upstream_error_review.json, and the gate
+# fails on any hit not listed there). Whole line only, nothing else:
+#   ⏳ systemctl <verb> <unit> timed out after <N>s; systemd finished the job after <N>s (<state>)
+#        update_cmd_fleet_unit_budget.py:118-120 (v0.22.6..v0.23.2): the job DID settle; exempt only
+#        for the state active / inactive — "(failed)" stays an error
+#   ℹ Got updates from upstream but couldn't push to fork (no write access?)
+#        update_cmd.py:3099 (v2026.4.3..v2026.8.31): the local checkout was updated, only the push
+#        back to the user's fork was not possible
+#   → Windows: <shim> cannot replace itself while it runs; finishing the dependency install under the venv Python.
+#        main.py:9397 (v2026.8.19..v2026.8.31), printed after a SUCCESSFUL hand-off
+#   → Windows: hermes.exe cannot replace itself while it runs; the update
+#        update_handoff.py:227 (v2026.9.21..v2026.9.24), printed after a SUCCESSFUL hand-off
+V_YES_EXEMPT="^(⏳ systemctl (start|stop|restart) [^[:space:]]+ timed out after [0-9]+s; systemd finished the job after [0-9]+s \((active|inactive)\)|ℹ Got updates from upstream but couldn't push to fork \(no write access\?\)|→ Windows: [^[:space:]]+ cannot replace itself while it runs; finishing the dependency install under the venv Python\.|→ Windows: hermes\.exe cannot replace itself while it runs; the update)\$"
 
 # Strip SGR / other CSI escapes, one trailing CR and surrounding whitespace into YT.
 yes_trim() {
@@ -693,68 +658,68 @@ yes_trim() {
     t="${t#"${t%%[![:space:]]*}"}"
     YT="${t%"${t##*[![:space:]]}"}"
 }
-# Number of conclusion keywords in $1 (lower-case text) into KWN.
-yes_kw_count() {
-    local s="$1"
-    KWN=0
-    while [[ $s =~ $RE_YES_CONCL ]]; do KWN=$((KWN + 1)); s="${s/"${BASH_REMATCH[0]}"/ }"; done
+# True when trimmed line $1 is one of the exempted whole upstream sentences.
+yes_exempt_line() {
+    [ -n "$V_YES_EXEMPT" ] && [[ $1 =~ $V_YES_EXEMPT ]]
 }
-
-# --yes no-op veto. The no-op stands ("nothing installed, nothing wrong") only if
-#   - at least one line is an exact upstream no-op sentence (V_YES_NOOP), and
-#   - no line is ✗ / names error, failed or timed out (any case) / is an available or rollback
-#     verdict, and
-#   - no line announces code movement (RE_YES_MOVE), and
-#   - every line that claims a conclusion (RE_YES_CONCL) is a whole upstream sentence from
-#     V_YES_NOOP / V_YES_HELD_WHY / V_YES_STEP with no extra keyword ("✓ Already up to date? …",
-#     "✓ Already up to date. (cached …)", the --check sentences, "→ Fleet: … Already up to date"
-#     are all vetoed), and
-#   - the held explanation appears only together with the held conclusion.
-# Every other line is neutral. Echoes the reason and returns 0 when vetoed; returns 1 (no output)
-# when the no-op may stand.
-yes_noop_veto() {
-    local raw t lc seen=0 held=0 why=0
-    while IFS= read -r raw; do
-        yes_trim "$raw"; t=$YT
-        [ -n "$t" ] || continue
-        classify_line "$t"
-        case "$CL" in
-            error)
-                printf 'error line: %s' "$(printf '%s' "$t" | head -c 200)"; return 0 ;;
-            available|rollback)
-                printf 'conflicting %s verdict: %s' "$CL" "$(printf '%s' "$t" | head -c 200)"; return 0 ;;
-        esac
-        lc="${t,,}"
-        if [[ $lc =~ $RE_YES_MOVE ]]; then
-            printf 'code movement beside a no-op: %s' "$(printf '%s' "$t" | head -c 200)"; return 0
-        fi
-        [[ $lc =~ $RE_YES_CONCL ]] || continue          # no conclusion claimed: neutral
-        yes_kw_count "$lc"
-        if [ "$KWN" -eq 1 ] && [[ $t =~ $V_YES_NOOP ]]; then
-            seen=1
-            case "$t" in "✓ Holding at this build until "*) held=1 ;; esac
-            continue
-        fi
-        if [ "$KWN" -eq 2 ] && [[ $t =~ $V_YES_HELD_WHY ]]; then why=1; continue; fi
-        if [ "$KWN" -eq 1 ] && [[ $t =~ $V_YES_STEP ]]; then continue; fi
-        if [[ $lc =~ $RE_YES_CONFLICT ]]; then
-            printf 'conflicting conclusion line, not an upstream --yes sentence: %s' "$(printf '%s' "$t" | head -c 200)"; return 0
-        fi
-        printf 'no-op line is not an upstream --yes sentence: %s' "$(printf '%s' "$t" | head -c 200)"; return 0
-    done <<< "$1"
-    if [ "$seen" -ne 1 ]; then printf 'no upstream --yes no-op sentence'; return 0; fi
-    if [ "$why" -eq 1 ] && [ "$held" -ne 1 ]; then
-        printf 'held explanation without the held conclusion'; return 0
-    fi
+# True (and prints the trimmed line) when raw line $1 reports an error.
+yes_error_line() {
+    local t lc
+    yes_trim "$1"; t=$YT
+    [ -n "$t" ] || return 1
+    case "$t" in "✗"*) printf '%s' "$t"; return 0 ;; esac
+    lc="${t,,}"
+    if [[ $lc =~ $RE_YES_ERROR ]] && ! yes_exempt_line "$t"; then printf '%s' "$t"; return 0; fi
     return 1
 }
-# The accepted no-op sentence, for the log (call only after the veto passed).
-yes_noop_line() {
-    local raw t
+# First error line of the --yes output $1 (bounded), or nothing.
+yes_first_error() {
+    local raw e
     while IFS= read -r raw; do
-        yes_trim "$raw"; t=$YT
-        if [[ $t =~ $V_YES_NOOP ]]; then printf '%s' "$t" | head -c 200; return 0; fi
+        if e=$(yes_error_line "$raw"); then printf '%s' "$e" | head -c 200; return 0; fi
     done <<< "$1"
+    return 0
+}
+# Checkout HEAD (read-only rev-parse). Prints a full 40/64-hex SHA or nothing (= unknown).
+read_head() {
+    local h
+    h=$(git -C "$REPO" rev-parse --verify -q HEAD 2>/dev/null) || return 0
+    case "$h" in ''|*[!0-9a-f]*) return 0 ;; esac
+    case "${#h}" in 40|64) printf '%s' "$h" ;; esac
+    return 0
+}
+# Last lines of the --yes output for an alert: non-blank, 6 lines, 200 bytes each, 1000 in total.
+yes_tail_summary() {
+    local s
+    s=$(printf '%s\n' "$1" | tr -d '\r' | awk 'NF' | tail -6 | cut -c1-200 | head -c 1000)
+    printf '%s' "${s:-(no output)}"
+}
+
+# Stuck guard (PATCH4). With no sentence judged, a run that only ever "has nothing to do" would be
+# silent forever: --check says an update is available (--yes runs ONLY then), --yes leaves HEAD
+# where it was, every tick. Count such ticks in consec_available_noop; from the 3rd consecutive one
+# alert, then by wall clock every AU_CHECK_ALERT_INTERVAL s (default 82800, same cadence as the
+# check alerts); the stamp is written only on delivery. Cleared by every proven install
+# (mark_installed) and by a conclusive no-install check verdict (up to date / held / rollback).
+clear_available_noop() { echo 0 > "$STATE_DIR/consec_available_noop"; rm -f "$STATE_DIR/available_noop_alert_last_ts"; }
+available_noop_count() {  # $1 = --yes output
+    local n msg
+    n=$(read_counter consec_available_noop); n=$((n + 1))
+    echo "$n" > "$STATE_DIR/consec_available_noop"
+    [ "$n" -ge 3 ] || return 0
+    if [ "$n" -ne 3 ] && ! interval_due available_noop_alert_last_ts "$AU_CHECK_ALERT_INTERVAL"; then
+        log "available-but-nothing-to-do #$n — alert suppressed (last alert $(fmt_ts "$(read_ts available_noop_alert_last_ts)"), interval ${AU_CHECK_ALERT_INTERVAL}s)"
+        return 0
+    fi
+    msg="⚠ hermes auto-update: the check says an update is available but the installer had nothing to do ($n consecutive) — suspected stuck, verify the host (updater v${UPDATER_VERSION})
+check: $(printf '%s\n' "$CHECK_OUT" | grep -m1 -E 'available' | tr -d '\r' | head -c 200)
+last --yes output:
+$(yes_tail_summary "$1")"
+    if notify "$msg"; then
+        echo "$TICK_TS" > "$STATE_DIR/available_noop_alert_last_ts"
+    else
+        log "available-but-nothing-to-do alert #$n not delivered — retrying next tick"
+    fi
 }
 
 # Version from the completion line.
@@ -903,6 +868,7 @@ case "$VERDICT" in
     uptodate|held)
         check_ok   # conclusive: nothing to install
         clear_rollback_remind
+        clear_available_noop   # the check no longer says "available": the stuck streak ends
         if [ "$VERDICT" = held ]; then
             log "held (benign, no install): $(printf '%s\n' "$CHECK_OUT" | grep -m1 'Holding at this build' | head -c 300)"
         else
@@ -920,6 +886,7 @@ case "$VERDICT" in
         # Remind at a low frequency (AU_ROLLBACK_REMIND_SECS) for as long as the state holds; the
         # stamp is written only after delivery, so a dead channel retries on the next tick.
         check_ok
+        clear_available_noop   # conclusive no-install verdict, not "available": the stuck streak ends
         log "⚠ checkout newer than selected release — rollback is manual, NOT applied: $(printf '%s\n' "$CHECK_OUT" | grep -m1 'newer than the selected release' | head -c 300)"
         if interval_due rollback_remind_ts "$AU_ROLLBACK_REMIND_SECS"; then
             if notify "→ hermes auto-update: this checkout is newer than the selected release — NOT moved back automatically (manual: run hermes update by hand, or hermes update --set-channel main). Reminder repeats every $((AU_ROLLBACK_REMIND_SECS / 3600))h while this holds."; then
@@ -972,7 +939,7 @@ AU_CORR_ID="au-$(date +%s%N)-$$-$RANDOM"
 RUN_STARTED=$(date +%s)
 # Observed checkout identity BEFORE this command (read-only). Paired with POST_HEAD after
 # --yes, it is this run's own install evidence for receipts that carry no correlation_id.
-PRE_HEAD=$(git -C "$REPO" rev-parse HEAD 2>/dev/null)
+PRE_HEAD=$(read_head)
 # Bounded install: upstream can legitimately block for restart_after_turn_timeout (1800s
 # default) while draining, so the cap is 2x that. Without a cap a wedged updater holds the
 # flock forever and every later tick skips silently — the stall guard below only counts
@@ -1004,7 +971,7 @@ if [ -n "$SNAP" ] && [ -f "$SNAP" ] && [ ! -L "$SNAP" ]; then
 fi
 # Observed checkout identity AFTER this command (read-only), read right after the snapshot.
 # If something moves HEAD after this point, the receipt's post SHA cannot match: fail closed.
-POST_HEAD=$(git -C "$REPO" rev-parse HEAD 2>/dev/null)
+POST_HEAD=$(read_head)
 
 log "update exit=$STATUS (cap ${AU_UPDATE_TIMEOUT}s)"
 echo "$UPDATE_OUT" | tail -40 >> "$LOG"
@@ -1100,27 +1067,36 @@ if [ "$STATUS" -eq 0 ]; then
             notify "⚠ hermes auto-update: updater reported completion${VERSION:+ to $VERSION} but wrote no fresh install receipt (receipt=$OUTCOME) — install unproven, verify the host (updater v${UPDATER_VERSION})"
             exit 1
         fi
-        if printf '%s\n' "$UPDATE_OUT" | grep -qE "$RE_NOOP"; then
-            # A no-op-shaped line alone never decides: the conclusion must be upstream's exact
-            # --yes no-op sentence, and a ✗ line, an error / failed / timed out line, an
-            # available / rollback verdict, a code-movement line, or any line claiming a
-            # conclusion that is not a whole upstream sentence means the run is NOT a harmless
-            # no-op. That is a REAL FAILURE (counted, alerted, exit 1, the streak is NOT reset).
-            if VETO=$(yes_noop_veto "$UPDATE_OUT"); then
-                real_failure_exit "no-op line vetoed ($VETO)"
-            fi
-            log "no-op: beaten by another updater between check and install / held / no newer release (exit=0, receipt=$OUTCOME): $(yes_noop_line "$UPDATE_OUT")"
-            # No install happened, so never mark_installed here. A pending drain marker must
-            # still be re-verified, exactly as on the check-time no-update path; then this
-            # legitimate no-op ends any real-failure streak (same as the check-time no-op).
-            recheck_drain_marker; DRAIN_RC=$?
-            reset_real_fails
-            [ "$DRAIN_RC" -eq 0 ] || exit 1
-            exit 0
+        # PATCH4: judged on observable state (see "--yes without a receipt of this run" above).
+        # 1. Error veto: a ✗ line or an error word means the run is NOT a harmless no-op. REAL
+        #    FAILURE: counted, alerted with the offending line, exit 1, the streak is NOT reset.
+        YES_ERR=$(yes_first_error "$UPDATE_OUT")
+        if [ -n "$YES_ERR" ]; then
+            real_failure_exit "error in --yes output without an install receipt ($YES_ERR)"
         fi
-        log "⚠ exit=0, stale receipt, output unrecognized — treating as inconclusive"
-        notify "⚠ hermes auto-update: exit=0 but no fresh receipt (raced?) — verify fleet manually"
-        exit 1
+        # 2. Checkout identity unknown on either side: nothing can be concluded.
+        if [ -z "$PRE_HEAD" ] || [ -z "$POST_HEAD" ]; then
+            log "⚠ exit=0, receipt=$OUTCOME, no error line, but the checkout HEAD could not be read (before=${PRE_HEAD:-unknown} after=${POST_HEAD:-unknown}) — inconclusive"
+            notify "⚠ hermes auto-update: exit=0 but no fresh receipt and the checkout HEAD could not be read (before=$(printf '%.10s' "${PRE_HEAD:-unknown}") after=$(printf '%.10s' "${POST_HEAD:-unknown}")) — install state unknown, verify the host (updater v${UPDATER_VERSION})"
+            exit 1
+        fi
+        # 3. The checkout moved, but this run wrote no install receipt: possibly installed, UNPROVEN.
+        if [ "$PRE_HEAD" != "$POST_HEAD" ]; then
+            log "⚠ exit=0, checkout moved ${PRE_HEAD:0:10} -> ${POST_HEAD:0:10} but receipt=$OUTCOME — install UNPROVEN, drain_pending set"
+            touch "$STATE_DIR/drain_pending"
+            notify "⚠ hermes auto-update: the checkout moved (${PRE_HEAD:0:10} -> ${POST_HEAD:0:10}) but the updater wrote no fresh install receipt (receipt=$OUTCOME) — install unproven, verify the host (updater v${UPDATER_VERSION})"
+            exit 1
+        fi
+        # 4. No error, HEAD unchanged: a legitimate no-op. Nothing was installed, so never
+        #    mark_installed. A pending drain marker is re-verified exactly as on the check-time
+        #    no-update path; then the no-op ends any real-failure streak. The stuck guard counts it
+        #    (--yes runs only after --check said "available").
+        log "no-op: checkout unchanged at ${POST_HEAD:0:10}, no error line (exit=0, receipt=$OUTCOME) — nothing installed; last line: $(printf '%s\n' "$UPDATE_OUT" | tr -d '\r' | awk 'NF' | tail -1 | head -c 200)"
+        recheck_drain_marker; DRAIN_RC=$?
+        reset_real_fails
+        available_noop_count "$UPDATE_OUT"
+        [ "$DRAIN_RC" -eq 0 ] || exit 1
+        exit 0
     fi
     if [ "$OUTCOME" = "success" ] && [ "$HAS_COMPLETE" != 1 ] && [ "$SHA_ADVANCED" != 1 ]; then
         # A success receipt (even correlated) with no completion line and no SHA advance proves
