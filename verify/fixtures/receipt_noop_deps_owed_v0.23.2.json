@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "started_at": "2026-11-18T09:05:36.837696+00:00",
+  "finished_at": "2026-11-18T09:05:37.056200+00:00",
+  "argv": [
+    "hermes",
+    "update",
+    "--yes"
+  ],
+  "pid": 254685,
+  "outcome": "success",
+  "pre_update": {
+    "sha": "078fe40752c84a59ba5b262ee4707a45a35341fd",
+    "short_sha": "078fe407",
+    "version": "unknown",
+    "source": "git",
+    "commit_date": 1794992736
+  },
+  "post_update": {
+    "sha": "078fe40752c84a59ba5b262ee4707a45a35341fd",
+    "short_sha": "078fe407",
+    "version": "unknown",
+    "source": "git",
+    "commit_date": 1794992736
+  },
+  "steps": [],
+  "skips": [],
+  "gateway_restart": {},
+  "fleet": [],
+  "update_id": "7245d497e35a48a8ad54ddc99a950555",
+  "correlation_id": "au-probe-414b9612f27e481d9b92d6391b5cd5b5",
+  "action_id": null,
+  "stages": [
+    {
+      "name": "plan",
+      "outcome": "success",
+      "at": "2026-11-18T09:05:36.947896+00:00"
+    },
+    {
+      "name": "apply",
+      "outcome": "skipped",
+      "at": "2026-11-18T09:05:36.948896+00:00",
+      "mode": "git"
+    },
+    {
+      "name": "deps",
+      "outcome": "success",
+      "at": "2026-11-18T09:05:37.033850+00:00"
+    }
+  ],
+  "followups": [
+    {
+      "step": "dependencies",
+      "reason": "probe: dependency sync failed",
+      "at": "2026-11-18T09:05:37.053455+00:00"
+    }
+  ],
+  "exit_code": 0,
+  "stop_reason": "source update completion"
+}

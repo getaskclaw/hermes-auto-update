@@ -42,6 +42,19 @@ if key not in sc:
 step = sc[key]
 if step.get("receipt") is not None:
     d = dict(step["receipt"])
+    # PATCH5 harness options, both opt-in per step (upstream behaviour proven in evidence-patch5):
+    #   correlate: copy the launcher's HERMES_UPDATE_CORRELATION_ID into correlation_id, as
+    #              update_receipt.py:141,159 (v0.21.6..v0.23.2) does;
+    #   head_sha:  pre_update / post_update = the checkout HEAD (sha + 8-char short_sha), as the
+    #              real no-op receipt records it (version_info.get_code_identity).
+    if step.get("correlate"):
+        d["correlation_id"] = os.environ.get("HERMES_UPDATE_CORRELATION_ID", "")
+    if step.get("head_sha"):
+        import subprocess
+        h = subprocess.run(["git", "-C", os.environ["AU_REPO_DIR"], "rev-parse", "HEAD"],
+                           capture_output=True, text=True, check=True).stdout.strip()
+        for side in ("pre_update", "post_update"):
+            d[side] = dict(d.get(side) or {}, sha=h, short_sha=h[:8])
     d.setdefault("finished_at", datetime.datetime.now(datetime.timezone.utc).isoformat())
     p = os.path.join(ROOT, "home", ".hermes", "logs", "update_receipts")
     os.makedirs(p, exist_ok=True)
@@ -239,6 +252,42 @@ YES_FAIL = "✗ dependency install failed\n"
 REALERT_DEFAULT = 3 * DAY - 3600         # AU_REALERT_SECS default
 REMIND_DEFAULT = 7 * DAY - 3600          # AU_ROLLBACK_REMIND_SECS default
 
+# ===================== PATCH5 (option D) fixtures: silence needs positive evidence ==============
+# The REAL third-generation "already up to date" receipts: written by the exported v0.23.2 / v0.21.6
+# trees' own functions (update_cmd._begin_update_receipt_and_plan / _finish_already_up_to_date /
+# _complete_source_update, update_completion._finish in a child interpreter, update_receipt whole
+# module), side effects stubbed, HERMES_UPDATE_CORRELATION_ID set (evidence-patch5/probes/
+# receipt_noop_probe.py). Kept verbatim; the tests only re-stamp finished_at, correlation_id and the
+# SHAs for their own run.
+FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "verify", "fixtures")
+
+
+def real_receipt(name, now=None, **over):
+    with open(os.path.join(FIXTURES, name), encoding="utf-8") as f:
+        d = json.load(f)
+    d.pop("finished_at", None)   # the stub stamps "now" (real clock) unless the fake clock is used
+    if now is not None:
+        d["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(now + 1))
+    d.update(over)
+    return d
+
+
+GEN3_NOOP = "receipt_noop_v0.23.2.json"
+GEN3_NOOP_0216 = "receipt_noop_v0.21.6.json"
+GEN3_DEPS_OWED = "receipt_noop_deps_owed_v0.23.2.json"   # same no-op, dependency step failed: still "success"
+UNPROVEN = "left no receipt of this run"                   # the step-4b reminder
+# evidence-r6A/source-repair.json: stdout of the REAL v2026.7.20 repair path (main.py:10245-10258,
+# _venv_core_imports_healthy + _install_python_dependencies_with_optional_fallback), exit 0.
+SRC_REPAIR_STILL_UNHEALTHY = (
+    "⚕ Updating Hermes Agent...\n\n→ Fetching updates...\n⚠ Checkout is current, but the venv is unhealthy:\n"
+    "  fastapi: No module named 'fastapi'; uvicorn: No module named 'uvicorn'; pydantic: No module named"
+    " 'pydantic'; openai: No module named 'openai'\n→ Repairing Python dependencies...\n"
+    "⚠ Venv still unhealthy after repair: fastapi: No module named 'fastapi'; uvicorn: No module named"
+    " 'uvicorn'; pydantic: No module named 'pydantic'; openai: No module named 'openai'\n"
+    "  Close all Hermes windows/gateways and re-run: hermes update\n")
+# r6B (evidence-r6B-retry/harness/driver4.sh case wordgap, B1202): v0.23.2 update_cmd_maint.py:448/:925.
+WORDGAP = "⚠ state.db is corrupted after update (v0.23.2): bad page\n⚠ hermes-plugin was not installed: boom\n"
+
 
 class Box:
     def __init__(self):
@@ -298,11 +347,19 @@ class Box:
     def old_receipt(self, d):
         self._w(os.path.join(self.rdir, "latest.json"), json.dumps(d))
 
-    def scenario(self, check, rc=0, yes=None, yes_rc=0, receipt=None):
+    def scenario(self, check, rc=0, yes=None, yes_rc=0, receipt=None, correlate=False, head_sha=False):
         sc = {"check": {"out": check, "rc": rc}}
         if yes is not None:
-            sc["yes"] = {"out": yes, "rc": yes_rc, "receipt": receipt}
+            sc["yes"] = {"out": yes, "rc": yes_rc, "receipt": receipt,
+                         "correlate": correlate, "head_sha": head_sha}
         self._w(os.path.join(self.root, "scenario.json"), json.dumps(sc))
+
+    def proven(self, check, yes, now=None, fixture=GEN3_NOOP, **over):
+        """--yes writes the REAL gen-3 no-op receipt, correlated to this run, SHAs = the checkout."""
+        self.scenario(check, yes=yes, receipt=real_receipt(fixture, now, **over), correlate=True, head_sha=True)
+
+    def reminders(self):
+        return [t for t in self.texts() if UNPROVEN in t]
 
     def notify_fails(self, on):
         p = os.path.join(self.root, "curl_fail")
@@ -638,12 +695,12 @@ class Receipts(T):
         return (("missing", None, None), ("stale", None, self.STALE),
                 ("foreign", {"kind": "plugin-check", "outcome": "success"}, None))
 
-    def test_noop_without_fresh_receipt_is_silent_and_unmarked(self):
-        # Intentional conservative behaviour: nothing proven installed, nothing claimed.
-        # PATCH2 (B500): the --yes inputs are upstream's own --yes no-op sentences. The 7d2f640
-        # inputs ("✓ Already up to date." = the --check sentence, "→ Holding at this build (v1.2.3)"
-        # = never printed) are not --yes conclusions. PATCH4: sentences are no longer judged at all
-        # (YesHeadState); these inputs stay the upstream sentences.
+    def test_noop_without_fresh_receipt_reminds_and_unmarked(self):
+        # Nothing proven installed, nothing claimed. PATCH2 (B500): the --yes inputs are upstream's
+        # own --yes no-op sentences. PATCH4: sentences are no longer judged at all (YesHeadState).
+        # PATCH5 (assertion changed, spec-driven; was test_noop_without_fresh_receipt_is_silent_and_
+        # unmarked: exit 0, no text): no receipt of this run proves the no-op, so it is never silent:
+        # one ⚠ reminder, exit 1, still never marked installed and no drain marker.
         for label, rc, old in self.cases():
             for out in (YES_NOOP, YES_HELD):
                 with self.subTest(receipt=label, out=out):
@@ -653,8 +710,24 @@ class Receipts(T):
                     b.scenario(STABLE_AVAIL, yes=out, receipt=rc)
                     p = b.run(apply="1")
                     self.assertTrue(b.yes_called())
+                    self.assertEqual(p.returncode, 1, b.log())
+                    self.assertEqual(len(b.texts()), 1, b.texts())
+                    self.assertEqual(len(b.reminders()), 1, b.texts())
+                    self.assertIn(out.strip(), b.reminders()[0])
+                    self.assertIsNone(b.st("last_install_ts"))
+                    self.assertIsNone(b.st("drain_pending"))
+
+    def test_noop_with_proven_receipt_is_silent_and_unmarked(self):
+        # PATCH5: the same upstream sentences, now with THIS run's real gen-3 receipt: silent, exit 0.
+        for fixture in (GEN3_NOOP, GEN3_NOOP_0216):
+            for out in (YES_NOOP, YES_HELD):
+                with self.subTest(fixture=fixture, out=out):
+                    b = self.box()
+                    b.proven(STABLE_AVAIL, out, fixture=fixture)
+                    p = b.run(apply="1")
                     self.assertEqual(p.returncode, 0, b.log())
                     self.assertEqual(b.texts(), [])
+                    self.assertIn("PROVEN by this run's receipt", b.log())
                     self.assertIsNone(b.st("last_install_ts"))
                     self.assertIsNone(b.st("drain_pending"))
 
@@ -711,13 +784,17 @@ class Hardening(T):
         # -> the no-receipt rules. NO drain marker either way: without the demotion it would reach
         # the "success receipt, no evidence" branch (drain marker set, exit 1, alert).
         # PATCH4 (assertion changed, spec-driven): the no-receipt rules no longer read sentences;
-        # no error line + HEAD unchanged = legitimate no-op (exit 0, silent, stuck guard counts 1).
-        # Before PATCH4 the unrecognized text made this the inconclusive exit (exit 1, one alert).
-        self.assertEqual(p.returncode, 0, b.log())
-        self.assertEqual(b.texts(), [])
+        # no error line + HEAD unchanged = no-op. Before PATCH4 the unrecognized text made this the
+        # inconclusive exit (exit 1, one alert).
+        # PATCH5 (assertion changed, spec-driven; was exit 0 / no text): a legacy receipt (no
+        # correlation_id) never proves the no-op -> UNPROVEN: exit 1, one ⚠ reminder.
+        self.assertEqual(p.returncode, 1, b.log())
+        self.assertEqual(len(b.reminders()), 1, b.texts())
+        self.assertEqual(len(b.texts()), 1, b.texts())
         self.assertIsNone(b.st("drain_pending"), b.log())
         self.assertIn("correlation=legacy", b.log())
         self.assertIn("no-op: checkout unchanged", b.log())
+        self.assertIn("UNPROVEN", b.log())
         self.assertEqual(b.st("consec_available_noop"), "1", b.log())
 
     def test_fresh_non_success_outcomes_never_success(self):
@@ -741,7 +818,11 @@ class Hardening(T):
         b.run(apply="1")
         self.assertTrue(b.yes_called())
         self.no_success(b)
-        self.assertEqual(b.texts(), [])
+        # PATCH5 (assertion changed, spec-driven; was texts == []): the unchanged receipt is not this
+        # run's, so the no-op is UNPROVEN -> exactly one ⚠ reminder naming receipt=unchanged.
+        self.assertEqual(len(b.texts()), 1, b.texts())
+        self.assertEqual(len(b.reminders()), 1, b.texts())
+        self.assertIn("receipt=unchanged", b.reminders()[0])
 
     def test_accepted_legacy_partial_completion_marks_install(self):
         for rc in (0, 1):
@@ -775,10 +856,12 @@ class RealMovement(T):
                 self.assertTrue(b.yes_called())
                 # PATCH4 (assertion changed, spec-driven; name kept so the audit trail stays): the
                 # near-miss is not a completion line, the legacy partial receipt is demoted, and the
-                # no-receipt rules judge state: no error line + HEAD unchanged = legitimate no-op,
-                # exit 0 (was: unrecognized text -> inconclusive exit 1). Never an install, as before.
-                self.assertEqual(r.returncode, 0, b.log())
+                # no-receipt rules judge state: no error line + HEAD unchanged = no-op.
+                # PATCH5 (assertion changed, spec-driven; PATCH4 had exit 0): nothing proves the
+                # no-op -> UNPROVEN, exit 1 with one ⚠ reminder. Never an install, as before.
+                self.assertEqual(r.returncode, 1, b.log())
                 self.assertIn("no-op: checkout unchanged", b.log())
+                self.assertEqual(len(b.reminders()), 1, b.texts())
                 self.assertIsNone(b.st("last_install_ts"))
                 self.assertFalse(any("updated to" in t for t in b.texts()), b.texts())
 
@@ -983,9 +1066,13 @@ class YesErrorVeto(T):
         ("exempt-shape-failed-state", YES_NOOP + "  ⏳ systemctl restart hermes-gateway.service timed out after 90s;"
                                                   " systemd finished the job after 104s (failed)\n", None),
         ("exempt-sentence-tail", YES_NOOP + "  ℹ Got updates from upstream but couldn't push to fork (no write access?) (retry failed)\n", None),
+        # PATCH5 B1201: a ✗ anywhere in the line (after SGR / CR removal), no error word needed
+        ("b1201-mid-line-x", YES_NOOP + "  legend: ✓ done ✗ skipped\n", None),
+        ("b1201-cr-overwrite", YES_NOOP + "  ok\r✗ dependency repair\n", None),
+        ("b1201-sgr-mid-line-x", YES_NOOP + "  step 3/4 \x1b[31m✗\x1b[0m venv sync\n", None),
     )
 
-    NEEDLE = {'noop-plus-x': '✗ dependency repair failed', 'hold-plus-x': '✗ checkout repair failed', 'foreign-noop-plus-x': '✗ repair failed', 'x-without-error-word': '✗ Snapshot copy ALSO broke', 'sgr-wrapped-x': '✗ something', 'timed-out': 'warning: fleet restart timed out', 'timed-out-spaces': 'restart TIMED   OUT', 'error-word': '→ Fetching updates... error 502', 'failed-word': '⚠ Lazy refresh failed', 'failure-word': 'dependency FAILURE', 'cannot': 'cannot reach the gateway', 'couldnt-ascii': "Hermes couldn't drop", 'couldnt-typographic': 'Hermes couldn’t drop', 'unable-to': 'Unable to   verify the checkout', 'traceback': 'Traceback (most recent call last):', 'hyphen-boundary': 'reset-failed hermes-gateway', 'profile-sync-error': 'reviewer: error (permission denied)', 'zero-failed': '0 failed', 'b500-question': '✓ Already up to date? Could not determine release status.', 'b500-unverified': '✓ Already up to date. Cached verdict could not be verified.', 'exempt-shape-failed-state': 'systemd finished the job after 104s (failed)', 'exempt-sentence-tail': '(no write access?) (retry failed)'}
+    NEEDLE = {'noop-plus-x': '✗ dependency repair failed', 'hold-plus-x': '✗ checkout repair failed', 'foreign-noop-plus-x': '✗ repair failed', 'x-without-error-word': '✗ Snapshot copy ALSO broke', 'sgr-wrapped-x': '✗ something', 'timed-out': 'warning: fleet restart timed out', 'timed-out-spaces': 'restart TIMED   OUT', 'error-word': '→ Fetching updates... error 502', 'failed-word': '⚠ Lazy refresh failed', 'failure-word': 'dependency FAILURE', 'cannot': 'cannot reach the gateway', 'couldnt-ascii': "Hermes couldn't drop", 'couldnt-typographic': 'Hermes couldn’t drop', 'unable-to': 'Unable to   verify the checkout', 'traceback': 'Traceback (most recent call last):', 'hyphen-boundary': 'reset-failed hermes-gateway', 'profile-sync-error': 'reviewer: error (permission denied)', 'zero-failed': '0 failed', 'b500-question': '✓ Already up to date? Could not determine release status.', 'b500-unverified': '✓ Already up to date. Cached verdict could not be verified.', 'exempt-shape-failed-state': 'systemd finished the job after 104s (failed)', 'exempt-sentence-tail': '(no write access?) (retry failed)', 'b1201-mid-line-x': 'legend: ✓ done ✗ skipped', 'b1201-cr-overwrite': 'ok ✗ dependency repair', 'b1201-sgr-mid-line-x': 'step 3/4 ✗ venv sync'}
 
     def test_error_line_is_a_real_failure(self):
         for name, out, rec in self.VETOED:
@@ -1019,21 +1106,43 @@ class YesErrorVeto(T):
                 self.assertIn("error in --yes output", t[0])
                 self.assertIn(self.NEEDLE[name], t[0])
 
-    def test_word_boundaries_and_mid_line_glyph(self):
-        # Not error words (whole-word rule): "errors", "failures", "unfailed", "cannotx"; a ✗ that does
-        # not START the line. HEAD unchanged -> legitimate no-op.
-        for out in (YES_NOOP + "  ✓ 0 errors, 0 failures\n", YES_NOOP + "  unfailed cannotx errorless\n",
-                    YES_NOOP + "  legend: ✓ done ✗ skipped\n"):
+    def test_error_line_vetoes_even_with_proven_receipt(self):
+        # PATCH5: a receipt that proves the no-op does not silence an error line (only adds alerts).
+        for name, out, rec in self.VETOED:
+            if rec is not None:
+                continue
+            with self.subTest(name=name):
+                b = self.box()
+                b.seed("consec_real_fails", "8")
+                b.seed("real_alert_last_ts", str(T0 - 100))
+                b.proven(UP_AVAIL, out, now=T0)
+                p = b.run(apply="1", now=T0)
+                self.assertEqual(p.returncode, 1, b.log())
+                self.assertEqual(b.st("consec_real_fails"), "9", b.log())
+                self.assertIn("error in --yes output", b.log())
+                self.assertNotIn("no-op: checkout unchanged", b.log())
+
+    def test_word_boundaries_without_error_words_pass(self):
+        # Not error words (whole-word rule): "errors", "failures", "unfailed", "cannotx". HEAD
+        # unchanged and THIS run's receipt proves the no-op -> silent no-op.
+        # PATCH5 (changed, spec-driven): was test_word_boundaries_and_mid_line_glyph with a third input
+        # "legend: ✓ done ✗ skipped" that had to PASS; B1201 makes a mid-line ✗ a veto, so that input
+        # moved to VETOED (b1201-mid-line-x). The two remaining inputs now carry a proven receipt (no
+        # receipt = an unproven reminder, YesHeadState).
+        for out in (YES_NOOP + "  ✓ 0 errors, 0 failures\n", YES_NOOP + "  unfailed cannotx errorless\n"):
             with self.subTest(out=out):
                 b = self.box()
-                b.scenario(UP_AVAIL, yes=out)
+                b.proven(UP_AVAIL, out, now=T0)
                 p = b.run(apply="1", now=T0)
                 self.assertEqual(p.returncode, 0, b.log())
                 self.assertEqual(b.texts(), [])
                 self.assertIn("no-op: checkout unchanged", b.log())
+                self.assertIn("PROVEN by this run's receipt", b.log())
 
     def test_exempt_whole_sentences_pass(self):
         # The four normal upstream sentences that contain an error word (verify/upstream_error_review.json).
+        # PATCH5 (changed, spec-driven): with THIS run's proven receipt (was: no receipt), so "pass" still
+        # means silent exit 0.
         for line in ("  ⏳ systemctl restart hermes-gateway.service timed out after 90s; systemd finished the job after 104s (active)",
                      "  ⏳ systemctl stop hermes-gateway.service timed out after 90s; systemd finished the job after 91s (inactive)",
                      "  ℹ Got updates from upstream but couldn't push to fork (no write access?)",
@@ -1041,7 +1150,7 @@ class YesErrorVeto(T):
                      "→ Windows: hermes.exe cannot replace itself while it runs; the update"):
             with self.subTest(line=line):
                 b = self.box()
-                b.scenario(UP_AVAIL, yes=REAL_YES_NOOP + line + "\n")
+                b.proven(UP_AVAIL, REAL_YES_NOOP + line + "\n", now=T0)
                 p = b.run(apply="1", now=T0)
                 self.assertEqual(p.returncode, 0, b.log())
                 self.assertEqual(b.texts(), [])
@@ -1088,7 +1197,13 @@ class YesHeadState(T):
         ("empty-output", ""),
     )
 
-    def noop_ok(self, out, check=UP_AVAIL, rec=None, healthy=True, prep=None):
+    def noop_ok(self, out, check=UP_AVAIL, rec=None, healthy=True, prep=None, proven=True):
+        """PATCH5 (changed, spec-driven): PATCH4's single expectation "no error + HEAD unchanged =
+        silent legitimate no-op, streak reset" now holds only with THIS run's proven receipt
+        (proven=True: the real gen-3 fixture). proven=False (no receipt / the given rec) asserts the
+        UNPROVEN branch instead: one ⚠ reminder carrying the --yes tail, exit 1, consec_real_fails and
+        real_alert_last_ts untouched, no ✗, never an error, never installed. Both share the drain
+        recheck and the stuck-guard count."""
         b = self.box()
         if prep:
             prep(b)
@@ -1098,45 +1213,79 @@ class YesHeadState(T):
         if not healthy:
             with open(b.gw, "w") as f:
                 f.write('{"code_sha": "0000000000000000000000000000000000000000"}')
-        b.scenario(check, yes=out, receipt=rec)
+        if proven:
+            b.proven(check, out, now=T0)
+        else:
+            b.scenario(check, yes=out, receipt=rec)
         p = b.run(apply="1", now=T0)
         self.assertTrue(b.yes_called())
         self.assertIn("no-op: checkout unchanged", b.log())
         self.assertNotIn("error in --yes output", b.log())
         self.assertIsNone(b.st("last_install_ts"))
-        self.assertEqual(b.st("consec_real_fails"), "0", b.log())
-        self.assertIsNone(b.st("real_alert_last_ts"))
         self.assertEqual(b.st("consec_available_noop"), "1", b.log())
-        if healthy:
-            self.assertEqual(p.returncode, 0, b.log())
-            self.assertEqual(b.texts(), [])
-            self.assertIsNone(b.st("drain_pending"), b.log())
+        if proven:
+            self.assertIn("PROVEN by this run's receipt", b.log())
+            self.assertEqual(b.st("consec_real_fails"), "0", b.log())
+            self.assertIsNone(b.st("real_alert_last_ts"))
+            if healthy:
+                self.assertEqual(p.returncode, 0, b.log())
+                self.assertEqual(b.texts(), [])
+                self.assertIsNone(b.st("drain_pending"), b.log())
+            else:
+                self.assertEqual(p.returncode, 1, b.log())        # the drain recheck, not the no-op, fails
+                self.assertIsNotNone(b.st("drain_pending"), b.log())
         else:
-            self.assertEqual(p.returncode, 1, b.log())        # the drain recheck, not the no-op, fails
-            self.assertIsNotNone(b.st("drain_pending"), b.log())
+            self.assertIn("UNPROVEN", b.log())
+            self.assertEqual(p.returncode, 1, b.log())
+            self.assertEqual(b.st("consec_real_fails"), "8", b.log())          # not a failure, no reset
+            self.assertEqual(b.st("real_alert_last_ts"), str(T0 - 100), b.log())
+            r = b.reminders()
+            self.assertEqual(len(r), 1, b.texts())
+            self.assertTrue(r[0].startswith("⚠ hermes auto-update:"), r[0])
+            self.assertNotIn("✗ hermes", r[0])
+            self.assertIn("last --yes output:", r[0])
+            tail = [l for l in out.replace("\r", "").split("\n") if l.strip()]
+            if tail:
+                self.assertIn(tail[-1][:60], r[0])       # the --yes tail (yes_tail_summary) is attached
+            self.assertEqual(b.st("available_noop_alert_last_ts"), str(T0), b.log())
+            if healthy:
+                self.assertEqual(b.texts(), r)
+                self.assertIsNone(b.st("drain_pending"), b.log())       # the drain recheck still ran
+            else:
+                self.assertIsNotNone(b.st("drain_pending"), b.log())
+                self.assertTrue(any("never came back" in t for t in b.texts()), b.texts())
         return b
 
     def test_r5a_profile_and_dashboard_noops_are_legitimate(self):
+        # B900/B1000/B901 stay closed: these normal lines are never an error; proven = silent.
         for name, out in self.R5A:
             for healthy in (True, False):
-                with self.subTest(name=name, healthy=healthy):
-                    self.noop_ok(out, healthy=healthy)
+                for proven in (True, False):
+                    with self.subTest(name=name, healthy=healthy, proven=proven):
+                        self.noop_ok(out, healthy=healthy, proven=proven)
 
     def test_upstream_noop_runs_are_legitimate(self):
+        # Legacy builds (v2026.7.20 / v2026.3.12, r4A legacy-noop.py) write no correlated receipt: by
+        # design they always take the UNPROVEN reminder, never a ✗, counters kept.
         for name, out in self.UPSTREAM:
-            with self.subTest(name=name):
-                self.noop_ok(out, check=LEGACY_AVAIL if name.startswith("legacy") else UP_AVAIL)
+            legacy = name.startswith("legacy")
+            for proven in ((False,) if legacy else (True, False)):
+                with self.subTest(name=name, proven=proven):
+                    self.noop_ok(out, check=LEGACY_AVAIL if legacy else UP_AVAIL, proven=proven)
 
-    def test_stale_or_foreign_receipt_noop_is_legitimate(self):
+    def test_stale_or_foreign_receipt_noop_is_unproven(self):
+        # PATCH5 (changed, spec-driven): was ..._is_legitimate (silent, reset). A stale or foreign
+        # receipt is not this run's: UNPROVEN reminder.
         for rec in ({"kind": "plugin-check", "outcome": "success"}, None):
             with self.subTest(rec=rec):
                 prep = (lambda b: b.old_receipt(dict(GOOD, finished_at="2020-01-01T00:00:00+00:00"))) if rec is None else None
-                self.noop_ok(REAL_YES_NOOP, rec=rec, prep=prep)
+                self.noop_ok(REAL_YES_NOOP, rec=rec, prep=prep, proven=False)
 
     def test_no_error_shapes_judged_by_head_not_by_sentence(self):
         for name, out in self.NO_ERROR_SHAPES:
-            with self.subTest(name=name):
-                self.noop_ok(out)
+            for proven in (True, False):
+                with self.subTest(name=name, proven=proven):
+                    self.noop_ok(out, proven=proven)
 
     def move_stub(self, b, snippet):
         with open(b.stub_hermes) as f:
@@ -1248,10 +1397,49 @@ class StuckGuard(T):
     Cleared by a proven install and by a no-install check verdict (up to date / held / rollback)."""
 
     def noop_tick(self, b, now, out=YES_NOOP):
-        b.scenario(UP_AVAIL, yes=out)
+        # PATCH5 (changed, spec-driven): the stuck guard counts PROVEN no-ops (this run's real gen-3
+        # receipt); an unproven no-op reminds from the first tick (test_unproven_* below).
+        b.proven(UP_AVAIL, out, now=now)
         p = b.run(apply="1", now=now)
         self.assertEqual(p.returncode, 0, b.log())
         return p
+
+    def unproven_tick(self, b, now, out=YES_NOOP, rec=None):
+        b.scenario(UP_AVAIL, yes=out, receipt=rec)
+        p = b.run(apply="1", now=now)
+        self.assertEqual(p.returncode, 1, b.log())
+        return p
+
+    def test_unproven_noop_reminds_from_the_first_tick_then_daily(self):
+        b = self.box()
+        b.seed("consec_real_fails", "8")
+        self.unproven_tick(b, T0, out=REAL_YES_NOOP)
+        self.assertEqual(len(b.reminders()), 1, b.texts())
+        self.assertIn("(1 consecutive)", b.reminders()[0])
+        self.assertIn("check: → Selected release available: %s" % LBL, b.reminders()[0])
+        self.assertIn("✓ Already up to date! [detached @ ae2a81c]", b.reminders()[0])
+        self.assertEqual(b.st("available_noop_alert_last_ts"), str(T0))
+        # within the interval: suppressed (logged), counters untouched
+        self.unproven_tick(b, T0 + 3600)
+        self.assertEqual(len(b.reminders()), 1, b.texts())
+        self.assertIn("reminder suppressed", b.log())
+        self.unproven_tick(b, T0 + CHECK_INTERVAL)
+        self.assertEqual(len(b.reminders()), 2, b.texts())
+        self.assertIn("(3 consecutive)", b.reminders()[1])
+        self.assertEqual(b.st("consec_real_fails"), "8", b.log())
+        self.assertIsNone(b.st("last_install_ts"))
+        self.assertEqual(self.stuck(b), [])          # the reminder, not the proven-noop stuck alert
+
+    def test_unproven_undelivered_reminder_retries_next_tick(self):
+        b = self.box()
+        b.notify_fails(True)
+        self.unproven_tick(b, T0)
+        self.assertIsNone(b.st("available_noop_alert_last_ts"))
+        self.assertIn("reminder #1 not delivered", b.log())
+        b.notify_fails(False)
+        self.unproven_tick(b, T0 + 60)
+        self.assertEqual(b.st("available_noop_alert_last_ts"), str(T0 + 60))
+        self.assertEqual(len(b.reminders()), 2)      # the failed attempt (curl stub logs it) + the retry
 
     def stuck(self, b):
         return [t for t in b.texts() if "suspected stuck" in t]
@@ -1350,7 +1538,43 @@ class StuckGuard(T):
 
 
 class NoopResetsRealFails(T):
-    """B306: every legitimate no-op exit ends the real-failure streak (after the drain recheck)."""
+    """B306: every legitimate no-op exit ends the real-failure streak (after the drain recheck).
+    PATCH5 (changed, spec-driven): "legitimate" now means PROVEN by this run's receipt, or a
+    check-time no-install verdict. A --yes no-op with a missing / stale / foreign receipt is UNPROVEN
+    and keeps the streak (test_yes_noop_*_receipt_keeps_streak; they were test_yes_noop_*_receipt,
+    asserting the reset)."""
+
+    def sequence_kept(self, noop_scenario):
+        b = self.box()
+        b.seed("consec_real_fails", "8")
+        b.seed("real_alert_last_ts", str(T0 - 100))
+        noop_scenario(b)
+        p = b.run(apply="1", now=T0)
+        self.assertEqual(p.returncode, 1, b.log())
+        self.assertEqual(b.st("consec_real_fails"), "8", b.log())
+        self.assertEqual(b.st("real_alert_last_ts"), str(T0 - 100))
+        self.assertEqual(len(b.reminders()), 1, b.texts())
+        before = len(b.texts())
+        b.scenario(UP_AVAIL, yes=YES_FAIL, yes_rc=1)
+        p = b.run(apply="1", now=T0 + 60)
+        self.assertEqual(p.returncode, 1, b.log())
+        self.assertEqual(b.st("consec_real_fails"), "9", b.log())   # the streak continues
+        self.assertEqual(b.texts()[before:], [], b.log())           # inside the re-alert interval
+
+    def test_yes_noop_proven_receipt(self):
+        self.sequence(lambda b: b.proven(UP_AVAIL, YES_NOOP, now=T0))
+
+    def test_yes_noop_missing_receipt_keeps_streak(self):
+        self.sequence_kept(lambda b: b.scenario(UP_AVAIL, yes=YES_NOOP))
+
+    def test_yes_noop_stale_receipt_keeps_streak(self):
+        def s(b):
+            b.old_receipt(dict(GOOD, finished_at="2020-01-01T00:00:00+00:00"))
+            b.scenario(UP_AVAIL, yes=YES_NOOP)
+        self.sequence_kept(s)
+
+    def test_yes_noop_foreign_receipt_keeps_streak(self):
+        self.sequence_kept(lambda b: b.scenario(UP_AVAIL, yes=YES_NOOP, receipt={"kind": "plugin-check", "outcome": "success"}))
 
     def sequence(self, noop_scenario):
         b = self.box()
@@ -1370,18 +1594,6 @@ class NoopResetsRealFails(T):
         new = b.texts()[before:]
         self.assertEqual(len(new), 1, b.log())
         self.assertIn("attempt 1", new[0])
-
-    def test_yes_noop_missing_receipt(self):
-        self.sequence(lambda b: b.scenario(UP_AVAIL, yes=YES_NOOP))
-
-    def test_yes_noop_stale_receipt(self):
-        def s(b):
-            b.old_receipt(dict(GOOD, finished_at="2020-01-01T00:00:00+00:00"))
-            b.scenario(UP_AVAIL, yes=YES_NOOP)
-        self.sequence(s)
-
-    def test_yes_noop_foreign_receipt(self):
-        self.sequence(lambda b: b.scenario(UP_AVAIL, yes=YES_NOOP, receipt={"kind": "plugin-check", "outcome": "success"}))
 
     def test_check_time_uptodate_held_rollback(self):
         for out in (BANNER + "✓ No newer release: %s.\n" % AHEAD_LBL, UP_HELD, UP_ROLLBACK):
@@ -1621,14 +1833,18 @@ class ReceiptBinding(T):
                 self.assertFalse(any("updated to" in t for t in b.texts()), b.texts())
                 # PATCH4 (assertion changed, spec-driven): the demoted legacy receipt leaves the run to
                 # the no-receipt rules. The checkout moved -> install UNPROVEN (exit 1, marker); it did
-                # not move -> legitimate no-op (exit 0; was: unrecognized text -> inconclusive exit 1).
+                # not move -> no-op (was: unrecognized text -> inconclusive exit 1).
+                # PATCH5 (assertion changed, spec-driven; PATCH4 had exit 0 for the unmoved rows): an
+                # uncorrelated receipt never proves the no-op -> exit 1, one ⚠ reminder, no marker.
                 if kw.get("move", True):
                     self.assertEqual(p.returncode, 1, b.log())
                     self.assertTrue(any("checkout moved" in t for t in b.texts()), b.texts())
                     self.assertIsNotNone(b.st("drain_pending"), b.log())
                 else:
-                    self.assertEqual(p.returncode, 0, b.log())
+                    self.assertEqual(p.returncode, 1, b.log())
                     self.assertIn("no-op: checkout unchanged", b.log())
+                    self.assertEqual(len(b.reminders()), 1, b.texts())
+                    self.assertIsNone(b.st("drain_pending"), b.log())
 
     def test_foreign_correlation_id_is_not_install_evidence(self):
         b = self.box()
@@ -1643,6 +1859,221 @@ class ReceiptBinding(T):
         # the first-layer guard (receipt_outcome_fresh) must classify it, not only the fallback
         self.assertIn("receipt=stale", t[0])
         self.assertIsNotNone(b.st("drain_pending"))
+
+
+class OptionD(T):
+    """PATCH5 (option D, WO-HAU-MAIN-PATCH5 acceptance): silence needs positive evidence.
+    Promise 1: without a receipt of this run, never silent. Promise 2: without evidence, never
+    mark_installed. The gen-3 receipts are the REAL ones (verify/fixtures, evidence-patch5)."""
+    # update_receipt.record_followup's line (v0.23.2 update_receipt.py:426) with the retry text of
+    # update_completion._settle_after_commit for "dependencies". Reason chosen WITHOUT an error word:
+    # with one (e.g. "... failed") the error veto already makes it a counted real failure.
+    FOLLOWUP_LINE = ("  ⚠ Update follow-up 'dependencies' did not finish: No module named 'fastapi'"
+                     " (dependencies not installed yet — the next launch retries)\n")
+
+    def seeded(self):
+        b = self.box()
+        b.seed("consec_real_fails", "8")
+        b.seed("real_alert_last_ts", str(T0 - 100))
+        b.seed("drain_pending", "1")
+        return b
+
+    def assert_unproven(self, b, p, n_reminders=1):
+        self.assertEqual(p.returncode, 1, b.log())
+        self.assertEqual(len(b.reminders()), n_reminders, b.texts())
+        self.assertFalse(any(t.startswith("✗") for t in b.texts()), b.texts())
+        self.assertEqual(b.st("consec_real_fails"), "8", b.log())
+        self.assertEqual(b.st("real_alert_last_ts"), str(T0 - 100), b.log())
+        self.assertIsNone(b.st("last_install_ts"))
+        self.assertIn("UNPROVEN", b.log())
+        self.assertNotIn("error in --yes output", b.log())
+
+    def test_source_repair_still_unhealthy_reminds_then_throttles(self):
+        # evidence-r6A/probes/source-repair.py still-unhealthy (v2026.7.20, no receipt): B1100.
+        b = self.seeded()
+        b.scenario(LEGACY_AVAIL, yes=SRC_REPAIR_STILL_UNHEALTHY)
+        p = b.run(apply="1", now=T0)
+        self.assert_unproven(b, p)
+        self.assertIn("Venv still unhealthy after repair", b.reminders()[0])
+        self.assertIsNone(b.st("drain_pending"), b.log())   # healthy gateway: the drain recheck cleared it
+        # again within 24h: throttled, logged, still nothing counted or reset
+        b.scenario(LEGACY_AVAIL, yes=SRC_REPAIR_STILL_UNHEALTHY)
+        p = b.run(apply="1", now=T0 + 6 * 3600)
+        self.assert_unproven(b, p, n_reminders=1)
+        self.assertIn("reminder suppressed", b.log())
+        self.assertEqual(b.st("consec_available_noop"), "2", b.log())
+
+    def test_source_repair_then_check_up_to_date(self):
+        # The sent reminder stands. The up-to-date check keeps its PRE-EXISTING rule (D3, v5.15 check
+        # path: a conclusive no-install verdict resets consec_real_fails and ends the available streak).
+        # So the NEXT unproven no-op reminds at once instead of waiting for the interval.
+        b = self.seeded()
+        b.scenario(LEGACY_AVAIL, yes=SRC_REPAIR_STILL_UNHEALTHY)
+        self.assert_unproven(b, b.run(apply="1", now=T0))
+        b.scenario(NOOP)
+        p = b.run(apply="1", now=T0 + 3600)
+        self.assertEqual(p.returncode, 0, b.log())
+        self.assertEqual(len(b.reminders()), 1, b.texts())
+        self.assertEqual(b.st("consec_real_fails"), "0", b.log())      # existing check-path rule
+        self.assertEqual(b.st("consec_available_noop"), "0", b.log())
+        self.assertIsNone(b.st("available_noop_alert_last_ts"))
+        b.scenario(LEGACY_AVAIL, yes=SRC_REPAIR_STILL_UNHEALTHY)
+        p = b.run(apply="1", now=T0 + 7200)
+        self.assertEqual(p.returncode, 1, b.log())
+        self.assertEqual(len(b.reminders()), 2, b.texts())              # not throttled by the old stamp
+
+    def test_legacy_noop_reminds_by_design(self):
+        # r4A legacy-noop.py: v2026.7.20's normal no-op, --check said available.
+        b = self.seeded()
+        b.scenario(LEGACY_AVAIL, yes=LEGACY_YES_NOOP_0720)
+        p = b.run(apply="1", now=T0)
+        self.assert_unproven(b, p)
+        self.assertIn("✓ Already up to date!", b.reminders()[0])
+
+    def test_gen3_proven_noop_is_silent_and_resets(self):
+        for fixture in (GEN3_NOOP, GEN3_NOOP_0216):
+            with self.subTest(fixture=fixture):
+                b = self.seeded()
+                b.proven(UP_AVAIL, REAL_YES_NOOP, now=T0, fixture=fixture)
+                p = b.run(apply="1", now=T0)
+                self.assertEqual(p.returncode, 0, b.log())
+                self.assertEqual(b.texts(), [])
+                self.assertEqual(b.st("consec_real_fails"), "0", b.log())
+                self.assertIsNone(b.st("last_install_ts"))
+                self.assertIsNone(b.st("drain_pending"), b.log())
+                self.assertIn("PROVEN by this run's receipt", b.log())
+                with open(os.path.join(b.rdir, "latest.json")) as f:
+                    rec = json.load(f)
+                self.assertTrue(rec["correlation_id"].startswith("au-"), rec)   # really this run's id
+                self.assertEqual(rec["stages"], real_receipt(fixture)["stages"])   # the real shape
+
+    def test_gen3_without_usable_receipt_reminds(self):
+        def other_sha(b):   # the fixture's own (foreign) SHAs, not this checkout's
+            b.scenario(UP_AVAIL, yes=REAL_YES_NOOP, receipt=real_receipt(GEN3_NOOP, T0), correlate=True)
+        cases = (
+            ("missing", lambda b: b.scenario(UP_AVAIL, yes=REAL_YES_NOOP)),
+            ("id-mismatch", lambda b: b.scenario(UP_AVAIL, yes=REAL_YES_NOOP, head_sha=True,
+                                                 receipt=real_receipt(GEN3_NOOP, T0, correlation_id="au-1-2-3"))),
+            ("id-null-manual-run", lambda b: b.scenario(UP_AVAIL, yes=REAL_YES_NOOP, head_sha=True,
+                                                        receipt=real_receipt(GEN3_NOOP, T0, correlation_id=None))),
+            ("stale", lambda b: b.scenario(UP_AVAIL, yes=REAL_YES_NOOP, correlate=True, head_sha=True,
+                                           receipt=dict(real_receipt(GEN3_NOOP), finished_at="2020-01-01T00:00:00+00:00"))),
+            ("followups-owed", lambda b: b.proven(UP_AVAIL, REAL_YES_NOOP + self.FOLLOWUP_LINE, now=T0,
+                                                  fixture=GEN3_DEPS_OWED)),
+            ("user-action-owed", lambda b: b.proven(UP_AVAIL, REAL_YES_NOOP, now=T0,
+                                                    user_action={"step": "stash", "reason": "parked"})),
+            ("sha-not-this-checkout", other_sha),
+        )
+        for name, setup in cases:
+            with self.subTest(case=name):
+                b = self.seeded()
+                setup(b)
+                p = b.run(apply="1", now=T0)
+                self.assert_unproven(b, p)
+
+    def test_gen2_style_receipt_without_our_id_reminds(self):
+        # A success receipt with the real no-op shape and this checkout's SHAs but NO correlation id
+        # (second generation v2026.8.19..v2026.9.24, or a hand-run third-generation update). The gate
+        # neuter "corrmatch" (CORR_STATE=match removed from PROVEN_NOOP) must turn this red.
+        b = self.seeded()
+        rec = real_receipt(GEN3_NOOP, T0)
+        rec.pop("correlation_id")
+        b.scenario(UP_AVAIL, yes=REAL_YES_NOOP, receipt=rec, head_sha=True)
+        p = b.run(apply="1", now=T0)
+        self.assert_unproven(b, p)
+        self.assertIn("correlation=legacy", b.log())
+
+    def test_wordgap_without_receipt_reminds_on_the_first_tick(self):
+        # r6B B1202: no error word in either line; no receipt -> the FIRST tick reminds (was the 3rd).
+        b = self.seeded()
+        b.scenario(LEGACY_AVAIL, yes=WORDGAP)
+        p = b.run(apply="1", now=T0)
+        self.assert_unproven(b, p)
+        self.assertIn("state.db is corrupted after update", b.reminders()[0])
+
+
+class CorpusToolFailsClosed(T):
+    """PATCH5 B1102: scripts/upstream_print_corpus.py must fail (non-zero) on a source it cannot
+    parse, on a tag with 0 print() templates, and on an empty (a)/(b) corpus, in the scan mode and in
+    --gate mode. AU_CORPUS_TOOL selects the tool under test (the release gate's neuter)."""
+    TOOL = os.environ.get("AU_CORPUS_TOOL") or os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                                            "upstream_print_corpus.py")
+    GOOD = ("def _cmd_update_check():\n    print('✓ Already up to date.')\n\n"
+            "def _cmd_update_impl():\n    print('→ Fetching updates...')\n")
+
+    def tool(self, *args):
+        d = tempfile.mkdtemp(prefix="au-corpus-")
+        self.addCleanup(shutil.rmtree, d, True)
+        return subprocess.run([sys.executable, "-I", self.TOOL, SRC, "--review", os.path.join(d, "none.json")] + list(args),
+                              capture_output=True, text=True, timeout=300)
+
+    def repo(self, versions):
+        r = tempfile.mkdtemp(prefix="au-corpus-repo-")
+        self.addCleanup(shutil.rmtree, r, True)
+        env = dict(os.environ, GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1")
+        g = lambda *a: subprocess.run(["git", "-C", r] + list(a), env=env, check=True, capture_output=True)
+        g("init", "-q")
+        os.makedirs(os.path.join(r, "hermes_cli"))
+        for tag, body in versions:
+            with open(os.path.join(r, "hermes_cli", "update_cmd.py"), "w", encoding="utf-8") as f:
+                f.write(body)
+            g("add", "-A")
+            g("-c", "user.name=t", "-c", "user.email=t@invalid", "commit", "-q", "--allow-empty", "-m", tag)
+            g("tag", tag)
+        return r
+
+    def snapshot(self, **over):
+        d = tempfile.mkdtemp(prefix="au-corpus-snap-")
+        self.addCleanup(shutil.rmtree, d, True)
+        snap = {"schema": 1, "tags": ["v1.0.0", "v1.0.1"], "excluded_tags": {}, "parse_errors": {},
+                "prints_per_tag": {"v1.0.0": 2, "v1.0.1": 2},
+                "templates": [{"t": "✓ Already up to date.", "reach": ["check"], "first": "v1.0.0", "last": "v1.0.1",
+                               "tags": 2, "at": "hermes_cli/update_cmd.py:2@v1.0.1"},
+                              {"t": "→ Fetching updates...", "reach": ["yes"], "first": "v1.0.0", "last": "v1.0.1",
+                               "tags": 2, "at": "hermes_cli/update_cmd.py:5@v1.0.1"}]}
+        snap.update(over)
+        p = os.path.join(d, "snap.json")
+        with open(p, "w", encoding="utf-8") as f:
+            json.dump(snap, f, ensure_ascii=False)
+        return p
+
+    def test_scan_good_fixture_passes(self):
+        q = self.tool("--repo", self.repo([("v1.0.0", self.GOOD), ("v1.0.1", self.GOOD)]))
+        self.assertEqual(q.returncode, 0, q.stdout + q.stderr)
+        self.assertIn("UPSTREAM CORPUS: PASS", q.stdout)
+
+    def test_scan_parse_error_fails(self):
+        q = self.tool("--repo", self.repo([("v1.0.0", self.GOOD), ("v1.0.1", "def broken(:\n    print('x'\n")]))
+        self.assertNotEqual(q.returncode, 0, q.stdout + q.stderr)
+        self.assertIn("parse error", q.stdout)
+        self.assertIn("v1.0.1", q.stdout)
+
+    def test_scan_zero_print_tag_fails(self):
+        q = self.tool("--repo", self.repo([("v1.0.0", self.GOOD), ("v1.0.1", "def _cmd_update_check():\n    return 0\n")]))
+        self.assertNotEqual(q.returncode, 0, q.stdout + q.stderr)
+        self.assertIn("0 print() templates", q.stdout)
+
+    def test_scan_no_release_tag_fails(self):
+        q = self.tool("--repo", self.repo([("not-a-release", self.GOOD)]))
+        self.assertNotEqual(q.returncode, 0, q.stdout + q.stderr)
+
+    def test_gate_good_snapshot_passes(self):
+        q = self.tool("--gate", "--snapshot", self.snapshot())
+        self.assertEqual(q.returncode, 0, q.stdout + q.stderr)
+
+    def test_gate_vacuous_or_broken_snapshot_fails(self):
+        for name, over in (("parse-errors", {"parse_errors": {"v1.0.1": ["hermes_cli/update_cmd.py: SyntaxError"]}}),
+                           ("zero-prints", {"prints_per_tag": {"v1.0.0": 2, "v1.0.1": 0}}),
+                           ("no-templates", {"templates": []}),
+                           ("no-check-lines", {"templates": [{"t": "→ Fetching updates...", "reach": ["yes"],
+                                                              "first": "v1.0.0", "last": "v1.0.1", "tags": 2,
+                                                              "at": "hermes_cli/update_cmd.py:5@v1.0.1"}]}),
+                           ("no-parse-error-table", {"parse_errors": None})):
+            with self.subTest(case=name):
+                q = self.tool("--gate", "--snapshot", self.snapshot(**over))
+                self.assertNotEqual(q.returncode, 0, q.stdout + q.stderr)
+                self.assertIn("UPSTREAM CORPUS: FAIL", q.stdout)
+
 
 def main():
     global SRC

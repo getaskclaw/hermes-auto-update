@@ -146,8 +146,21 @@ EDITS = {
     "headcompare": ('        if [ "$PRE_HEAD" != "$POST_HEAD" ]; then\n', '        if false; then\n'),
     # PATCH4 rule 2: unreadable HEAD no longer inconclusive (falls through to the comparison)
     "headunknown": ('        if [ -z "$PRE_HEAD" ] || [ -z "$POST_HEAD" ]; then\n', '        if false; then\n'),
-    # PATCH4 stuck guard removed (available + nothing to do, forever, silently)
-    "stuckguard": ('        available_noop_count "$UPDATE_OUT"\n', '        :\n'),
+    # PATCH4 stuck guard removed (available + nothing to do, forever, silently). PATCH5: the anchor
+    # moved into the proven-no-op branch (4a, one indent deeper); same guard.
+    "stuckguard": ('            available_noop_count "$UPDATE_OUT"\n', '            :\n'),
+    # PATCH5 (option D): CORR_STATE=match dropped from PROVEN_NOOP (a receipt without OUR id silences)
+    "corrmatch": ('[ "$RECEIPT_OUTCOME" = "success" ] && [ "$CORR_STATE" = "match" ] \\\n',
+                  '[ "$RECEIPT_OUTCOME" = "success" ] \\\n'),
+    # PATCH5: the unproven no-op reminder removed (an unproven no-op goes quiet again)
+    "unprovenremind": ('        unproven_noop_remind "$UPDATE_OUT"\n', '        :\n'),
+    # PATCH5: the unproven no-op resets the real-failure streak again (B1100's 8 -> 0)
+    "unprovenreset": ('        recheck_drain_marker\n        unproven_noop_remind "$UPDATE_OUT"\n',
+                      '        recheck_drain_marker\n        reset_real_fails\n        unproven_noop_remind "$UPDATE_OUT"\n'),
+    # PATCH5: a receipt owing followups / a user action counts as proof of a clean no-op again
+    "followups": ('          and not d.get("followups") and not d.get("user_action")\n', ''),
+    # PATCH5 B1201: back to "only a line that STARTS with ✗"
+    "midlinex": ('    case "$t" in *"✗"*) printf', '    case "$t" in "✗"*) printf'),
     # PATCH4 stuck guard not cleared by a proven install (next streak alerts too early)
     "stuckclear": ('mark_installed() { date +%s > "$STATE_DIR/last_install_ts"; clear_available_noop; }',
                    'mark_installed() { date +%s > "$STATE_DIR/last_install_ts"; }'),
@@ -159,9 +172,10 @@ EDITS = {
     "checkinterval": ('"${AU_CHECK_ALERT_INTERVAL-}" 82800)', '"${AU_CHECK_ALERT_INTERVAL-}" 86400)'),
     # B601: "No newer release" accepts the short label again
     "noneweraheadonly": ('✓ No newer release: $_V_LBL_AHEAD\\.|', '✓ No newer release: ($_V_LBL|$_V_LBL_AHEAD)\\.|'),
-    # B306: the --yes no-op exit no longer resets the real-failure streak
-    "noopreset": ('        reset_real_fails\n        available_noop_count "$UPDATE_OUT"\n',
-                  '        available_noop_count "$UPDATE_OUT"\n'),
+    # B306: the --yes no-op exit no longer resets the real-failure streak. PATCH5: the proven-no-op
+    # branch (4a) is where the reset lives now (one indent deeper).
+    "noopreset": ('            reset_real_fails\n            available_noop_count "$UPDATE_OUT"\n',
+                  '            available_noop_count "$UPDATE_OUT"\n'),
     # B303: real-failure re-alert back to "first failure only"
     "realclock": ('    if [ "$REAL_F" -eq 1 ] || interval_due real_alert_last_ts "$AU_REALERT_SECS"; then\n',
                   '    if [ "$REAL_F" -eq 1 ]; then\n'),
@@ -224,7 +238,47 @@ neuter_and_run exemptwhole "PATCH4 exemption no longer whole-sentence -> the ups
 neuter_and_run availanchor "B800 available verdict matched after a prefix -> StrictVerdicts must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed
 neuter_and_run checkinterval "B501 zero-margin daily check re-alert -> Cadence jitter must FAIL" "$PY_PROBE" Cadence.test_daily_ticks_with_start_jitter_alert_every_day
 neuter_and_run noneweraheadonly "B601 short label after No newer release -> StrictVerdicts must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed
-neuter_and_run noopreset "B306 --yes no-op keeps the real-failure streak -> NoopResetsRealFails must FAIL" "$PY_PROBE" NoopResetsRealFails.test_yes_noop_missing_receipt
+neuter_and_run noopreset "B306 proven --yes no-op keeps the real-failure streak -> NoopResetsRealFails must FAIL" "$PY_PROBE" NoopResetsRealFails.test_yes_noop_proven_receipt
+# PATCH5 (option D) teeth
+neuter_and_run corrmatch "PATCH5 CORR_STATE=match dropped from PROVEN_NOOP -> OptionD must FAIL" "$PY_PROBE" OptionD.test_gen2_style_receipt_without_our_id_reminds
+neuter_and_run unprovenremind "PATCH5 unproven no-op reminder removed -> OptionD must FAIL" "$PY_PROBE" OptionD.test_source_repair_still_unhealthy_reminds_then_throttles OptionD.test_wordgap_without_receipt_reminds_on_the_first_tick OptionD.test_legacy_noop_reminds_by_design
+neuter_and_run unprovenreset "PATCH5 unproven no-op resets the streak -> NoopResetsRealFails / OptionD must FAIL" "$PY_PROBE" NoopResetsRealFails.test_yes_noop_missing_receipt_keeps_streak OptionD.test_source_repair_still_unhealthy_reminds_then_throttles
+neuter_and_run followups "PATCH5 receipt owing followups accepted as proof -> OptionD must FAIL" "$PY_PROBE" OptionD.test_gen3_without_usable_receipt_reminds
+neuter_and_run midlinex "PATCH5 B1201 mid-line ✗ no longer vetoed -> YesErrorVeto must FAIL" "$PY_PROBE" YesErrorVeto.test_error_line_is_a_real_failure
+# PATCH5 B1102: the corpus tool itself, neutered so a parse error / an empty corpus no longer fails.
+# The probe is the CorpusToolFailsClosed class, pointed at the neutered tool by AU_CORPUS_TOOL.
+neuter_tool_and_run() { # $1 = kind  $2 = label  $3.. = selectors
+    local kind="$1" label="$2"; shift 2
+    local neut="$GATE_TMP/corpus_neut.py"
+    python3 - "$kind" scripts/upstream_print_corpus.py "$neut" <<'PY' || { echo "NEUTER FAILED: $label"; FAIL=1; return; }
+import sys
+kind, src, dst = sys.argv[1], sys.argv[2], sys.argv[3]
+s = open(src, encoding="utf-8").read()
+EDITS = {
+    # a parse error is reported but not counted (B1102 as found by r6A)
+    "parseerror": ('                rep.append("  FAIL parse error(s) in %s: %s" % (tag, "; ".join(map(str, errs)))); fails += 1\n',
+                   '                rep.append("  FAIL parse error(s) in %s: %s" % (tag, "; ".join(map(str, errs))))\n'),
+    # a tag with 0 print() templates is reported but not counted
+    "zeroprints": ('                rep.append("  FAIL tag %s: 0 print() templates found (unreadable or moved source)" % tag); fails += 1\n',
+                   '                rep.append("  FAIL tag %s: 0 print() templates found (unreadable or moved source)" % tag)\n'),
+    # an empty (a) corpus passes again
+    "emptya": ('        rep.append("  (a) VACUOUS: no --check template line / no conclusion line was checked")\n        fails += 1\n',
+               '        rep.append("  (a) VACUOUS: no --check template line / no conclusion line was checked")\n'),
+}
+a, b = EDITS[kind]
+assert s.count(a) == 1, "%s neuter: anchor found %d times (need exactly 1)" % (kind, s.count(a))
+open(dst, "w", encoding="utf-8").write(s.replace(a, b))
+PY
+    if cmp -s scripts/upstream_print_corpus.py "$neut"; then echo "NEUTER IS A NO-OP: $label"; FAIL=1; return; fi
+    if env -u AU_APPLY AU_CORPUS_TOOL="$neut" python3 "$PY_PROBE" ./auto_update.sh "$@" >/dev/null 2>&1; then
+        echo "NO TEETH: $label — probe passed on a broken build"; FAIL=1
+    else
+        echo "teeth ok: $label (probe fails on the neutered build)"
+    fi
+}
+neuter_tool_and_run parseerror "PATCH5 B1102 corpus parse error not counted -> CorpusToolFailsClosed must FAIL" CorpusToolFailsClosed.test_scan_parse_error_fails CorpusToolFailsClosed.test_gate_vacuous_or_broken_snapshot_fails
+neuter_tool_and_run zeroprints "PATCH5 B1102 zero-print tag not counted -> CorpusToolFailsClosed must FAIL" CorpusToolFailsClosed.test_scan_zero_print_tag_fails
+neuter_tool_and_run emptya "PATCH5 B1102 empty (a) corpus passes -> CorpusToolFailsClosed must FAIL" CorpusToolFailsClosed.test_gate_vacuous_or_broken_snapshot_fails
 neuter_and_run realclock "B303 real failure re-alert by count/never -> RealFailureCadence must FAIL" "$PY_PROBE" RealFailureCadence
 neuter_and_run remindclock "B304 rollback reminder one-shot -> RollbackReminder must FAIL" "$PY_PROBE" RollbackReminder.test_weekly_reminder_never_installs
 neuter_and_run summarypriority "B302 summary without error priority -> AlertSummary must FAIL" "$PY_PROBE" AlertSummary

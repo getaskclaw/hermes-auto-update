@@ -369,9 +369,34 @@ def rv_get(review, ln):
     return (review.get("lines", {}).get(ln) or {}).get("verdict")
 
 
+def vacuity(snap):
+    """B1102 (PATCH5): a scan that could not read a source, found no print() in a tag, or produced an
+    empty (a) / (b) corpus proves nothing; it must fail, never PASS. Returns (report lines, fails).
+    Missing keys count as failures too (a hand-edited or truncated snapshot)."""
+    rep, fails = [], 0
+    pe = snap.get("parse_errors")
+    if not isinstance(pe, dict):
+        rep.append("  VACUOUS: snapshot has no parse_errors table"); fails += 1
+    else:
+        for tag, errs in sorted(pe.items()):
+            if errs:
+                rep.append("  FAIL parse error(s) in %s: %s" % (tag, "; ".join(map(str, errs)))); fails += 1
+    ppt = snap.get("prints_per_tag")
+    tags = snap.get("tags") or []
+    if not isinstance(ppt, dict) or not tags:
+        rep.append("  VACUOUS: snapshot has no tags / prints_per_tag"); fails += 1
+    else:
+        for tag in tags:
+            if not ppt.get(tag):
+                rep.append("  FAIL tag %s: 0 print() templates found (unreadable or moved source)" % tag); fails += 1
+    if not snap.get("templates"):
+        rep.append("  VACUOUS: 0 distinct templates"); fails += 1
+    return rep, fails
+
+
 def checks(snap, script, review):
     """Run (a) and (b) on the deduplicated templates. Returns (report lines, fail count)."""
-    rep, fails = [], 0
+    rep, fails = vacuity(snap)
     # (a) --check templates
     a_rows = []
     for e in snap["templates"]:
@@ -391,6 +416,9 @@ def checks(snap, script, review):
                 a_bad.append((e, ln, inst))
     rep.append("(a) --check templates: %d lines from %d templates; conclusion lines by verdict: %s"
                % (len(a_rows), len({id(r[0]) for r in a_rows}), json.dumps(verdict_count, sort_keys=True)))
+    if not a_rows or not verdict_count:
+        rep.append("  (a) VACUOUS: no --check template line / no conclusion line was checked")
+        fails += 1
     for e, ln, inst in a_bad:
         if ln in registered:
             # A known finding, registered for adjudication (the --check rules are not changed by
@@ -406,7 +434,10 @@ def checks(snap, script, review):
         for ln in e["t"].split("\n"):
             if ln.strip():
                 b_rows.append((e, ln, neutral(ln)))
-    res = error_lines(script, [r[2] for r in b_rows], exempt=False)
+    if not b_rows:
+        rep.append("  (b) VACUOUS: no template line was checked")
+        fails += 1
+    res = error_lines(script, [r[2] for r in b_rows], exempt=False) if b_rows else []
     hits = {}
     for (e, ln, nl), r in zip(b_rows, res):
         if r == "hit":
@@ -481,6 +512,9 @@ def main():
             print("SNAPSHOT VACUOUS: fewer than 2 tags"); return 1
     else:
         tags, excluded, corpus = scan(a.repo, a.full_out)
+        if not tags:
+            print("UPSTREAM CORPUS: FAIL (no official release tag in %s)" % a.repo)
+            return 1
         snap = dedupe(tags, excluded, corpus)
         print("upstream: %s" % a.repo)
         print("official tags: %d (%s .. %s); excluded: %s"

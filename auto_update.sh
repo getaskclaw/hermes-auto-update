@@ -39,19 +39,29 @@
 #     :143/:164 fetching) and the known `  (…)` cleanup lines (:49 :52 :62 :65 :180 :183). ANY
 #     other non-empty line, any ✗, any line containing error/failed/timed out (any case), or two
 #     different verdicts = unknown (counted, alerted at 3) — never "no update", never install.
-#   - --yes exit 0 with no receipt for this run is judged on OBSERVABLE STATE (PATCH4), never on
-#     the conclusion sentence: a completion line -> install unproven; a line starting with ✗ or
-#     holding a whole-word error word (error, failed, failure, timed out, could not, couldn't,
-#     cannot, unable to, traceback; four whole upstream sentences exempt) -> REAL FAILURE
-#     (counted, alerted with the line, exit 1, no reset); checkout HEAD before/after unreadable ->
-#     inconclusive, exit 1; HEAD moved -> install unproven, drain marker, exit 1; HEAD unchanged ->
-#     legitimate no-op. The rule is proven against every official release's print() templates
-#     (scripts/upstream_print_corpus.py). Stuck guard: --check said available and --yes had
-#     nothing to do, 3 times in a row -> alert (then every AU_CHECK_ALERT_INTERVAL), cleared by a
-#     proven install or an up-to-date / held / rollback check. (PATCH2/3's sentence tables —
-#     whole conclusion line, keyword table, movement words — are removed.)
-#   - every legitimate no-op exit (check-time and --yes) resets consec_real_fails after the drain
-#     recheck, so an old streak cannot swallow the next unrelated failure's first alert.
+#   - --yes exit 0 with no install receipt for this run is judged on OBSERVABLE STATE (PATCH4),
+#     never on the conclusion sentence: a completion line -> install unproven; a line holding a ✗
+#     anywhere (after SGR / CR removal) or a whole-word error word (error, failed, failure, timed
+#     out, could not, couldn't, cannot, unable to, traceback; four whole upstream sentences exempt)
+#     -> REAL FAILURE (counted, alerted with the line, exit 1, no reset); checkout HEAD before/after
+#     unreadable -> inconclusive, exit 1; HEAD moved -> install unproven, drain marker, exit 1; HEAD
+#     unchanged -> no-op. The rule is proven against every official release's print() templates
+#     (scripts/upstream_print_corpus.py).
+#   - PATCH5 (option D): SILENCE NEEDS POSITIVE EVIDENCE. A --yes no-op is silent only when THIS
+#     run's own receipt proves it (PROVEN_NOOP=1): outcome success, correlation_id == the
+#     HERMES_UPDATE_CORRELATION_ID this script passed, no followups / user_action owed, and
+#     pre_update.short_sha == post_update.short_sha == the observed HEAD. Upstream writes exactly
+#     that receipt on its "already up to date" path from v0.21.6 on (third receipt generation;
+#     evidence: README "Upstream receipt generations"). Then: drain recheck, reset_real_fails, stuck
+#     guard (alert from the 3rd consecutive one), silent exit 0. Every other no-op (no receipt, a
+#     stale / foreign / unchanged / uncorrelated one, or a receipt owing followups) is UNPROVEN:
+#     drain recheck, a ⚠ reminder with the --yes tail from the FIRST one on (wall clock, every
+#     AU_CHECK_ALERT_INTERVAL), never counted as a real failure, never resets the streak, exit 1.
+#     On Hermes builds without correlated receipts (v2026.3.12 .. v2026.9.24) every "available but
+#     not installed" tick therefore reminds — by design. Sentences only ever add alerts.
+#   - check-time no-install verdicts (up to date / held / rollback) and a PROVEN --yes no-op reset
+#     consec_real_fails after the drain recheck, so an old streak cannot swallow the next
+#     unrelated failure's first alert. An unproven --yes no-op does not.
 #   - check alerts: first at the 3rd consecutive problem, then every AU_CHECK_ALERT_INTERVAL s
 #     (default 82800 = 1 day - 1h of scheduling margin);
 #     real failures: first at once, then every AU_REALERT_SECS s; notify-failure dead letter +
@@ -621,15 +631,18 @@ verdict_detail() {
 #                                                       line, exit 1, the streak is NOT reset
 #   2. HEAD before / after unreadable (read_head)    -> inconclusive: alert, exit 1
 #   3. HEAD moved (PRE_HEAD != POST_HEAD)             -> install UNPROVEN: drain_pending, alert, exit 1
-#   4. HEAD unchanged                                 -> legitimate no-op: drain recheck,
-#                                                       reset_real_fails, never mark_installed,
-#                                                       silent exit 0 — plus the stuck guard below
+#   4. HEAD unchanged                                 -> no-op, never mark_installed. PATCH5:
+#      4a. PROVEN_NOOP=1 (this run's receipt proves it) -> drain recheck, reset_real_fails,
+#          stuck guard below, silent exit 0
+#      4b. otherwise (UNPROVEN)                          -> drain recheck, ⚠ reminder from the
+#          first one on (unproven_noop_remind), no reset, not a real failure, exit 1
 # The conclusion sentence, the keyword tables and the movement words are gone (no other caller).
 #
 # Error words (any case, whole word: the characters on both sides are not [[:alnum:]_], so
 # "0 failed" hits and "errors" / "unfailed" do not; multi-word forms allow any run of spaces):
 #   error, failed, failure, timed out, could not, couldn't (also ’), cannot, unable to, traceback
-# plus any line that STARTS with ✗ after SGR / CR / surrounding whitespace removal.
+# plus any line that holds a ✗ ANYWHERE after SGR removal, CR -> space and surrounding whitespace
+# removal (PATCH5, B1201: `ok\r✗ …` is a terminal overwrite; a mid-line ✗ only adds alerts).
 # Every print() template of every official upstream release was scanned with this exact rule
 # (scripts/upstream_print_corpus.py; snapshot verify/upstream_corpus.json; every hit reviewed in
 # verify/upstream_error_review.json). A normal sentence that hits is exempted ONLY as its whole
@@ -665,9 +678,9 @@ yes_exempt_line() {
 # True (and prints the trimmed line) when raw line $1 reports an error.
 yes_error_line() {
     local t lc
-    yes_trim "$1"; t=$YT
+    yes_trim "$1"; t=${YT//$'\r'/ }
     [ -n "$t" ] || return 1
-    case "$t" in "✗"*) printf '%s' "$t"; return 0 ;; esac
+    case "$t" in *"✗"*) printf '%s' "$t"; return 0 ;; esac
     lc="${t,,}"
     if [[ $lc =~ $RE_YES_ERROR ]] && ! yes_exempt_line "$t"; then printf '%s' "$t"; return 0; fi
     return 1
@@ -722,6 +735,31 @@ $(yes_tail_summary "$1")"
     fi
 }
 
+# PATCH5 (option D) step 4b: --check said available, --yes left HEAD where it was with no error
+# line, but NO receipt of this run proves a clean no-op (none written, stale / foreign / unchanged
+# / uncorrelated, or one that owes followups). Nothing is concluded from the text: remind a human
+# from the FIRST such tick on, with the --yes tail. Same counter and wall-clock stamp as the stuck
+# guard (AU_CHECK_ALERT_INTERVAL; stamp written only on delivery). Never a real failure (no
+# consec_real_fails change, no ✗), never resets the streak, never mark_installed.
+unproven_noop_remind() {  # $1 = --yes output
+    local n msg
+    n=$(read_counter consec_available_noop); n=$((n + 1))
+    echo "$n" > "$STATE_DIR/consec_available_noop"
+    if ! interval_due available_noop_alert_last_ts "$AU_CHECK_ALERT_INTERVAL"; then
+        log "unproven no-op #$n — reminder suppressed (last alert $(fmt_ts "$(read_ts available_noop_alert_last_ts)"), interval ${AU_CHECK_ALERT_INTERVAL}s)"
+        return 0
+    fi
+    msg="⚠ hermes auto-update: the check says an update is available, but it was not installed and the updater left no receipt of this run that proves a clean no-op (receipt=$OUTCOME, correlation=$CORR_STATE) — please take a look; not counted as a failure ($n consecutive) (updater v${UPDATER_VERSION})
+check: $(printf '%s\n' "$CHECK_OUT" | grep -m1 -E 'available' | tr -d '\r' | head -c 200)
+last --yes output:
+$(yes_tail_summary "$1")"
+    if notify "$msg"; then
+        echo "$TICK_TS" > "$STATE_DIR/available_noop_alert_last_ts"
+    else
+        log "unproven no-op reminder #$n not delivered — retrying next tick"
+    fi
+}
+
 # Version from the completion line.
 # New format: "(vA → vB) [detached @ sha]" yields the destination vB.
 # Legacy format: "(vX)" ON THE COMPLETION LINE is kept verbatim. There is no fallback to an
@@ -772,6 +810,36 @@ try:
         print("mismatch")
 except Exception:
     print("unreadable")
+PYEOF
+}
+
+# PATCH5: 1 only when the receipt snapshot itself describes a CLEAN no-op of the observed checkout:
+# an install receipt (kind absent or "update") with outcome "success", no followups and no
+# user_action owed (upstream keeps a run whose post-commit step failed a "success" and lists the
+# step in followups — evidence-patch5 receipt-v0.23.2-deps-owed), pre_update.short_sha ==
+# post_update.short_sha (>= 7 hex), and the observed HEAD after --yes starts with it. Correlation is
+# the caller's separate condition (CORR_STATE=match). $1 = receipt snapshot, $2 = HEAD after --yes.
+receipt_noop_proof() {
+    [ -n "${1:-}" ] && [ -f "$1" ] || { echo 0; return 0; }
+    python3 - "$1" "${2:-}" <<'PYEOF' 2>/dev/null || echo 0
+import json, re, sys
+HEX = re.compile(r"[0-9a-f]+")
+def short(side):
+    s = str((side or {}).get("short_sha") or "").strip().lower() if isinstance(side, dict) else ""
+    return s if len(s) >= 7 and HEX.fullmatch(s) else ""
+try:
+    d = json.load(open(sys.argv[1]))
+    kind = d.get("kind")
+    after = sys.argv[2].strip().lower()
+    pre, post = short(d.get("pre_update")), short(d.get("post_update"))
+    ok = ((kind is None or str(kind).strip().lower() == "update")
+          and d.get("outcome") == "success"
+          and not d.get("followups") and not d.get("user_action")
+          and pre and pre == post
+          and len(after) in (40, 64) and HEX.fullmatch(after) and after.startswith(pre))
+    print("1" if ok else "0")
+except Exception:
+    print(0)
 PYEOF
 }
 
@@ -1009,6 +1077,9 @@ esac
 if [ -z "$SNAP_DIGEST" ] || [ -z "$PRE_RECEIPT_DIGEST" ] || [ "$SNAP_DIGEST" = "$PRE_RECEIPT_DIGEST" ]; then
     case "$OUTCOME" in foreign|unreadable) ;; *) OUTCOME=unchanged ;; esac
 fi
+# The fresh, changed snapshot's own outcome, before the legacy-ownership demotion below. PATCH5's
+# PROVEN_NOOP reads THIS plus CORR_STATE, so the correlation test is its own condition.
+RECEIPT_OUTCOME=$OUTCOME
 VERSION=$(parse_version "$UPDATE_OUT")
 # Evidence is computed once, from THIS run's output and the SAME receipt snapshot only.
 SHA_ADVANCED=0
@@ -1043,12 +1114,28 @@ case "$OUTCOME" in
         fi ;;
 esac
 
+# PATCH5 (option D): silence needs positive evidence. PROVEN_NOOP=1 only when THIS run's receipt
+# (fresh, changed bytes, correlation_id == AU_CORR_ID) says success, owes nothing, and records the
+# observed HEAD as both pre and post SHA — what upstream writes on its "already up to date" path
+# from v0.21.6 on (evidence-patch5/receipt-v0.21.6 / -v0.23.2: the REAL functions, run isolated).
+# Every other exit-0 no-op is unproven (step 4b below). The text plays no part in it.
+PROVEN_NOOP=0
+if [ "$STATUS" -eq 0 ] && [ "$RECEIPT_OUTCOME" = "success" ] && [ "$CORR_STATE" = "match" ] \
+    && [ "$SHA_ADVANCED" != 1 ] && [ "$HAS_COMPLETE" != 1 ] \
+    && [ "$(receipt_noop_proof "$SNAP" "$POST_HEAD")" = 1 ]; then
+    PROVEN_NOOP=1
+fi
+
 if [ "$STATUS" -eq 0 ]; then
     case "$OUTCOME" in stale|unchanged|foreign|unreadable|missing|uncorrelated) NO_RECEIPT=1 ;; *) NO_RECEIPT=0 ;; esac
     # A no-op verdict stays a no-op even if a bound success receipt exists, provided there is
     # no completion line and no SHA advance. Nothing was installed, so it must never reach
     # mark_installed.
     if [ "$OUTCOME" = "success" ] && [ "$HAS_NOOP" = 1 ] && [ "$HAS_COMPLETE" = 0 ] && [ "$SHA_ADVANCED" != 1 ]; then
+        NO_RECEIPT=1
+    fi
+    # A receipt that proves a no-op is never an install either, whatever the text says.
+    if [ "$PROVEN_NOOP" = 1 ]; then
         NO_RECEIPT=1
     fi
     if [ "$NO_RECEIPT" = "1" ]; then
@@ -1087,16 +1174,25 @@ if [ "$STATUS" -eq 0 ]; then
             notify "⚠ hermes auto-update: the checkout moved (${PRE_HEAD:0:10} -> ${POST_HEAD:0:10}) but the updater wrote no fresh install receipt (receipt=$OUTCOME) — install unproven, verify the host (updater v${UPDATER_VERSION})"
             exit 1
         fi
-        # 4. No error, HEAD unchanged: a legitimate no-op. Nothing was installed, so never
-        #    mark_installed. A pending drain marker is re-verified exactly as on the check-time
-        #    no-update path; then the no-op ends any real-failure streak. The stuck guard counts it
-        #    (--yes runs only after --check said "available").
-        log "no-op: checkout unchanged at ${POST_HEAD:0:10}, no error line (exit=0, receipt=$OUTCOME) — nothing installed; last line: $(printf '%s\n' "$UPDATE_OUT" | tr -d '\r' | awk 'NF' | tail -1 | head -c 200)"
-        recheck_drain_marker; DRAIN_RC=$?
-        reset_real_fails
-        available_noop_count "$UPDATE_OUT"
-        [ "$DRAIN_RC" -eq 0 ] || exit 1
-        exit 0
+        # 4. No error, HEAD unchanged: a no-op. Nothing was installed, so never mark_installed. A
+        #    pending drain marker is re-verified exactly as on the check-time no-update path.
+        if [ "$PROVEN_NOOP" = 1 ]; then
+            # 4a. This run's own receipt proves the no-op: it ends any real-failure streak, the
+            #     stuck guard counts it (--yes runs only after --check said "available"), silent.
+            log "no-op: checkout unchanged at ${POST_HEAD:0:10}, no error line — PROVEN by this run's receipt (outcome=success, correlation=$CORR_STATE, sha unchanged) — nothing installed; last line: $(printf '%s\n' "$UPDATE_OUT" | tr -d '\r' | awk 'NF' | tail -1 | head -c 200)"
+            recheck_drain_marker; DRAIN_RC=$?
+            reset_real_fails
+            available_noop_count "$UPDATE_OUT"
+            [ "$DRAIN_RC" -eq 0 ] || exit 1
+            exit 0
+        fi
+        # 4b. UNPROVEN: no receipt of this run says "clean no-op". Not a real failure (no count, no
+        #     ✗, the streak is NOT reset), but never silent: remind from the first one on. Exit 1 so
+        #     the scheduler log shows a tick that needs a look (the counters stay untouched).
+        log "⚠ no-op: checkout unchanged at ${POST_HEAD:0:10}, no error line — UNPROVEN: no receipt of this run proves it (receipt=$OUTCOME, correlation=$CORR_STATE) — nothing installed, reminder, not counted as a failure; last line: $(printf '%s\n' "$UPDATE_OUT" | tr -d '\r' | awk 'NF' | tail -1 | head -c 200)"
+        recheck_drain_marker
+        unproven_noop_remind "$UPDATE_OUT"
+        exit 1
     fi
     if [ "$OUTCOME" = "success" ] && [ "$HAS_COMPLETE" != 1 ] && [ "$SHA_ADVANCED" != 1 ]; then
         # A success receipt (even correlated) with no completion line and no SHA advance proves
