@@ -87,6 +87,26 @@ GOOD = {"kind": "update", "outcome": "success",
 CHECK_FAIL = "✗ fetch failed: HTTP 429\n"
 ALERT = "⚠ hermes auto-update: update check"
 
+# Exact upstream `hermes update --check` shapes (hermes_cli/update_cmd_check.py; labels from
+# source_releases.py:61-65). Used by the v5.15 regressions below.
+LBL = "stable v0.23.1 (ae2a81ccc00e)"
+AHEAD_LBL = ("stable v0.23.1; this checkout is newer and waits for the next release"
+             " (`hermes update --set-channel main` follows every commit)")
+UP_AVAIL = BANNER + "→ Selected release available: %s\n  Run `hermes update` to install it.\n" % LBL
+UP_HELD = (BANNER + "→ Holding at this build: %s predates the gateway runtime your sessions use.\n"
+           "  `hermes update` stays on this build; the next release that includes the runtime installs"
+           " normally (`hermes update --set-channel main` follows every commit).\n" % LBL)
+UP_ROLLBACK = (BANNER + "→ This checkout is newer than the selected release: %s.\n"
+               "  `hermes update` moves it back to that release (`hermes update --set-channel main`"
+               " follows every commit).\n" % LBL)
+# Verbatim capture of a real `hermes update --check` (stable channel, v0.23.2 available).
+REAL_CHECK = ("→ Update channel: stable\n→ Selected release available: stable v0.23.2 (ae2a81ccc00e)\n"
+              "  Run `hermes update` to install it.\n")
+YES_NOOP = "✓ Already up to date!\n"      # update_cmd.py:1726 (--yes completion message)
+YES_FAIL = "✗ dependency install failed\n"
+REALERT_DEFAULT = 3 * DAY - 3600         # AU_REALERT_SECS default
+REMIND_DEFAULT = 7 * DAY - 3600          # AU_ROLLBACK_REMIND_SECS default
+
 
 class Box:
     def __init__(self):
@@ -494,9 +514,18 @@ class Hardening(T):
                 self.no_success(b)
 
     def test_legacy_fresh_success_without_completion_or_movement_not_marked(self):
-        b, _ = self.go(LEGACY_AVAIL, yes="→ Fetching origin/main\n", receipt={"outcome": "success"})
+        b, p = self.go(LEGACY_AVAIL, yes="→ Fetching origin/main\n", receipt={"outcome": "success"})
         self.assertTrue(b.yes_called())
         self.no_success(b)
+        # N402: the legacy receipt is demoted to "uncorrelated" (no install evidence of its own)
+        # -> the no-receipt inconclusive exit: exit 1, one alert, NO drain marker. Without the
+        # demotion it would reach the "success receipt, no evidence" branch (drain marker set).
+        self.assertEqual(p.returncode, 1, b.log())
+        t = b.texts()
+        self.assertEqual(len(t), 1, t)
+        self.assertIn("no fresh receipt", t[0])
+        self.assertIsNone(b.st("drain_pending"), b.log())
+        self.assertIn("correlation=legacy", b.log())
 
     def test_fresh_non_success_outcomes_never_success(self):
         for o in ("failed", "refused", "running", "mystery"):
@@ -536,7 +565,10 @@ class RealMovement(T):
             '    h = lambda: subprocess.run(G + ["rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()\n'
             '    pre = h()\n'
             '    subprocess.run(G + ["-c", "user.name=stub", "-c", "user.email=stub@invalid", "commit", "-q", "--allow-empty", "-m", "stub"], check=True, capture_output=True)\n'
-            '    step["receipt"] = dict(step.get("receipt") or {}, pre_sha=pre, post_sha=h())\n')
+            # Production schema (hermes_cli/update_receipt.py:148-154; read by receipt_sha_advanced /
+            # receipt_checkout_agrees): pre_update.short_sha / post_update.short_sha.
+            '    step["receipt"] = dict(step.get("receipt") or {}, pre_update={"short_sha": pre[:8]},'
+            ' post_update={"short_sha": h()[:8]})\n')
     CORR = ('    for k, v in os.environ.items():\n'
             '        if "CORRELATION" in k.upper():\n'
             '            d["correlation_id"] = v\n')
@@ -571,7 +603,8 @@ class RealMovement(T):
         self.assertNotEqual(after, before)
         with open(os.path.join(b.root, "home", ".hermes", "logs", "update_receipts", "latest.json")) as f:
             rec = json.load(f)
-        self.assertEqual((rec.get("pre_sha"), rec.get("post_sha")), (before, after))
+        self.assertEqual(((rec.get("pre_update") or {}).get("short_sha"),
+                          (rec.get("post_update") or {}).get("short_sha")), (before[:8], after[:8]))
         self.assertEqual(r.returncode, 1, b.log())
         self.assertIsNone(b.st("last_install_ts"))
         self.assertFalse(any("updated to" in t for t in b.texts()), b.texts())
@@ -593,7 +626,8 @@ class RealMovement(T):
         self.assertFalse(any("updated to" in t or "✗" in t for t in b.texts()), b.texts())
 
     def test_correlated_success_unchanged_or_missing_sha_no_completion_exit1(self):
-        for rec in ({"outcome": "success", "pre_sha": "a" * 40, "post_sha": "a" * 40}, {"outcome": "success"}):
+        for rec in ({"outcome": "success", "pre_update": {"short_sha": "a" * 8},
+                     "post_update": {"short_sha": "a" * 8}}, {"outcome": "success"}):
             with self.subTest(rec=rec):
                 b = self.box()
                 with open(b.stub_hermes) as f:
@@ -612,6 +646,444 @@ class RealMovement(T):
                 self.assertFalse(any("updated to" in t for t in b.texts()), b.texts())
 
 
+
+# ===================== v5.15 regressions (issue #1 follow-up on 7d2f640) =====================
+
+class StrictVerdicts(T):
+    """B300: whole-line upstream verdicts; any error word / unknown line -> unknown (fail closed)."""
+    POSITIVE = (
+        ("stable-no-newer", BANNER + "✓ No newer release: %s.\n" % LBL, "uptodate"),
+        ("stable-no-newer-ahead", BANNER + "✓ No newer release: %s.\n" % AHEAD_LBL, "uptodate"),
+        ("stable-latest", BANNER + "✓ Up to date with the latest release (%s).\n" % LBL, "uptodate"),
+        ("stable-held", UP_HELD, "held"),
+        ("stable-rollback", UP_ROLLBACK, "rollback"),
+        ("stable-available", UP_AVAIL, "available"),
+        ("stable-retired-cleanup-crlf",
+         "  (removed stale git lock: .git/shallow.lock)\r\n  (removed 2 aborted-fetch pack temp file(s))\r\n"
+         "  (git cleanup: erased 1 duplicate pack(s), 12 MB freed; merged 0; 3 left)\r\n"
+         + BANNER + "→ beta retired; source destination: stable\r\n"
+         "  → Selected release available: stable v0.23.1\r\n  Run `hermes update` to install it.\r\n",
+         "available"),
+        ("real-check-sample", REAL_CHECK, "available"),
+        ("main-current", "→ Fetching from origin...\n✓ Already up to date.\n", "uptodate"),
+        ("main-behind-count", "→ Fetching from upstream...\n" + LEGACY_AVAIL, "available"),
+        ("main-behind-one", "⚕ Update available: 1 commit behind origin/main.\n  Run 'hermes update' to install.\n",
+         "available"),
+        ("main-behind-shallow", "  (pruned 3 stale shallow graft(s) left by past depth-1 checks)\n"
+         "⚕ Update available (behind origin/main).\n  Run 'hermes update' to install.\n", "available"),
+        ("main-older-glyph", "☤ Update available: 2 commits behind origin/main.\n", "available"),
+    )
+    NEGATIVE = (
+        # r2A B300 reproductions
+        ("prefix-nearmiss", "✓ No newer releases could be resolved: error: timed out\n"),
+        ("prefix-diagnostic", "No newer release check failed: error: timed out\n"),
+        ("mixed-error-no-symbol", NOOP + "error: could not verify release signature\n"),
+        ("mixed-available-error", "→ Selected release available: stable v0.23.1\n"
+                                  "error: could not verify release signature\n"),
+        # work-order cases
+        ("noop-suffix-error", "✓ Already up to date. Error: signature mismatch\n"),
+        ("available-paren-error", "⚕ Update available (error: compare API unreachable).\n"),
+        # unknown line next to a valid verdict, any case of the veto words, glyph-less / wrong glyph
+        ("unknown-line-beside-available", UP_AVAIL + "DEBUG: fetched tags in 0.2s\n"),
+        ("upper-case-failed", BANNER + "✓ No newer release: %s.\nFETCH FAILED (cached verdict)\n" % LBL),
+        ("timed-out-word", "✓ Already up to date.\n  (git cleanup timed out)\n"),
+        # a context-shaped line still carries the veto words (only the word veto catches this)
+        ("context-line-failed", "  (removed stale git lock: .git/index.lock; removal failed)\n✓ Already up to date.\n"),
+        # whole-line anchoring: a suffix after the fixed sentence is not the sentence
+        ("noop-suffix-cached", "✓ Already up to date. (cached result from yesterday)\n"),
+        ("glyphless-legacy", "Update available: 3 commits behind origin/main.\n"),
+        ("wrong-glyph", BANNER + "⬆ Selected release available: %s\n" % LBL),
+        ("label-shape", BANNER + "→ Selected release available: soon, maybe\n"),
+        ("sentence-tail", BANNER + "→ Holding at this build: %s (channel pinned)\n" % LBL),
+        ("two-verdicts", BANNER + "✓ No newer release: %s.\n→ Selected release available: %s\n" % (LBL, LBL)),
+        ("banner-only", BANNER),
+    )
+
+    def run_check(self, out, rc=0):
+        b = self.box()
+        b.scenario(out, rc=rc, yes=DONE_NEW, receipt=GOOD)
+        return b, b.run(apply="1")
+
+    def test_upstream_shapes_classify(self):
+        for name, out, want in self.POSITIVE:
+            with self.subTest(name=name):
+                b, p = self.run_check(out)
+                self.assertEqual(p.returncode, 0, b.log())
+                self.assertEqual(b.st("consec_check_fails"), "0", b.log())
+                self.assertEqual(b.yes_called(), want == "available", b.log())
+                if want == "available":
+                    self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$")
+                    self.assertTrue(any("updated to v1.3.0" in t for t in b.texts()), b.texts())
+                else:
+                    self.assertIsNone(b.st("last_install_ts"))
+                if want in ("uptodate", "held"):
+                    self.assertEqual(b.texts(), [])
+                if want == "held":
+                    self.assertIn("held (benign", b.log())
+                if want == "rollback":
+                    t = b.texts()
+                    self.assertEqual(len(t), 1, t)
+                    self.assertIn("NOT moved back", t[0])
+
+    def test_error_and_unknown_shapes_fail_closed(self):
+        for name, out in self.NEGATIVE:
+            with self.subTest(name=name):
+                b, p = self.run_check(out)
+                self.assertEqual(p.returncode, 0, b.log())
+                self.assertFalse(b.yes_called(), "installed on %r" % out)
+                self.assertIsNone(b.st("last_install_ts"))
+                self.assertEqual(b.st("consec_check_fails"), "1", b.log())
+                self.assertEqual(b.texts(), [])
+                self.assertIn("unrecognized --check output", b.log())
+
+    def test_unknown_three_times_alerts_with_offending_line(self):
+        b = self.box()
+        b.scenario(NOOP + "error: could not verify release signature\n")
+        for i in range(3):
+            b.run(now=T0 + i * DAY)
+        a = b.alerts()
+        self.assertEqual(len(a), 1, a)
+        self.assertIn("unrecognized", a[0])
+        self.assertIn("error: could not verify release signature", a[0])
+
+
+class YesNoopVeto(T):
+    """B301: a --yes no-op line is accepted only if nothing else in the output contradicts it."""
+    VETOED = (
+        ("noop-plus-error", NOOP + "✗ dependency repair failed\n", None),
+        ("hold-plus-error", "✓ Holding at this build until a newer stable release ships.\n✗ checkout repair failed\n", None),
+        ("noop-plus-conflict", NOOP + "→ Selected release available: stable v0.23.1\n", None),
+        ("foreign-noop-plus-error", NOOP + "✗ repair failed\n", {"kind": "plugin-check", "outcome": "failed"}),
+        ("noop-plus-error-word", YES_NOOP + "  warning: fleet restart timed out\n", None),
+        ("noop-plus-rollback", YES_NOOP + "→ This checkout is newer than the selected release: %s.\n" % LBL, None),
+    )
+
+    def test_vetoed_noop_is_a_real_failure(self):
+        for name, out, rec in self.VETOED:
+            with self.subTest(name=name):
+                b = self.box()
+                b.seed("consec_real_fails", "8")
+                b.seed("real_alert_last_ts", str(T0 - 100))   # old streak, alerted recently
+                b.scenario(UP_AVAIL, yes=out, receipt=rec)
+                p = b.run(apply="1", now=T0)
+                self.assertTrue(b.yes_called())
+                self.assertEqual(p.returncode, 1, b.log())
+                self.assertEqual(b.st("consec_real_fails"), "9", b.log())
+                self.assertIsNone(b.st("last_install_ts"))
+                self.assertIn("no-op line vetoed", b.log())
+                self.assertNotIn("no-op: beaten", b.log())
+                self.assertFalse(any("updated to" in t for t in b.texts()), b.texts())
+
+    def test_vetoed_noop_alerts_at_once_on_a_fresh_streak(self):
+        b = self.box()
+        b.scenario(UP_AVAIL, yes=NOOP + "✗ dependency repair failed\n")
+        p = b.run(apply="1", now=T0)
+        self.assertEqual(p.returncode, 1, b.log())
+        t = b.texts()
+        self.assertEqual(len(t), 1, t)
+        self.assertIn("attempt 1", t[0])
+        self.assertIn("vetoed", t[0])
+        self.assertIn("dependency repair failed", t[0])
+
+    def test_clean_noop_shapes_still_accepted(self):
+        for out in (YES_NOOP, NOOP, "✓ Holding at this build until a newer stable release ships.\n",
+                    "→ Update channel: stable\n  ✓ Configuration is up to date\n" + YES_NOOP):
+            with self.subTest(out=out):
+                b = self.box()
+                b.scenario(UP_AVAIL, yes=out)
+                p = b.run(apply="1")
+                self.assertTrue(b.yes_called())
+                self.assertEqual(p.returncode, 0, b.log())
+                self.assertEqual(b.texts(), [])
+                self.assertIsNone(b.st("last_install_ts"))
+
+
+class NoopResetsRealFails(T):
+    """B306: every legitimate no-op exit ends the real-failure streak (after the drain recheck)."""
+
+    def sequence(self, noop_scenario):
+        b = self.box()
+        # old streak: 8 failures, last alert just now -> the next failure would be suppressed
+        b.seed("consec_real_fails", "8")
+        b.seed("real_alert_last_ts", str(T0 - 100))
+        noop_scenario(b)
+        p = b.run(apply="1", now=T0)
+        self.assertEqual(p.returncode, 0, b.log())
+        self.assertEqual(b.st("consec_real_fails"), "0", b.log())
+        self.assertIsNone(b.st("real_alert_last_ts"))
+        before = len(b.texts())
+        b.scenario(UP_AVAIL, yes=YES_FAIL, yes_rc=1)
+        p = b.run(apply="1", now=T0 + 60)
+        self.assertEqual(p.returncode, 1, b.log())
+        self.assertEqual(b.st("consec_real_fails"), "1", b.log())
+        new = b.texts()[before:]
+        self.assertEqual(len(new), 1, b.log())
+        self.assertIn("attempt 1", new[0])
+
+    def test_yes_noop_missing_receipt(self):
+        self.sequence(lambda b: b.scenario(UP_AVAIL, yes=YES_NOOP))
+
+    def test_yes_noop_stale_receipt(self):
+        def s(b):
+            b.old_receipt(dict(GOOD, finished_at="2020-01-01T00:00:00+00:00"))
+            b.scenario(UP_AVAIL, yes=NOOP)
+        self.sequence(s)
+
+    def test_yes_noop_foreign_receipt(self):
+        self.sequence(lambda b: b.scenario(UP_AVAIL, yes=YES_NOOP, receipt={"kind": "plugin-check", "outcome": "success"}))
+
+    def test_check_time_uptodate_held_rollback(self):
+        for out in (BANNER + "✓ No newer release: %s.\n" % LBL, UP_HELD, UP_ROLLBACK):
+            with self.subTest(out=out):
+                self.sequence(lambda b, o=out: b.scenario(o))
+
+
+class AlertSummary(T):
+    """B302: the real error is selected before the size bound."""
+
+    def test_error_after_ninth_line_survives(self):
+        b = self.box()
+        out = (BANNER + "".join("  (removed stale git lock: lock%d)\n" % i for i in range(9))
+               + "✗ Could not resolve the stable source channel: Command timed out after 10 seconds\n")
+        b.scenario(out, rc=1)
+        b.seed("consec_check_fails", "2")
+        b.run(now=T0)
+        a = b.alerts()
+        self.assertEqual(len(a), 1, a)
+        lines = a[0].split("\n")
+        self.assertEqual(lines[2], "✗ Could not resolve the stable source channel: Command timed out after 10 seconds")
+        self.assertLessEqual(len(lines), 8, lines)
+        self.assertIn("  (removed stale git lock: lock0)", lines)
+
+    def test_error_word_without_glyph_is_prioritized_with_one_context_line(self):
+        b = self.box()
+        out = ("".join("noise %02d\n" % i for i in range(12))
+               + "fatal: unable to access origin: Failed to connect\n  hint: proxy 127.0.0.1:18089\n"
+               + "noise tail\n")
+        b.scenario(out, rc=1)
+        b.seed("consec_check_fails", "2")
+        b.run(now=T0)
+        lines = b.alerts()[0].split("\n")
+        self.assertEqual(lines[2:4], ["fatal: unable to access origin: Failed to connect", "  hint: proxy 127.0.0.1:18089"])
+        self.assertEqual(lines[4:], ["noise 00", "noise 01", "noise 02", "noise 03"])
+
+
+class RealFailureCadence(T):
+    """B303: real failures re-alert by wall clock (AU_REALERT_SECS), first failure at once."""
+
+    def failing(self):
+        b = self.box()
+        b.scenario(UP_AVAIL, yes=YES_FAIL, yes_rc=1)
+        return b
+
+    def test_daily_failures_realert_on_wall_clock(self):
+        b = self.failing()
+        want = {0: 1, 1: 1, 2: 1, 3: 2, 4: 2, 5: 2, 6: 3}
+        for day in range(7):
+            self.assertEqual(b.run(apply="1", now=T0 + day * DAY).returncode, 1, b.log())
+            self.assertEqual(len(b.texts()), want[day], "day %d\n%s" % (day, b.log()))
+        self.assertEqual(b.st("consec_real_fails"), "7")
+        self.assertEqual(b.st("real_alert_last_ts"), str(T0 + 6 * DAY))
+        self.assertIn("attempt 4", b.texts()[1])
+
+    def test_realert_after_4_days(self):
+        b = self.failing()
+        for day in (0, 4):
+            b.run(apply="1", now=T0 + day * DAY)
+        self.assertEqual(len(b.texts()), 2, b.log())
+        self.assertEqual(b.st("consec_real_fails"), "2")
+
+    def test_corrupt_or_future_stamp_alerts_and_self_heals(self):
+        for ts in ("garbage", "", "-5", "12abc", "9" * 40, str(T0 + 100000)):
+            with self.subTest(ts=ts):
+                b = self.failing()
+                b.seed("consec_real_fails", "5")
+                b.seed("real_alert_last_ts", ts)
+                p = b.run(apply="1", now=T0)
+                self.assertEqual(p.returncode, 1, b.log())
+                self.assertEqual(p.stderr, "")
+                self.assertEqual(len(b.texts()), 1)
+                self.assertEqual(b.st("real_alert_last_ts"), str(T0))
+
+    def test_recent_stamp_suppresses_and_undelivered_first_alert_retries(self):
+        b = self.failing()
+        b.seed("consec_real_fails", "5")
+        b.seed("real_alert_last_ts", str(T0 - 100))
+        b.run(apply="1", now=T0)
+        self.assertEqual(b.texts(), [])
+        self.assertIn("notify suppressed", b.log())
+        b2 = self.failing()
+        b2.notify_fails(True)
+        b2.run(apply="1", now=T0)
+        self.assertIsNone(b2.st("real_alert_last_ts"), "stamped although delivery failed")
+        b2.notify_fails(False)
+        b2.run(apply="1", now=T0 + 3600)
+        self.assertEqual(b2.st("real_alert_last_ts"), str(T0 + 3600))
+        self.assertTrue(any("attempt 2" in t for t in b2.texts()), b2.texts())
+
+    def test_knob_override_and_garbage(self):
+        b = self.failing()
+        b.seed("consec_real_fails", "5")
+        b.seed("real_alert_last_ts", str(T0 - 120))
+        b.run(apply="1", now=T0, AU_REALERT_SECS="60")
+        self.assertEqual(len(b.texts()), 1, b.log())
+        for v in ("0", "-1", "abc", "", "9" * 30):
+            with self.subTest(v=v):
+                b = self.failing()
+                b.seed("consec_real_fails", "5")
+                b.seed("real_alert_last_ts", str(T0 - 120))
+                p = b.run(apply="1", now=T0, AU_REALERT_SECS=v)
+                self.assertEqual(p.stderr, "")
+                self.assertEqual(b.texts(), [], "garbage knob must fall back to the default")
+
+
+class NotifyFailureCadence(T):
+    """B303/N403: notify-failure dead letter + meta-alert by wall clock, first at the 3rd failure."""
+
+    def dead(self, b):
+        # one entry per "[YYYY-MM-DD HH:MM:SS] N consecutive delivery failures" line (the unsent
+        # message itself is multi-line)
+        return [l for l in b._lines(os.path.join("home", ".hermes", "state", "auto_update",
+                                                 "notify_dead_letter.log"))
+                if l.startswith("[") and "consecutive delivery failures" in l]
+
+    def test_dead_letter_realerts_after_days_not_ticks(self):
+        b = self.box()
+        b.scenario(CHECK_FAIL, rc=1)
+        b.seed("consec_check_fails", "5")        # every tick tries to alert (undelivered = no stamp)
+        b.seed("consec_notify_fails", "2")
+        b.notify_fails(True)
+        want = ((0, 3, 1), (1, 4, 1), (2, 5, 1), (3, 6, 2), (4, 7, 2))
+        for day, n, letters in want:
+            p = b.run(now=T0 + day * DAY)
+            self.assertEqual(p.returncode, 0, b.log())
+            self.assertEqual(b.st("consec_notify_fails"), str(n))
+            self.assertEqual(len(self.dead(b)), letters, "day %d" % day)
+        self.assertEqual(b.st("notify_alert_last_ts"), str(T0 + 3 * DAY))
+        b.notify_fails(False)
+        b.run(now=T0 + 5 * DAY)
+        self.assertEqual(b.st("consec_notify_fails"), "0")
+        self.assertIsNone(b.st("notify_alert_last_ts"))
+
+
+class RollbackReminder(T):
+    """B304: low-frequency reminder while the checkout stays newer; never installs, never counts."""
+
+    def test_weekly_reminder_never_installs(self):
+        b = self.box()
+        b.scenario(UP_ROLLBACK, yes=DONE_NEW, receipt=GOOD)
+        counts = []
+        for day in range(15):
+            self.assertEqual(b.run(apply="1", now=T0 + day * DAY).returncode, 0, b.log())
+            counts.append(len(b.texts()))
+        self.assertEqual(counts[0], 1)
+        self.assertEqual(counts[6], 1)
+        self.assertEqual(counts[7], 2)
+        self.assertEqual(counts[14], 3)
+        self.assertFalse(b.yes_called())
+        self.assertEqual(b.st("consec_check_fails"), "0")
+        self.assertIsNone(b.st("last_install_ts"))
+        self.assertTrue(all("NOT moved back" in t for t in b.texts()))
+        self.assertEqual(b.st("rollback_remind_ts"), str(T0 + 14 * DAY))
+
+    def test_undelivered_reminder_retries_and_corrupt_stamp_self_heals(self):
+        b = self.box()
+        b.scenario(UP_ROLLBACK)
+        b.notify_fails(True)
+        b.run(apply="1", now=T0)
+        self.assertIsNone(b.st("rollback_remind_ts"))
+        b.notify_fails(False)
+        b.run(apply="1", now=T0 + DAY)
+        self.assertEqual(b.st("rollback_remind_ts"), str(T0 + DAY))
+        for ts in ("garbage", "", "9" * 30, str(T0 + 10 * DAY)):
+            with self.subTest(ts=ts):
+                b = self.box()
+                b.scenario(UP_ROLLBACK)
+                b.seed("rollback_remind_ts", ts)
+                p = b.run(apply="1", now=T0)
+                self.assertEqual(p.stderr, "")
+                self.assertEqual(len(b.texts()), 1)
+                self.assertEqual(b.st("rollback_remind_ts"), str(T0))
+
+    def test_legacy_one_shot_marker_migrates_and_state_change_clears(self):
+        b = self.box()
+        b.seed("rollback_notified", "")
+        b.scenario(UP_ROLLBACK)
+        b.run(apply="1", now=T0)
+        self.assertEqual(len(b.texts()), 1, "pre-5.15 marker must not silence the reminder forever")
+        self.assertIsNone(b.st("rollback_notified"))
+        b.scenario(BANNER + "✓ No newer release: %s.\n" % LBL)
+        b.run(apply="1", now=T0 + DAY)
+        self.assertIsNone(b.st("rollback_remind_ts"))
+        b.scenario(UP_ROLLBACK)
+        b.run(apply="1", now=T0 + 2 * DAY)
+        self.assertEqual(len(b.texts()), 2, "re-entering the state reminds again")
+
+    def test_knob(self):
+        b = self.box()
+        b.scenario(UP_ROLLBACK)
+        b.run(apply="1", now=T0, AU_ROLLBACK_REMIND_SECS="3600")
+        b.run(apply="1", now=T0 + 3599, AU_ROLLBACK_REMIND_SECS="3600")
+        b.run(apply="1", now=T0 + 3600, AU_ROLLBACK_REMIND_SECS="3600")
+        self.assertEqual(len(b.texts()), 2)
+        self.assertEqual(REMIND_DEFAULT, 601200)
+        self.assertEqual(REALERT_DEFAULT, 255600)
+
+
+class ReceiptBinding(T):
+    """B307 / N401: production receipt schema; legacy checkout proof both ways; foreign correlation."""
+    MOVE = ('if key == "yes":\n'
+            '    import subprocess\n'
+            '    G = [%r, "-C", %r]\n'
+            '    h = lambda: subprocess.run(G + ["rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()\n'
+            '    pre = h()\n'
+            '    if %r:\n'
+            '        subprocess.run(G + ["-c", "user.name=stub", "-c", "user.email=stub@invalid", "commit", "-q", "--allow-empty", "-m", "stub"], check=True, capture_output=True)\n'
+            '    post = h()\n'
+            '    step["receipt"] = {"outcome": "success", "pre_update": {"short_sha": %s},'
+            ' "post_update": {"short_sha": %s}}\n')
+
+    def legacy(self, move=True, pre="pre[:8]", post="post[:8]"):
+        b = self.box()
+        git = shutil.which("git")
+        with open(b.stub_hermes) as f:
+            s = f.read()
+        a = "step = sc[key]\n"
+        self.assertEqual(s.count(a), 1)
+        with open(b.stub_hermes, "w") as f:
+            f.write(s.replace(a, a + self.MOVE % (git, b.repo, move, pre, post), 1))
+        b.scenario(UP_AVAIL, yes="→ Fetching new code\n", receipt={})
+        return b, b.run(apply="1")
+
+    def test_legacy_exit0_real_move_matching_receipt_is_install(self):
+        b, p = self.legacy()
+        self.assertEqual(p.returncode, 0, b.log())
+        self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$")
+        self.assertIn("agrees=1", b.log())
+        self.assertTrue(any("updated to" in t for t in b.texts()), b.texts())
+
+    def test_legacy_mismatched_or_unmoved_is_not_install(self):
+        for kw in ({"post": "'deadbeef'"}, {"move": False, "post": "'cafebabe'"}, {"move": False}):
+            with self.subTest(**{k: str(v) for k, v in kw.items()}):
+                b, p = self.legacy(**kw)
+                self.assertEqual(p.returncode, 1, b.log())
+                self.assertIsNone(b.st("last_install_ts"))
+                self.assertFalse(any("updated to" in t for t in b.texts()), b.texts())
+
+    def test_foreign_correlation_id_is_not_install_evidence(self):
+        b = self.box()
+        b.scenario(UP_AVAIL, yes=DONE_NEW, receipt=dict(GOOD, correlation_id="au-someone-else-1"))
+        p = b.run(apply="1")
+        self.assertEqual(p.returncode, 1, b.log())
+        self.assertIsNone(b.st("last_install_ts"))
+        self.assertFalse(any("updated to" in t for t in b.texts()), b.texts())
+        t = b.texts()
+        self.assertEqual(len(t), 1, t)
+        self.assertIn("unproven", t[0])
+        # the first-layer guard (receipt_outcome_fresh) must classify it, not only the fallback
+        self.assertIn("receipt=stale", t[0])
+        self.assertIsNotNone(b.st("drain_pending"))
+
 def main():
     global SRC
     if len(sys.argv) < 2 or not os.path.isfile(sys.argv[1]):
@@ -622,7 +1094,8 @@ def main():
         if not shutil.which(tool):
             sys.stderr.write("missing required tool: %s\n" % tool)
             return 2
-    prog = unittest.main(argv=[sys.argv[0]], exit=False, verbosity=1)
+    # Optional extra arguments select tests (e.g. "RollbackReminder" or "Verdicts.test_held_is_benign").
+    prog = unittest.main(argv=[sys.argv[0]] + sys.argv[2:], exit=False, verbosity=1)
     ok = prog.result.wasSuccessful()
     sys.stderr.flush()
     print("compat sanity: %s (%d tests, src=%s)" % ("PASS" if ok else "FAIL", prog.result.testsRun, SRC))

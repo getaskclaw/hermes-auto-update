@@ -15,6 +15,10 @@ cd "$ROOT_DIR" || exit 1
 
 FAIL=0
 step() { printf '\n== %s\n' "$1"; }
+# Private scratch for the gate's own files (matrix output, neutered copies): under $TMPDIR, never
+# a fixed /tmp path (predictable, shared, world-writable). Removed on exit.
+GATE_TMP=$(mktemp -d "${TMPDIR:-/tmp}/release_gate.XXXXXX") || { echo "cannot create gate scratch dir"; exit 1; }
+trap 'rm -rf -- "$GATE_TMP"' EXIT
 
 step "1/4 doc pointers resolve to real files"
 python3 - <<'PY' || FAIL=1
@@ -65,10 +69,10 @@ PY
 step "2/4 hermetic matrix"
 if ( cd verify && rm -rf "${HARNESS_ROOT:-/tmp/au-harness}" \
      && bash stub_setup.sh ../auto_update.sh >/dev/null \
-     && bash stub_matrix.sh > /tmp/release_gate_matrix.out 2>&1 ); then
-    tail -1 /tmp/release_gate_matrix.out
+     && bash stub_matrix.sh > "$GATE_TMP/matrix.out" 2>&1 ); then
+    tail -1 "$GATE_TMP/matrix.out"
 else
-    echo "MATRIX FAILED:"; tail -20 /tmp/release_gate_matrix.out; FAIL=1
+    echo "MATRIX FAILED:"; tail -20 "$GATE_TMP/matrix.out"; FAIL=1
 fi
 
 step "3/4 every probe runs and passes (each self-seeds its harness)"
@@ -95,7 +99,6 @@ step "4/4 teeth: neutered builds must FAIL the probe that guards them"
 # A green probe proves the toolchain runs, not that it catches anything. For each guard
 # with a known neuter, break the source, feed the BROKEN copy to the probe, and require
 # the probe to FAIL. A probe that still passes on broken code has no teeth (③, round 2).
-mkdir -p /tmp/gate_neut
 # Neuter by TEXT EDIT, not by a sed expression pasted into a double-quoted argument: bash
 # expands `$((10#...))` and `${#v}` inside double quotes, so the expression above reached sed
 # mangled (and printed `10#: invalid integer constant` on the way). It still reported "teeth ok"
@@ -105,44 +108,64 @@ neuter() { # $1 = kind  $2 = src  $3 = dst
     python3 - "$1" "$2" "$3" <<'PY'
 import sys
 kind, src, dst = sys.argv[1], sys.argv[2], sys.argv[3]
-s = open(src).read()
-if kind == "sanitizer":
-    new = s.replace("tr -cd '0-9'", "cat")
-    assert new != s, "sanitizer neuter did not apply (anchor missing)"
-elif kind == "clamporder":
-    a = '    if [ "${#v}" -gt 6 ]; then v=0; fi\n    v=$((10#$v))\n'
-    b = '    v=$((10#$v))\n    if [ "${#v}" -gt 6 ]; then v=0; fi\n'
-    assert a in s, "clamp-order neuter: anchored pair not found"
-    new = s.replace(a, b)
-elif kind == "alertstamp":
-    a = '    if notify "$msg"; then\n        date +%s > "$STATE_DIR/check_alert_last_ts"\n'
-    b = '    notify "$msg"; if true; then\n        date +%s > "$STATE_DIR/check_alert_last_ts"\n'
-    assert a in s, "alert-stamp neuter: anchor not found"
-    new = s.replace(a, b)
-elif kind == "applygate":
-    a = 'if [ "${AU_APPLY:-0}" != "1" ]; then'
-    assert a in s, "apply-gate neuter: anchor not found"
-    new = s.replace(a, 'if [ "${AU_APPLY:-1}" != "1" ]; then')
-else:
+s = open(src, encoding="utf-8").read()
+# kind -> (anchor that must occur EXACTLY once, replacement)
+EDITS = {
+    "sanitizer": ("tr -cd '0-9'", "cat"),
+    "clamporder": ('    if [ "${#v}" -gt 6 ]; then v=0; fi\n    v=$((10#$v))\n',
+                   '    v=$((10#$v))\n    if [ "${#v}" -gt 6 ]; then v=0; fi\n'),
+    "alertstamp": ('    if notify "$msg"; then\n        echo "$TICK_TS" > "$STATE_DIR/check_alert_last_ts"\n',
+                   '    notify "$msg"; if true; then\n        echo "$TICK_TS" > "$STATE_DIR/check_alert_last_ts"\n'),
+    "applygate": ('if [ "${AU_APPLY:-0}" != "1" ]; then', 'if [ "${AU_APPLY:-1}" != "1" ]; then'),
+    # B300: whole-line anchoring of the no-update sentences (prefix match instead)
+    "anchor": ('|✓ Already up to date\\.)\\$"', '|✓ Already up to date\\.)"'),
+    # B300: an unrecognized non-empty line no longer makes the output unknown
+    "unknownline": ("            error|unknown) bad=1 ;;\n", "            error) bad=1 ;;\n"),
+    # B300/B301: the error / failed / timed out word veto removed
+    "errorword": ('    case "${l,,}" in *error*|*failed*|*"timed out"*) return 0 ;; esac\n', ""),
+    # B301: --yes no-op accepted without the veto
+    "noopveto": ('            if VETO=$(yes_noop_veto "$UPDATE_OUT"); then\n',
+                 '            if false; then VETO=\n'),
+    # B306: the --yes no-op exit no longer resets the real-failure streak
+    "noopreset": ('            recheck_drain_marker; DRAIN_RC=$?\n            reset_real_fails\n',
+                  '            recheck_drain_marker; DRAIN_RC=$?\n'),
+    # B303: real-failure re-alert back to "first failure only"
+    "realclock": ('    if [ "$REAL_F" -eq 1 ] || interval_due real_alert_last_ts "$AU_REALERT_SECS"; then\n',
+                  '    if [ "$REAL_F" -eq 1 ]; then\n'),
+    # B304: rollback reminder back to a one-shot marker
+    "remindclock": ('        if interval_due rollback_remind_ts "$AU_ROLLBACK_REMIND_SECS"; then\n',
+                    '        if [ ! -f "$STATE_DIR/rollback_remind_ts" ]; then\n'),
+    # B302: summary no longer prioritizes error lines (plain head)
+    "summarypriority": ("            if (!pri[i]) continue\n", "            continue\n"),
+    # B307: receipt_checkout_agrees constant false
+    "checkoutproof": ("    print(1 if ok else 0)\n", "    print(0)\n"),
+}
+if kind not in EDITS:
     raise SystemExit("unknown neuter kind: " + kind)
-open(dst, "w").write(new)
+a, b = EDITS[kind]
+n = s.count(a)
+assert n == 1, "%s neuter: anchor found %d times (need exactly 1)" % (kind, n)
+open(dst, "w", encoding="utf-8").write(s.replace(a, b))
 PY
 }
-neuter_and_run() { # $1 = kind  $2 = label  [$3 = probe, default counter_sanity.sh]
-    local probe="${3:-scripts/counter_sanity.sh}"
-    neuter "$1" auto_update.sh /tmp/gate_neut/au_neut.sh || { echo "NEUTER FAILED: $2"; FAIL=1; return; }
-    if cmp -s auto_update.sh /tmp/gate_neut/au_neut.sh; then
-        echo "NEUTER IS A NO-OP: $2 — the copy equals the source, so this proves nothing"; FAIL=1; return
+neuter_and_run() { # $1 = kind  $2 = label  [$3 = probe, default counter_sanity.sh]  [$4.. = probe test selectors]
+    local kind="$1" label="$2" probe="${3:-scripts/counter_sanity.sh}"
+    shift 3 2>/dev/null || shift $#
+    local neut="$GATE_TMP/au_neut.sh"
+    neuter "$kind" auto_update.sh "$neut" || { echo "NEUTER FAILED: $label"; FAIL=1; return; }
+    if cmp -s auto_update.sh "$neut"; then
+        echo "NEUTER IS A NO-OP: $label — the copy equals the source, so this proves nothing"; FAIL=1; return
     fi
-    bash -n /tmp/gate_neut/au_neut.sh || { echo "neutered copy not bash-clean: $2"; FAIL=1; return; }
+    bash -n "$neut" || { echo "neutered copy not bash-clean: $label"; FAIL=1; return; }
     local runner=bash
     case "$probe" in *.py) runner=python3 ;; esac
-    if env -u AU_APPLY "$runner" "$probe" /tmp/gate_neut/au_neut.sh >/dev/null 2>&1; then
-        echo "NO TEETH: $2 — probe passed on a broken build"; FAIL=1
+    if env -u AU_APPLY "$runner" "$probe" "$neut" "$@" >/dev/null 2>&1; then
+        echo "NO TEETH: $label — probe passed on a broken build"; FAIL=1
     else
-        echo "teeth ok: $2 (probe fails on the neutered build)"
+        echo "teeth ok: $label (probe fails on the neutered build)"
     fi
 }
+PY_PROBE=scripts/check_compat_sanity.py
 # guard: the counter sanitizer. Neuter = pass the raw value through (tr -cd '0-9' -> cat).
 neuter_and_run sanitizer "counter sanitizer removed -> counter_sanity must FAIL"
 # guard: the LENGTH CLAMP ORDER. Neuter = put the clamp back after the arithmetic, which is
@@ -151,8 +174,19 @@ neuter_and_run sanitizer "counter sanitizer removed -> counter_sanity must FAIL"
 # the probe RUNS, not that it would catch the order regression returning.
 neuter_and_run clamporder "length clamp moved AFTER the arithmetic -> counter_sanity must FAIL"
 # guards (issue #1): check-alert timestamp written only on delivery; AU_APPLY gate closed by default.
-neuter_and_run alertstamp "check alert stamped although notify failed -> check_compat_sanity must FAIL" scripts/check_compat_sanity.py
-neuter_and_run applygate "AU_APPLY gate defaulted open -> check_compat_sanity must FAIL" scripts/check_compat_sanity.py
+neuter_and_run alertstamp "check alert stamped although notify failed -> check_compat_sanity must FAIL" "$PY_PROBE" Cadence
+neuter_and_run applygate "AU_APPLY gate defaulted open -> check_compat_sanity must FAIL" "$PY_PROBE" Banners
+# guards (v5.15): each selector names the regression that owns the guard, so a pass of SOME
+# other test cannot stand in for it.
+neuter_and_run anchor "B300 no-update sentence matched as a prefix -> StrictVerdicts must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed
+neuter_and_run unknownline "B300 unknown line ignored -> StrictVerdicts must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed
+neuter_and_run errorword "B300/B301 error-word veto removed -> StrictVerdicts + YesNoopVeto must FAIL" "$PY_PROBE" StrictVerdicts.test_error_and_unknown_shapes_fail_closed YesNoopVeto.test_vetoed_noop_is_a_real_failure
+neuter_and_run noopveto "B301 --yes no-op veto removed -> YesNoopVeto must FAIL" "$PY_PROBE" YesNoopVeto
+neuter_and_run noopreset "B306 --yes no-op keeps the real-failure streak -> NoopResetsRealFails must FAIL" "$PY_PROBE" NoopResetsRealFails.test_yes_noop_missing_receipt
+neuter_and_run realclock "B303 real failure re-alert by count/never -> RealFailureCadence must FAIL" "$PY_PROBE" RealFailureCadence
+neuter_and_run remindclock "B304 rollback reminder one-shot -> RollbackReminder must FAIL" "$PY_PROBE" RollbackReminder.test_weekly_reminder_never_installs
+neuter_and_run summarypriority "B302 summary without error priority -> AlertSummary must FAIL" "$PY_PROBE" AlertSummary
+neuter_and_run checkoutproof "B307 receipt_checkout_agrees constant false -> ReceiptBinding must FAIL" "$PY_PROBE" ReceiptBinding.test_legacy_exit0_real_move_matching_receipt_is_install
 
 step "gate"
 if [ "$FAIL" -eq 0 ]; then
@@ -161,3 +195,4 @@ else
     echo "RELEASE GATE: FAIL"
 fi
 exit "$FAIL"
+

@@ -29,6 +29,30 @@
 #   scheduler sources (set -a). ~/.hermes/.env is credentials-only for this script.
 #   To audit: `grep -c 'notify via proxy failed' ~/.hermes/logs/auto_update.log` must stay at the
 #   pre-fix count, i.e. a healthy direct host logs no new ones.
+# v5.15 (2026-11-18): issue #1 — stable-channel verdicts + wall-clock alerting (7d2f640 + follow-up).
+#   Upstream `hermes update --check` has NO machine-readable output (argparse --check is a bare
+#   store_true, hermes_cli/subcommands/update.py:18-20; every verdict exits 0 as plain print()s,
+#   hermes_cli/update_cmd_check.py:97-125 and :191-228). So the text IS the contract:
+#   - classify_verdicts accepts only the exact upstream sentences, whole line (stable :110 :112
+#     :115 :119 :123; main :200/:208/:222 and :212/:214/:225, plus the ☤ glyph older builds used),
+#     the known context lines (:97 banner, :108 retired, :116-117/:120-121/:124/:215/:228 hints,
+#     :143/:164 fetching) and the known `  (…)` cleanup lines (:49 :52 :62 :65 :180 :183). ANY
+#     other non-empty line, any ✗, any line containing error/failed/timed out (any case), or two
+#     different verdicts = unknown (counted, alerted at 3) — never "no update", never install.
+#   - --yes no-op with no receipt for this run is accepted only after the same veto (✗ / error
+#     words / an available-or-rollback verdict line); a vetoed no-op is a REAL FAILURE.
+#   - every legitimate no-op exit (check-time and --yes) resets consec_real_fails after the drain
+#     recheck, so an old streak cannot swallow the next unrelated failure's first alert.
+#   - check alerts: first at the 3rd consecutive problem, then every AU_CHECK_ALERT_INTERVAL s;
+#     real failures: first at once, then every AU_REALERT_SECS s; notify-failure dead letter +
+#     meta-alert: at the 3rd, then every AU_REALERT_SECS s; "checkout newer than the selected
+#     release": reminder every AU_ROLLBACK_REMIND_SECS s (never installs). All stamps are the
+#     TICK START epoch, read through read_ts (garbage/empty/huge/future = due, then self-heal).
+#   - check alert summary picks ✗ / error / failed / timed out lines (+1 line of context) first,
+#     then fills with the remaining lines, then bounds the size.
+#   - behaviour change: exit 0 with no receipt for THIS run is no longer a success (completion
+#     text -> "install unproven", exit 1; unrecognized -> exit 1). Hermes builds that write no
+#     update receipt therefore alert on every install.
 # v5.12 (2026-09-17): notify proxy→direct fallback (to6429 incident). The updater kept
 #   "succeeding" for 14 ticks while its ONLY alert channel was dead: hardcoded default
 #   TG_PROXY=127.0.0.1:18089 was a Kimi-sandbox leftover; that host isn't walled, xray
@@ -123,6 +147,11 @@
 #      contract), not by grepping human-readable text like "Update complete!".
 
 set -u
+# Tick start (epoch). Every alert/reminder timestamp is THIS value and every interval is measured
+# from it, so the length of the check itself (1s vs a 300s timeout) cannot shift the cadence: on
+# a daily cron two consecutive ticks are 86400s apart give or take the process start latency.
+TICK_TS=$(date +%s)
+case "$TICK_TS" in ''|*[!0-9]*) TICK_TS=0 ;; esac
 HOME="${HOME:-$(getent passwd "$(id -u)" | cut -d: -f6)}"
 # systemctl --user needs XDG_RUNTIME_DIR; system cron provides neither DBUS session vars
 # nor XDG_RUNTIME_DIR, and without it the updater's gateway-restart path silently no-ops
@@ -158,6 +187,57 @@ read_counter() {  # $1 = counter file name; echoes a sanitized integer
     v=$((10#$v))
     echo "$v"
 }
+
+# Epoch reader. This is NOT read_counter, whose 6-digit clamp would zero every real epoch.
+# Garbage, empty, or more than 12 digits echoes nothing, and the caller treats that as
+# "no timestamp": it alerts, and on delivery the file is overwritten (self-heal).
+read_ts() {
+    local v
+    v=$(head -c 64 "$STATE_DIR/$1" 2>/dev/null | tr -d '[:space:]')
+    case "$v" in ''|*[!0-9]*) return 0 ;; esac
+    [ "${#v}" -le 12 ] || return 0
+    printf '%s' "$((10#$v))"
+}
+fmt_ts() { date -d "@$1" '+%F %T %Z' 2>/dev/null || printf '%s' "$1"; }
+
+# Interval knob in seconds. $1 = raw value, $2 = default. Empty, non-numeric (incl. a sign),
+# zero, or more than 9 digits falls back to the default; leading zeros are decimal ("00060" = 60).
+knob_secs() {
+    local v="$1"
+    case "$v" in ''|*[!0-9]*) printf '%s' "$2"; return 0 ;; esac
+    [ "${#v}" -le 9 ] || { printf '%s' "$2"; return 0; }
+    v=$((10#$v))
+    [ "$v" -gt 0 ] || v="$2"
+    printf '%s' "$v"
+}
+
+# Wall-clock throttle. True (0) when an alert/reminder guarded by stamp file $1 may go out now:
+# no usable stamp (missing, empty, garbage, over-long: never "silent forever"), a stamp more than
+# 300s in the future (clock moved back / corrupted: would otherwise suppress forever), or at least
+# $2 seconds since the stamp. Callers write the stamp ($TICK_TS) only after delivery.
+interval_due() {
+    local last
+    last=$(read_ts "$1")
+    [ -n "$last" ] || return 0
+    [ "$last" -gt $((TICK_TS + 300)) ] && return 0
+    [ $((TICK_TS - last)) -ge "$2" ]
+}
+
+# Alert cadences (wall clock, seconds; see README "Alert cadence" for the reasoning):
+#  - AU_CHECK_ALERT_INTERVAL (default 86400): re-alert while --check keeps failing / unknown,
+#    after the first alert on the 3rd consecutive problem. Stamps are tick-start epochs, so on a
+#    daily cron consecutive ticks are exactly 86400s apart (start latency is milliseconds) and the
+#    daily re-alert does not slip a day when one check runs faster than the previous one.
+#  - AU_REALERT_SECS (default 255600 = 3 days - 1h): re-alert for a persisting REAL install failure
+#    (the first failure always alerts at once) and for the notify-failure dead letter + meta-alert
+#    (first at the 3rd consecutive delivery failure). The same broken install retried daily is one
+#    incident: a reminder every third daily tick keeps it visible without a daily page; the 1h
+#    margin keeps a late-starting tick from slipping the reminder to the 4th day.
+#  - AU_ROLLBACK_REMIND_SECS (default 601200 = 7 days - 1h): "this checkout is newer than the
+#    selected release" needs a human decision, not an emergency page — a weekly nudge, same margin.
+AU_CHECK_ALERT_INTERVAL=$(knob_secs "${AU_CHECK_ALERT_INTERVAL-}" 86400)
+AU_REALERT_SECS=$(knob_secs "${AU_REALERT_SECS-}" 255600)
+AU_ROLLBACK_REMIND_SECS=$(knob_secs "${AU_ROLLBACK_REMIND_SECS-}" 601200)
 
 # Telegram notify via the local xray proxy (direct api.telegram.org is blocked here).
 # Must be defined BEFORE any call site (bash resolves functions at call time).
@@ -205,20 +285,25 @@ notify() {
     fi
     if printf '%s' "$resp" | grep -q '"ok":true'; then
         echo 0 > "$STATE_DIR/consec_notify_fails"
+        rm -f "$STATE_DIR/notify_alert_last_ts"
         return 0
     fi
     [ -n "$resp" ] && log "notify rejected by API: $(printf '%s' "$resp" | head -c 200)"
-    # Delivery failed: count it, alert-once-then-every-24 like the check counter.
+    # Delivery failed: count it. Dead letter + meta-alert on the 3rd consecutive failure, then
+    # by WALL CLOCK every AU_REALERT_SECS (a tick count re-alerted only every 24 ticks = 24 days
+    # on the daily schedule).
     local n
     n=$(read_counter consec_notify_fails)
     n=$((n + 1))
     echo "$n" > "$STATE_DIR/consec_notify_fails"
     log "notify delivery failed ($n consecutive)"
-    if [ "$n" -eq 3 ] || [ $((n % 24)) -eq 0 ]; then
+    if [ "$n" -ge 3 ] && { [ "$n" -eq 3 ] || interval_due notify_alert_last_ts "$AU_REALERT_SECS"; }; then
         # C6: this re-alert travels the SAME possibly-dead channel — a proxy that stays
         # down would make every warning vanish. Leave a local sentinel + log fingerprint
-        # so a dead notification channel is discoverable without Telegram.
+        # so a dead notification channel is discoverable without Telegram. The local dead
+        # letter IS the delivered artefact here, so the throttle stamp is written with it.
         printf '%s\n' "[$(date '+%F %T')] $n consecutive delivery failures — last unsent: $msg" >> "$STATE_DIR/notify_dead_letter.log"
+        echo "$TICK_TS" > "$STATE_DIR/notify_alert_last_ts"
         curl -s -m 20 -x "$TG_PROXY" \
             "https://api.telegram.org/bot${tok}/sendMessage" \
             --data-urlencode "chat_id=${cid}" \
@@ -276,7 +361,7 @@ clear_drain_marker() {
 # real-machine defaults, but AU_REPO_DIR / AU_GATEWAY_STATE let stub tests point at
 # throwaway fixtures instead of this machine's live state (C1: hardcoded paths made
 # S10/S11 pass by borrowing the real machine's health).
-UPDATER_VERSION="5.14"   # this script's own version (changelog in header) — distinct from the Hermes version it installs
+UPDATER_VERSION="5.15"   # this script's own version (changelog in header) — distinct from the Hermes version it installs
 REPO_DIR="${AU_REPO_DIR:-/usr/local/lib/hermes-agent}"
 REPO="${AU_REPO_DIR:-$REPO_DIR}"   # harness compatibility: stub_setup rewrites REPO=
 GATEWAY_STATE="${AU_GATEWAY_STATE:-$HOME/.hermes/gateway_state.json}"
@@ -323,57 +408,86 @@ recheck_drain_marker() {
 # --- issue #1: check verdicts, time-based check alerts, install proof -------------------
 # Repeat check alerts are TIME-based, not tick-count based. The first alert fires on the 3rd
 # consecutive failed-or-unknown check. After that, at most one alert per
-# AU_CHECK_ALERT_INTERVAL seconds (default 86400). The delivery timestamp is written ONLY
-# when notify() succeeds, so a dead channel retries on the next tick.
-AU_CHECK_ALERT_INTERVAL="${AU_CHECK_ALERT_INTERVAL:-86400}"
-case "$AU_CHECK_ALERT_INTERVAL" in ''|*[!0-9]*) AU_CHECK_ALERT_INTERVAL=86400 ;; esac
-if [ "${#AU_CHECK_ALERT_INTERVAL}" -gt 9 ] || [ "$((10#$AU_CHECK_ALERT_INTERVAL))" -le 0 ]; then
-    AU_CHECK_ALERT_INTERVAL=86400
-fi
-AU_CHECK_ALERT_INTERVAL=$((10#$AU_CHECK_ALERT_INTERVAL))
-# Line-anchored verdict patterns. Quoted diagnostic text in the middle of a line never matches.
+# AU_CHECK_ALERT_INTERVAL seconds (default 86400, parsed with the other knobs above). The
+# delivery timestamp is written ONLY when notify() succeeds, so a dead channel retries on the
+# next tick.
+# Line-anchored --yes patterns. Quoted diagnostic text in the middle of a line never matches.
 RE_COMPLETE='^[[:space:]]*(✓[[:space:]]*)?Update complete([^[:alnum:]_]|$)'
 RE_NOOP='^[[:space:]]*((✓|→)[[:space:]]*)?(Already up to date|Holding at this build|No newer release|Up to date with the latest release)([^[:alnum:]_]|$)'
 
-# Epoch reader. This is NOT read_counter, whose 6-digit clamp would zero every real epoch.
-# Garbage, empty, or more than 12 digits echoes nothing, and the caller treats that as
-# "no timestamp": it alerts, and on delivery the file is overwritten (self-heal).
-read_ts() {
-    local v
-    v=$(head -c 64 "$STATE_DIR/$1" 2>/dev/null | tr -d '[:space:]')
-    case "$v" in ''|*[!0-9]*) return 0 ;; esac
-    [ "${#v}" -le 12 ] || return 0
-    printf '%s' "$((10#$v))"
-}
-fmt_ts() { date -d "@$1" '+%F %T %Z' 2>/dev/null || printf '%s' "$1"; }
 mark_installed() { date +%s > "$STATE_DIR/last_install_ts"; }   # call ONLY on proven installs
 check_ok() { echo 0 > "$STATE_DIR/consec_check_fails"; rm -f "$STATE_DIR/check_alert_last_ts"; }
+# A conclusive updater run (proven install, or a legitimate no-op after the veto and the drain
+# recheck) ends the real-failure streak: the next unrelated failure must alert at once.
+reset_real_fails() { echo 0 > "$STATE_DIR/consec_real_fails"; rm -f "$STATE_DIR/real_alert_last_ts"; }
+# Leaving the "checkout newer than the selected release" state ends its reminder cycle.
+# rollback_notified is the pre-5.15 one-shot marker; removed wherever the stamp is.
+clear_rollback_remind() { rm -f "$STATE_DIR/rollback_remind_ts" "$STATE_DIR/rollback_notified"; }
 
-# Bounded multiline error summary. Channel banner lines and blank lines are dropped.
+# Real (install-phase) failures. The first failure of a streak alerts at once; while the streak
+# persists, re-alert by WALL CLOCK every AU_REALERT_SECS (a count of every 12th tick meant every
+# 12 days on the daily schedule). The stamp is written only when the alert is delivered, so an
+# undelivered first alert is retried on the next failure. Sets REAL_F (the streak length).
+real_fail_count() {
+    REAL_F=$(read_counter consec_real_fails); REAL_F=$((REAL_F + 1))
+    echo "$REAL_F" > "$STATE_DIR/consec_real_fails"
+}
+real_fail_alert() {  # $1 = alert text (call real_fail_count first)
+    if [ "$REAL_F" -eq 1 ] || interval_due real_alert_last_ts "$AU_REALERT_SECS"; then
+        if notify "$1"; then
+            echo "$TICK_TS" > "$STATE_DIR/real_alert_last_ts"
+        else
+            log "real-failure alert #$REAL_F not delivered — retrying on the next failure"
+        fi
+    else
+        log "failure #$REAL_F - notify suppressed (last alert $(fmt_ts "$(read_ts real_alert_last_ts)"), re-alert interval ${AU_REALERT_SECS}s)"
+    fi
+}
+# The generic install-phase REAL FAILURE exit (reads STATUS / OUTCOME / UPDATE_OUT). $1 = extra
+# reason for the alert (optional).
+real_failure_exit() {
+    log "REAL FAILURE (exit=$STATUS, receipt=$OUTCOME)${1:+ — $1}"
+    real_fail_count
+    real_fail_alert "✗ hermes auto-update failed (attempt $REAL_F, exit $STATUS, receipt $OUTCOME)${1:+ — $1}: $(echo "$UPDATE_OUT" | grep -E "✗|⚠" | head -2 | tr '\n' ' ')"
+    exit 1
+}
+
+# Bounded multiline error summary. Channel banner lines and blank lines are dropped. Lines with
+# a ✗ or naming error / failed / timed out (any case) come FIRST, each with the one line after it
+# as context; the remaining budget is filled with the other lines in order; only then is the
+# result bounded (6 lines, 200 bytes per line, 1000 bytes total). So a real error after a screen
+# of cleanup chatter (update_cmd_check.py:49/:52/:62 print before the verdict) is never cut off.
 check_summary() {
     local s
-    s=$(printf '%s\n' "$1" | tr -d '\r' | grep -vE '^[[:space:]]*(→[[:space:]]*Update channel:.*)?$' \
-        | head -n 6 | cut -c1-200 | head -c 1000)
+    s=$(printf '%s\n' "$1" | tr -d '\r' | awk '
+        /^[[:space:]]*$/ { next }
+        /^[[:space:]]*→[[:space:]]*Update channel:/ { next }
+        { n++; line[n] = $0; low = tolower($0)
+          if (index($0, "✗") || low ~ /error|failed|timed out/) pri[n] = 1 }
+        END {
+          max = 6; out = 0
+          for (i = 1; i <= n && out < max; i++) {
+            if (!pri[i]) continue
+            if (!seen[i]) { seen[i] = 1; print line[i]; out++ }
+            if (i + 1 <= n && !seen[i + 1] && out < max) { seen[i + 1] = 1; print line[i + 1]; out++ }
+          }
+          for (i = 1; i <= n && out < max; i++)
+            if (!seen[i]) { seen[i] = 1; print line[i]; out++ }
+        }' | cut -c1-200 | head -c 1000)
     printf '%s' "${s:-(no output)}"
 }
 
 # Failed (nonzero) and unknown checks share ONE counter and ONE cadence.
 check_problem() {  # $1 = label
-    local n now last li due=0 msg
+    local n li msg
     n=$(read_counter consec_check_fails); n=$((n + 1))
     echo "$n" > "$STATE_DIR/consec_check_fails"
     [ "$n" -ge 3 ] || return 0
-    now=$(date +%s)
-    last=$(read_ts check_alert_last_ts)
-    # Alert when any of these holds:
-    #   - this is the 3rd failure;
-    #   - there is no usable timestamp (migration from the old counter at N>3, or malformed/huge);
-    #   - the timestamp is in the future (beyond 300s skew), which would otherwise suppress forever;
-    #   - the interval has elapsed.
-    if [ "$n" -eq 3 ] || [ -z "$last" ] || [ "$last" -gt $((now + 300)) ] \
-        || [ $((now - last)) -ge "$AU_CHECK_ALERT_INTERVAL" ]; then due=1; fi
-    if [ "$due" -ne 1 ]; then
-        log "check problem #$n — alert suppressed (last alert $(fmt_ts "$last"), interval ${AU_CHECK_ALERT_INTERVAL}s)"
+    # Alert when this is the 3rd problem, or when interval_due says so: no usable timestamp
+    # (migration from the old counter at N>3, malformed/huge), a timestamp more than 300s in the
+    # future (would otherwise suppress forever), or the interval has elapsed.
+    if [ "$n" -ne 3 ] && ! interval_due check_alert_last_ts "$AU_CHECK_ALERT_INTERVAL"; then
+        log "check problem #$n — alert suppressed (last alert $(fmt_ts "$(read_ts check_alert_last_ts)"), interval ${AU_CHECK_ALERT_INTERVAL}s)"
         return 0
     fi
     li=$(read_ts last_install_ts)
@@ -381,39 +495,118 @@ check_problem() {  # $1 = label
 last successful install: $(if [ -n "$li" ]; then fmt_ts "$li"; else echo unknown; fi)
 $(check_summary "$CHECK_OUT")"
     if notify "$msg"; then
-        date +%s > "$STATE_DIR/check_alert_last_ts"
+        echo "$TICK_TS" > "$STATE_DIR/check_alert_last_ts"
     else
         log "check alert #$n not delivered — retrying next tick"
     fi
 }
 
-# Classify --check output from LINE-START verdicts only.
-# Possible results: available | uptodate | held | rollback | unknown.
-# A ✗ line, conflicting verdicts, or no verdict at all yields unknown (fail closed).
-classify_verdicts() {
-    local line v m low found=""
-    while IFS= read -r line; do
-        line="${line%$'\r'}"
-        line="${line#"${line%%[![:space:]]*}"}"
-        case "$line" in *"✗"*) v=error ;; *)
-            for m in "✓" "→" "⚕" "•" "🔄" "⬆"; do
-                case "$line" in "$m"*) line="${line#"$m"}"; line="${line#"${line%%[![:space:]]*}"}"; break ;; esac
-            done
-            case "$line" in
-                "Selected release available"|"Selected release available"[![:alnum:]_]*|"Update available"|"Update available"[![:alnum:]_]*) v=available ;;
-                "No newer release"*|"Up to date with the latest release"*|"Already up to date"*) v=uptodate ;;
-                "Holding at this build"*) v=held ;;
-                "This checkout is newer than the selected release"*) v=rollback ;;
-                *) low="${line,,}"
-                    case "$low" in
-                        *"release available"*|*"update available"*|*"no newer release"*|*"up to date"*|*"holding at this build"*|*"newer than the selected release"*) v=error ;;
-                        *) continue ;;
-                    esac ;;
-            esac ;;
+# --- `hermes update --check` output contract (upstream has NO machine-readable form) ---------
+# `--check` is a bare store_true flag (hermes_cli/subcommands/update.py:18-20); every verdict is
+# a print() followed by exit 0 (hermes_cli/update_cmd_check.py, byte-identical in v0.23.1,
+# v0.23.2 and upstream main 67e4d22). The text is therefore the contract, matched WHOLE LINE
+# after trimming surrounding whitespace and one trailing CR:
+#   stable  :110 "✓ No newer release: {label}."     (label may be the "ahead" form, see below)
+#           :112 "✓ Up to date with the latest release ({label})."
+#           :115 "→ Holding at this build: {label} predates the gateway runtime your sessions use."
+#           :119 "→ This checkout is newer than the selected release: {label}."
+#           :123 "→ Selected release available: {label}"
+#   main    :200/:208/:222 "✓ Already up to date."
+#           :212/:225 "⚕ Update available: {N} commit(s) behind {ref}."  :214 "⚕ Update available (behind {ref})."
+#           Older builds printed the same two sentences with ☤ (v2026.9.24 update_cmd.py:623/:625)
+#           and ⚕ before that (v2026.6.19/v2026.7.20 main.py); no release printed a glyph-less
+#           --check verdict, so a glyph-less line is NOT accepted.
+#   label   hermes_cli/source_releases.py:61-65: "{channel} v{version} ({commit[:12]})", or for
+#           "No newer release" the ahead form "{channel} v{version}; this checkout is newer and
+#           waits for the next release (`hermes update --set-channel main` follows every commit)".
+#   context :97 banner, :108 retired line, :116-117 / :120-121 / :124 / :215 / :228 hints,
+#           :143 / :164 "→ Fetching from {remote}...", and the `  (…)` cleanup lines :49 :52 :62
+#           :65 :180 :183 — accepted, carry no verdict.
+# A line with ✗, a line containing error / failed / timed out (any case), and ANY other non-empty
+# line make the whole output unknown. Errors exit 1 upstream (:103-104, update_cmd.py:639/:669).
+_V_LBL='[^[:space:]]+ v[^[:space:]]+( \([0-9a-f]{7,40}\))?'
+_V_LBL_AHEAD='[^[:space:]]+ v[^[:space:]]+; this checkout is newer and waits for the next release \(`hermes update --set-channel main` follows every commit\)'
+_V_REF='[^[:space:]]+'
+V_UPTODATE="^(✓ No newer release: ($_V_LBL|$_V_LBL_AHEAD)\.|✓ Up to date with the latest release \($_V_LBL\)\.|✓ Already up to date\.)\$"
+V_HELD="^→ Holding at this build: $_V_LBL predates the gateway runtime your sessions use\.\$"
+V_ROLLBACK="^→ This checkout is newer than the selected release: $_V_LBL\.\$"
+V_AVAILABLE="^(→ Selected release available: $_V_LBL|(⚕|☤) Update available(: [0-9]+ commits? behind $_V_REF\.| \(behind $_V_REF\)\.))\$"
+V_CONTEXT="^(→ Update channel: $_V_REF|→ $_V_REF retired; source destination: $_V_REF|→ Fetching from $_V_REF\.\.\.|Run '[^']+' to install\.|\((removed stale git lock: .+|removed [0-9]+ aborted-fetch pack temp file\(s\)|git cleanup: .+|git cleanup stopped at its [0-9]+s limit; the next update continues it|restored [0-9]+ broken shallow boundary\(ies\)|pruned [0-9]+ stale shallow graft\(s\) left by past depth-1 checks)\))\$"
+
+# Classify ONE output line into CL: blank | error | uptodate | held | rollback | available |
+# context | unknown. Sets a global (no subshell) so loops stay cheap.
+classify_line() {
+    local l="${1%$'\r'}"
+    l="${l#"${l%%[![:space:]]*}"}"
+    l="${l%"${l##*[![:space:]]}"}"
+    CL=blank
+    [ -n "$l" ] || return 0
+    CL=error
+    case "$l" in *"✗"*) return 0 ;; esac
+    case "${l,,}" in *error*|*failed*|*"timed out"*) return 0 ;; esac
+    if [[ $l =~ $V_UPTODATE ]]; then CL=uptodate
+    elif [[ $l =~ $V_HELD ]]; then CL=held
+    elif [[ $l =~ $V_ROLLBACK ]]; then CL=rollback
+    elif [[ $l =~ $V_AVAILABLE ]]; then CL=available
+    elif [[ $l =~ $V_CONTEXT ]]; then CL=context
+    else
+        case "$l" in
+            '`hermes update` stays on this build; the next release that includes the runtime installs normally (`hermes update --set-channel main` follows every commit).' \
+            | '`hermes update` moves it back to that release (`hermes update --set-channel main` follows every commit).' \
+            | 'Run `hermes update` to install it.') CL=context ;;
+            *) CL=unknown ;;
         esac
-        case " $found " in *" $v "*) ;; *) found="${found:+$found }$v" ;; esac
+    fi
+}
+
+# Classify --check output. Echoes available | uptodate | held | rollback | unknown.
+# unknown (fail closed) = any error line, any unrecognized non-empty line, no verdict, or two
+# different verdicts.
+classify_verdicts() {
+    local line found="" bad=0
+    while IFS= read -r line; do
+        classify_line "$line"
+        case "$CL" in
+            blank|context) ;;
+            error|unknown) bad=1 ;;
+            *) case " $found " in *" $CL "*) ;; *) found="${found:+$found }$CL" ;; esac ;;
+        esac
     done <<< "$1"
+    if [ "$bad" -ne 0 ]; then echo unknown; return 0; fi
     case "$found" in available|uptodate|held|rollback) echo "$found" ;; *) echo unknown ;; esac
+}
+
+# Why --check output is unknown, for the log: the first error / unrecognized line, else
+# "no verdict" or the conflicting verdict set.
+verdict_detail() {
+    local line found=""
+    while IFS= read -r line; do
+        classify_line "$line"
+        case "$CL" in
+            error|unknown) printf '%s line: %s' "$CL" "$(printf '%s' "$line" | tr -d '\r' | head -c 200)"; return 0 ;;
+            uptodate|held|rollback|available) found="${found:+$found }$CL" ;;
+        esac
+    done <<< "$1"
+    printf '%s' "${found:+conflicting verdicts: $found}"
+    [ -n "$found" ] || printf 'no verdict line'
+}
+
+# --yes no-op veto. A no-op line (RE_NOOP) is accepted as "nothing installed, nothing wrong" only
+# if no line of the SAME output says otherwise: a ✗ line, a line naming error / failed / timed out
+# (any case), or an available / rollback verdict line. Echoes the reason and returns 0 when
+# vetoed; returns 1 (no output) when the no-op may stand.
+yes_noop_veto() {
+    local line
+    while IFS= read -r line; do
+        classify_line "$line"
+        case "$CL" in
+            error)
+                printf 'error line: %s' "$(printf '%s' "$line" | tr -d '\r' | head -c 200)"; return 0 ;;
+            available|rollback)
+                printf 'conflicting %s verdict: %s' "$CL" "$(printf '%s' "$line" | tr -d '\r' | head -c 200)"; return 0 ;;
+        esac
+    done <<< "$1"
+    return 1
 }
 
 # Version from the completion line.
@@ -561,38 +754,49 @@ VERDICT=$(classify_verdicts "$CHECK_OUT")
 case "$VERDICT" in
     uptodate|held)
         check_ok   # conclusive: nothing to install
-        rm -f "$STATE_DIR/rollback_notified"
-        # D3: a healthy no-update tick is a SUCCESSFUL updater run. Reset the real-failure
-        # count so the next unrelated failure is not deduped by a stale count.
-        echo 0 > "$STATE_DIR/consec_real_fails"
+        clear_rollback_remind
         if [ "$VERDICT" = held ]; then
             log "held (benign, no install): $(printf '%s\n' "$CHECK_OUT" | grep -m1 'Holding at this build' | head -c 300)"
         else
             log "up-to-date: $(echo "$CHECK_OUT" | tail -1)"
         fi
-        recheck_drain_marker || exit 1
+        recheck_drain_marker; DRAIN_RC=$?
+        # D3: a healthy no-update tick is a SUCCESSFUL updater run. Reset the real-failure count
+        # (after the drain recheck) so the next unrelated failure is not deduped by a stale count.
+        reset_real_fails
+        [ "$DRAIN_RC" -eq 0 ] || exit 1
         exit 0 ;;
     rollback)
         # The checkout is newer than the selected release. Moving it back is a manual decision:
-        # never run --yes for this verdict, regardless of AU_APPLY.
+        # never run --yes for this verdict, regardless of AU_APPLY. Not a check failure either.
+        # Remind at a low frequency (AU_ROLLBACK_REMIND_SECS) for as long as the state holds; the
+        # stamp is written only after delivery, so a dead channel retries on the next tick.
         check_ok
-        echo 0 > "$STATE_DIR/consec_real_fails"
         log "⚠ checkout newer than selected release — rollback is manual, NOT applied: $(printf '%s\n' "$CHECK_OUT" | grep -m1 'newer than the selected release' | head -c 300)"
-        if [ ! -f "$STATE_DIR/rollback_notified" ]; then
-            notify "→ hermes auto-update: this checkout is newer than the selected release — NOT moved back automatically (manual: run hermes update by hand, or hermes update --set-channel main)" \
-                && touch "$STATE_DIR/rollback_notified"
+        if interval_due rollback_remind_ts "$AU_ROLLBACK_REMIND_SECS"; then
+            if notify "→ hermes auto-update: this checkout is newer than the selected release — NOT moved back automatically (manual: run hermes update by hand, or hermes update --set-channel main). Reminder repeats every $((AU_ROLLBACK_REMIND_SECS / 3600))h while this holds."; then
+                echo "$TICK_TS" > "$STATE_DIR/rollback_remind_ts"
+                rm -f "$STATE_DIR/rollback_notified"
+            else
+                log "rollback reminder not delivered — retrying next tick"
+            fi
+        else
+            log "rollback reminder suppressed (last $(fmt_ts "$(read_ts rollback_remind_ts)"), interval ${AU_ROLLBACK_REMIND_SECS}s)"
         fi
-        recheck_drain_marker || exit 1
+        recheck_drain_marker; DRAIN_RC=$?
+        reset_real_fails
+        [ "$DRAIN_RC" -eq 0 ] || exit 1
         exit 0 ;;
     available) ;;
     *)
-        log "⚠ unrecognized --check output (wording changed upstream?): $(echo "$CHECK_OUT" | head -2 | tr '\n' ' ')"
+        log "⚠ unrecognized --check output (wording changed upstream?): $(verdict_detail "$CHECK_OUT")"
         check_problem "output unrecognized/conflicting — update pipeline may be stalled"
         exit 0 ;;
 esac
 
 check_ok   # conclusive: an update really is available
-rm -f "$STATE_DIR/rollback_notified"
+clear_rollback_remind
+
 log "update available: $(printf '%s\n' "$CHECK_OUT" | grep -m1 -E 'available' | head -c 300)"
 
 # --- apply gate -------------------------------------------------------------------
@@ -663,10 +867,8 @@ echo "$UPDATE_OUT" | tail -40 >> "$LOG"
 if [ "$STATUS" = "124" ] || [ "$STATUS" = "137" ]; then
     log "REAL FAILURE: updater exceeded ${AU_UPDATE_TIMEOUT}s (exit=$STATUS) — wedged, not slow"
     touch "$STATE_DIR/drain_pending"
-    n=$(read_counter consec_real_fails); n=$((n + 1)); echo "$n" > "$STATE_DIR/consec_real_fails"
-    if [ "$n" = "1" ] || [ $((n % 12)) -eq 0 ]; then
-        notify "✗ hermes auto-update: updater WEDGED (no completion within ${AU_UPDATE_TIMEOUT}s, exit=$STATUS) — install state unknown, check the host (updater v${UPDATER_VERSION})"
-    fi
+    real_fail_count
+    real_fail_alert "✗ hermes auto-update: updater WEDGED (no completion within ${AU_UPDATE_TIMEOUT}s, exit=$STATUS) — install state unknown, check the host (updater v${UPDATER_VERSION})"
     exit 1
 fi
 
@@ -751,10 +953,19 @@ if [ "$STATUS" -eq 0 ]; then
             exit 1
         fi
         if printf '%s\n' "$UPDATE_OUT" | grep -qE "$RE_NOOP"; then
+            # A no-op line alone never outvotes the rest of the output: a ✗ line, an error /
+            # failed / timed out line, or an available / rollback verdict next to it means the
+            # run is NOT a harmless no-op. That is a REAL FAILURE (counted, alerted, exit 1).
+            if VETO=$(yes_noop_veto "$UPDATE_OUT"); then
+                real_failure_exit "no-op line vetoed ($VETO)"
+            fi
             log "no-op: beaten by another updater between check and install / held / no newer release (exit=0, receipt=$OUTCOME): $(printf '%s\n' "$UPDATE_OUT" | grep -m1 -E "$RE_NOOP" | head -c 200)"
             # No install happened, so never mark_installed here. A pending drain marker must
-            # still be re-verified, exactly as on the check-time no-update path.
-            recheck_drain_marker || exit 1
+            # still be re-verified, exactly as on the check-time no-update path; then this
+            # legitimate no-op ends any real-failure streak (same as the check-time no-op).
+            recheck_drain_marker; DRAIN_RC=$?
+            reset_real_fails
+            [ "$DRAIN_RC" -eq 0 ] || exit 1
             exit 0
         fi
         log "⚠ exit=0, stale receipt, output unrecognized — treating as inconclusive"
@@ -771,7 +982,7 @@ if [ "$STATUS" -eq 0 ]; then
     fi
     if [ "$OUTCOME" = "success" ]; then
         log "success $VERSION (receipt: success)"
-        echo 0 > "$STATE_DIR/consec_real_fails"
+        reset_real_fails
         mark_installed   # fresh, kind-checked success receipt owned by THIS run (correlated, or legacy + this run's own evidence) = proven install
         # receipt=success means the restart was ISSUED (upstream: restart.incomplete only
         # covers a failed signal) — NOT that the new gateway process actually came up on
@@ -825,7 +1036,7 @@ if [ "$STATUS" -eq 0 ]; then
     done
     if [ "$GW_OK" -eq 1 ]; then
         log "success $VERSION (receipt: $OUTCOME → gateway confirmed current)"
-        echo 0 > "$STATE_DIR/consec_real_fails"
+        reset_real_fails
         clear_drain_marker
         notify "✓ hermes agent updated to ${VERSION:-unknown} — gateway restarted (updater v${UPDATER_VERSION})"
         exit 0
@@ -855,7 +1066,7 @@ if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "partial" ]; then
     # text fallback is the line-anchored RE_COMPLETE (HAS_COMPLETE), never a substring match.
     if [ "$SHA_ADVANCED" = "1" ] || [ "$HAS_COMPLETE" = "1" ]; then
         log "success $VERSION (exit=$STATUS but receipt=$OUTCOME, code landed per SHA advance/text — restart race, not failure)"
-        echo 0 > "$STATE_DIR/consec_real_fails"
+        reset_real_fails
         if [ "$SHA_ADVANCED" = "1" ] || [ "$HAS_COMPLETE" = "1" ]; then mark_installed; fi
         # DO NOT clear the drain marker here: the race means the gateway was NOT
         # confirmed current — the receipt froze stale. Keep/refresh the marker so the
@@ -867,15 +1078,8 @@ if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "partial" ]; then
     fi
 fi
 
-# Real failure. Dedup on a consec-counter (hourly cron + a persistent failure like a
-# merge conflict would otherwise spam one X per hour): alert at 1, then every 12th (12h).
-log "REAL FAILURE (exit=$STATUS, receipt=$OUTCOME)"
-F=$(read_counter consec_real_fails)
-F=$((F + 1))
-echo "$F" > "$STATE_DIR/consec_real_fails"
-if [ "$F" -eq 1 ] || [ $((F % 12)) -eq 0 ]; then
-    notify "✗ hermes auto-update failed (attempt $F, exit $STATUS, receipt $OUTCOME): $(echo "$UPDATE_OUT" | grep -E "✗|⚠" | head -2 | tr '\n' ' ')"
-else
-    log "failure #$F - notify suppressed (alerted on attempt 1, re-alerts every 12)"
-fi
-exit 1
+# Real failure. First failure of a streak alerts at once; a persisting failure re-alerts by wall
+# clock every AU_REALERT_SECS (default ~3 days) — a tick count here (the old "every 12th") meant
+# every 12 DAYS on the daily schedule. See real_fail_alert().
+real_failure_exit
+
