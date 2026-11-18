@@ -1,0 +1,53 @@
+{
+  "schema": 1,
+  "started_at": "2026-11-18T09:05:16.227638+00:00",
+  "finished_at": "2026-11-18T09:05:16.389533+00:00",
+  "argv": [
+    "hermes",
+    "update",
+    "--yes"
+  ],
+  "pid": 253133,
+  "outcome": "success",
+  "pre_update": {
+    "sha": "1fe262afe6d8914e84fdc2de6ce2a533d07771cc",
+    "short_sha": "1fe262af",
+    "version": "unknown",
+    "source": "git",
+    "commit_date": 1794992715
+  },
+  "post_update": {
+    "sha": "1fe262afe6d8914e84fdc2de6ce2a533d07771cc",
+    "short_sha": "1fe262af",
+    "version": "unknown",
+    "source": "git",
+    "commit_date": 1794992715
+  },
+  "steps": [],
+  "skips": [],
+  "gateway_restart": {},
+  "fleet": [],
+  "update_id": "f737be499e4547309cd95508b25fbad0",
+  "correlation_id": "au-probe-d2ce2aff92ad418e8732c36616d04aee",
+  "action_id": null,
+  "stages": [
+    {
+      "name": "plan",
+      "outcome": "success",
+      "at": "2026-11-18T09:05:16.306989+00:00"
+    },
+    {
+      "name": "apply",
+      "outcome": "skipped",
+      "at": "2026-11-18T09:05:16.307855+00:00",
+      "mode": "git"
+    },
+    {
+      "name": "deps",
+      "outcome": "success",
+      "at": "2026-11-18T09:05:16.362861+00:00"
+    }
+  ],
+  "exit_code": 0,
+  "stop_reason": "source update completion"
+}

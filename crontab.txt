@@ -10,6 +10,7 @@
 #     stays in the scheduler shell and silently falls back to the script's built-in defaults.
 #     The `[ -f ]` guard keeps a missing file from aborting the line before the flag is set.
 #
-# Adjust the hour to taste; 03:23 keeps the tick off the hour. Alert cadences (every 12th
-# failure) are counted in TICKS, so rescale them if you change the frequency.
+# Adjust the hour to taste; 03:23 keeps the tick off the hour. Re-alert cadences are wall
+# clock (AU_CHECK_ALERT_INTERVAL / AU_REALERT_SECS / AU_ROLLBACK_REMIND_SECS, in seconds) and
+# do not rescale with the frequency; only the drain-pending re-alert (every 3rd tick) does.
 23 3 * * * set -a; [ -f $HOME/.hermes/scripts/auto_update.env ] && . $HOME/.hermes/scripts/auto_update.env; set +a; AU_APPLY=1 $HOME/.hermes/scripts/auto_update.sh >> $HOME/.hermes/logs/auto_update_cron.log 2>&1

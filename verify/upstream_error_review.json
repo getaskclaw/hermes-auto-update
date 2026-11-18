@@ -1,0 +1,1073 @@
+{
+ "about": "Every distinct upstream print() line (all official release tags, scripts/upstream_print_corpus.py) that auto_update.sh's --yes error rule (yes_error_line) hits. verdict=error: the line reports a failure, so vetoing a no-op on it is right. verdict=exempt: a normal sentence; auto_update.sh V_YES_EXEMPT must let exactly that whole sentence pass (the gate re-checks it with 'sample'). A hit missing here fails the release gate.",
+ "check_registered": {
+  "⚕ Update available on PyPI.": {
+   "src": "hermes_cli/main.py:8878@v2026.7.20",
+   "tags": "v2026.5.16..v2026.7.20",
+   "why": "--check verdict of a pip/PyPI install (_cmd_update_check pip branch). classify_verdicts judges it unknown: fail closed (check alert from the 3rd tick, never installs). Not changed in PATCH4 (the --check classification is frozen this round); registered in FIX-RESULT-MAIN4 for the orchestrator."
+  }
+ },
+ "lines": {
+  "      <<_sudo_hint>>systemctl <<_scope_flag>>reset-failed <<svc_name>>": {
+   "src": "hermes_cli/update_cmd_fleet.py:1392@v0.23.2",
+   "tags": "v2026.6.19..v0.23.2",
+   "verdict": "error",
+   "why": "detail / remedy line of the failure message printed just before it"
+  },
+  "      systemctl <<_scope_flag>>reset-failed <<svc_name>>": {
+   "src": "hermes_cli/main.py:11347@v2026.6.5",
+   "tags": "v2026.5.7..v2026.6.5",
+   "verdict": "error",
+   "why": "detail / remedy line of the failure message printed just before it"
+  },
+  "    Continuing in-process; if it cannot replace the shim, run:": {
+   "src": "hermes_cli/main.py:9409@v2026.8.31",
+   "tags": "v2026.8.19..v2026.8.31",
+   "verdict": "error",
+   "why": "detail / remedy line of the failure message printed just before it"
+  },
+  "    ✗ failed to stop PID <<pid>>: <<err_msg>>": {
+   "src": "hermes_cli/main.py:6421@v2026.7.20",
+   "tags": "v2026.5.16..v2026.7.20",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "    ✗ failed to stop PID <<pid>>: <<reason>>": {
+   "src": "hermes_cli/main.py:5809@v2026.5.7",
+   "tags": "v2026.4.30..v2026.5.7",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  (An index entry from `git add -N` is the usual cause of this error; `git add` the": {
+   "src": "hermes_cli/update_cmd_stash.py:278@v0.23.2",
+   "tags": "v2026.9.21..v0.23.2",
+   "verdict": "error",
+   "why": "detail / remedy line of the failure message printed just before it"
+  },
+  "  <<'✗' if fatal else '⚠'>> Web UI build failed": {
+   "src": "hermes_cli/main.py:5570@v2026.5.7",
+   "tags": "v2026.4.13..v2026.5.7",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  <<'✗' if fatal else '⚠'>> Web UI npm install failed": {
+   "src": "hermes_cli/main.py:5561@v2026.5.7",
+   "tags": "v2026.4.13..v2026.5.7",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  <<p.name>>: error (<<pe>>)": {
+   "src": "hermes_cli/update_cmd_maint.py:856@v0.23.2",
+   "tags": "v2026.3.30..v0.23.2",
+   "verdict": "error",
+   "why": "profile skill sync failed for that profile (update_cmd_maint.py: _profile_skill_sync_status error)"
+  },
+  "  Could not capture pre-pull SHA — recover manually with:": {
+   "src": "hermes_cli/update_cmd.py:968@v0.23.2",
+   "tags": "v2026.5.28..v0.23.2",
+   "verdict": "error",
+   "why": "detail / remedy line of the failure message printed just before it"
+  },
+  "  Could not verify whether HEAD is an ancestor of <<merge_ref>>.": {
+   "src": "hermes_cli/update_cmd.py:1042@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "detail / remedy line of the failure message printed just before it"
+  },
+  "  Health check failed: <<failing_target>>": {
+   "src": "hermes_cli/update_cmd_stash.py:533@v0.23.2",
+   "tags": "v2026.8.31..v0.23.2",
+   "verdict": "error",
+   "why": "detail / remedy line of the failure message printed just before it"
+  },
+  "  Hermes may not start until the dependencies are installed. Fix the error above": {
+   "src": "hermes_cli/update_cmd.py:1679@v0.23.2",
+   "tags": "v2026.9.21..v0.23.2",
+   "verdict": "error",
+   "why": "detail / remedy line of the failure message printed just before it"
+  },
+  "  On Windows a mapped extension cannot be replaced by the process": {
+   "src": "hermes_cli/update_cmd_deps.py:1055@v2026.9.24",
+   "tags": "v2026.8.16..v2026.9.24",
+   "verdict": "error",
+   "why": "detail / remedy line of the failure message printed just before it"
+  },
+  "  Resolve the Git error and re-run `hermes update`; no reset was attempted.": {
+   "src": "hermes_cli/update_cmd.py:1046@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "detail / remedy line of the failure message printed just before it"
+  },
+  "  The git update already finished. Re-downloading the source ZIP cannot fix a dependency install error and would overwrite local files.": {
+   "src": "hermes_cli/update_cmd.py:1157@v2026.9.14",
+   "tags": "v2026.8.27..v2026.9.14",
+   "verdict": "error",
+   "why": "detail / remedy line of the failure message printed just before it"
+  },
+  "  ℹ Got updates from upstream but couldn't push to fork (no write access?)": {
+   "sample": "  ℹ Got updates from upstream but couldn't push to fork (no write access?)",
+   "src": "hermes_cli/update_cmd.py:3099@v2026.8.31",
+   "tags": "v2026.4.3..v2026.8.31",
+   "verdict": "exempt",
+   "why": "Informational (ℹ) fork notice: the local checkout WAS updated from upstream, only the push back to the user's fork was not possible (update_cmd.py:3094-3101 @v2026.8.31, followed by 'Your local repo is updated')."
+  },
+  "  ⏳ systemctl <<verb>> <<svc_name>> timed out after <<timeout>>s; systemd finished the job after <<waited>>s (<<active>>)": {
+   "sample": "  ⏳ systemctl restart hermes-gateway.service timed out after 90s; systemd finished the job after 104s (active)",
+   "src": "hermes_cli/update_cmd_fleet_unit_budget.py:119@v0.23.2",
+   "tags": "v0.22.6..v0.23.2",
+   "verdict": "exempt",
+   "why": "Slow but completed unit job: systemctl's own timeout expired, then systemd finished the job and the unit reached the requested state (the function returns 0 only then: update_cmd_fleet_unit_budget.py:118-120). Exempt only with the settled state active / inactive; '(failed)' is NOT exempt."
+  },
+  "  ⏳ systemctl <<verb>> <<svc_name>> timed out after <<timeout>>s; systemd's job is still running after <<waited>>s (<<active>>/<<state.get('SubState', '?')>>)": {
+   "src": "hermes_cli/update_cmd_fleet_unit_budget.py:115@v0.23.2",
+   "tags": "v0.22.6..v0.23.2",
+   "verdict": "error",
+   "why": "unit job still running after systemctl timed out (restart not done)"
+  },
+  "  ⚠ <<feature>> failed to refresh: <<_clip(status.split(': ', 1)[-1])>>": {
+   "src": "hermes_cli/update_cmd_deps.py:430@v2026.9.24",
+   "tags": "v2026.9.7..v2026.9.24",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ <<feature>> failed to refresh: <<reason>>": {
+   "src": "hermes_cli/update_cmd.py:3744@v2026.8.31",
+   "tags": "v2026.5.16..v2026.8.31",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ <<label>>: could not be signalled (<<exc>>) — restart it by hand": {
+   "src": "hermes_cli/update_cmd_stale_survivors.py:63@v0.23.2",
+   "tags": "v2026.9.21..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ <<name>> failed to restore: <<_clip(reason)>>": {
+   "src": "hermes_cli/update_cmd_deps.py:362@v2026.9.24",
+   "tags": "v2026.9.7..v2026.9.24",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ <<name>> failed to restore: <<reason>>": {
+   "src": "hermes_cli/update_cmd.py:3657@v2026.8.31",
+   "tags": "v2026.8.16..v2026.8.31",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ <<proc.profile>>: could not arm an automatic gateway restart for PID <<pid>> — stopping it instead so it cannot keep running pre-update code": {
+   "src": "hermes_cli/update_cmd_fleet.py:1590@v0.23.2",
+   "tags": "v2026.8.27..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ <<provider>> dependencies failed to refresh: <<exc>>": {
+   "src": "hermes_cli/update_cmd_deps.py:492@v2026.9.24",
+   "tags": "v2026.7.30..v2026.9.24",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Backup failed: <<exc>>": {
+   "src": "hermes_cli/update_cmd_maint.py:726@v0.23.2",
+   "tags": "v2026.4.30..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Backup skipped (no files found or write failed); continuing update.": {
+   "src": "hermes_cli/update_cmd_maint.py:733@v0.23.2",
+   "tags": "v2026.4.30..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not adopt gateways an earlier update paused: <<exc>>": {
+   "src": "hermes_cli/update_cmd_posix_pause.py:97@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not enumerate tracked Python files restored from the stash.": {
+   "src": "hermes_cli/update_cmd_stash.py:468@v0.23.2",
+   "tags": "v2026.8.31..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not enumerate untracked files while validating the restored stash.": {
+   "src": "hermes_cli/update_cmd_stash.py:459@v0.23.2",
+   "tags": "v2026.8.31..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not fetch the missing commit history (<<detail[0]>>); a very stale install may time out": {
+   "src": "hermes_cli/update_cmd.py:307@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not hand the dependency install off <<shim.name>>.": {
+   "src": "hermes_cli/main.py:9408@v2026.8.31",
+   "tags": "v2026.8.19..v2026.8.31",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not install: <<', '.join(still_missing)>>. Run `hermes update --force` after closing other hermes processes.": {
+   "src": "hermes_cli/main.py:10484@v2026.8.31",
+   "tags": "v2026.6.5..v2026.8.31",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not list the running gateways (<<exc>>); they keep running and are restarted after the update": {
+   "src": "hermes_cli/update_cmd_posix_pause.py:664@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not pause every gateway (<<exc>>); restarting them, the update continues without the pause": {
+   "src": "hermes_cli/update_cmd_posix_pause.py:706@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not prepare the restart environment for <<entry['home']>>: <<exc>>": {
+   "src": "hermes_cli/update_cmd_posix_pause.py:649@v0.23.2",
+   "tags": "v0.23.1..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not quarantine <<shim.name>> (<<last_exc.__class__.__name__>>: another process is holding it open).": {
+   "src": "hermes_cli/main.py:9585@v2026.8.31",
+   "tags": "v2026.5.28..v2026.8.31",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not quarantine <<shim.name>>: <<e>>": {
+   "src": "hermes_cli/main.py:6969@v2026.5.16",
+   "tags": "v2026.5.16..v2026.5.16",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not read input (encoding issue). Skipping. Run 'hermes config migrate' manually to configure.": {
+   "src": "hermes_cli/update_cmd_config.py:163@v0.23.2",
+   "tags": "v2026.8.13..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not record the accepted stop request <<path>>: <<refused>>; <<exc>>": {
+   "src": "hermes_cli/update_pause_record.py:533@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not record the gateways to pause (<<exc>>); they keep running and are restarted after the update": {
+   "src": "hermes_cli/update_cmd_posix_pause.py:696@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not record the pending gateway-restart obligation (state dir not writable) — restart gateways with `hermes gateway restart` if this update is interrupted.": {
+   "src": "hermes_cli/update_cmd_fleet.py:112@v2026.9.24",
+   "tags": "v2026.9.21..v2026.9.24",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not record the restart this update still owes for <<sha[:10]>> (<<exc>>); run `hermes gateway restart` once the update is done.": {
+   "src": "hermes_cli/update_cmd_commit.py:211@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not record the stop request for gateway <<pid>>: <<exc>>": {
+   "src": "hermes_cli/update_pause_record.py:487@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not refresh release history (<<detail[0]>>); the version label may be stale or unknown until the next update": {
+   "src": "hermes_cli/update_cmd_maint.py:1037@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not remove the update's own copies of <<', '.join(left)>>; the next `hermes` launch removes them.": {
+   "src": "hermes_cli/update_cmd_zip.py:464@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not restart Windows gateway service: <<service_name>>": {
+   "src": "hermes_cli/update_cmd_windows.py:1338@v0.23.2",
+   "tags": "v2026.8.27..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not restart every paused gateway: <<exc>>. Run `hermes update` or `hermes gateway start`.": {
+   "src": "hermes_cli/update_pause_record.py:979@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not restart the gateway (<<e.__class__.__name__>>: <<e>>).": {
+   "src": "hermes_cli/update_cmd_fleet.py:893@v0.23.2",
+   "tags": "v2026.8.27..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not start the post-update interpreter: <<exc>>": {
+   "src": "hermes_cli/update_handoff.py:150@v0.23.2",
+   "tags": "v2026.9.21..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not update <<cfg>>: <<e>>": {
+   "src": "hermes_cli/update_cmd_maint.py:603@v0.23.2",
+   "tags": "v2026.4.30..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not update the paused-gateway record <<record_path()>>: <<exc>>": {
+   "src": "hermes_cli/update_pause_record.py:557@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Could not write the interrupted-pull marker (<<exc>>); rolling back without it.": {
+   "src": "hermes_cli/update_cmd.py:927@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Desktop build failed (non-fatal; run `hermes desktop` to retry)": {
+   "src": "hermes_cli/update_cmd.py:4589@v2026.8.18",
+   "tags": "v2026.6.5..v2026.8.18",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Desktop build failed (run `hermes desktop` to retry)": {
+   "src": "hermes_cli/update_cmd_deps.py:1130@v2026.9.24",
+   "tags": "v2026.8.19..v2026.9.24",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Entry point repair failed; try `hermes update --force` after closing other hermes processes.": {
+   "src": "hermes_cli/main.py:10301@v2026.8.31",
+   "tags": "v2026.7.1..v2026.8.31",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Failed to restart <<label>>: <<stderr>>": {
+   "src": "hermes_cli/update_cmd_fleet.py:1006@v0.23.2",
+   "tags": "v2026.8.19..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Failed to restart <<svc_name>>: <<restart.stderr.strip()>>": {
+   "src": "hermes_cli/update_cmd_fleet.py:1375@v0.23.2",
+   "tags": "v2026.4.8..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Gateway restart failed: <<stderr>>": {
+   "src": "hermes_cli/update_cmd.py:4558@v2026.8.19",
+   "tags": "v2026.4.8..v2026.8.19",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Import probes unavailable — cannot confirm venv package health.": {
+   "src": "hermes_cli/main.py:10038@v2026.8.31",
+   "tags": "v2026.7.30..v2026.8.31",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Lazy refresh failed unexpectedly: <<exc>>": {
+   "src": "hermes_cli/update_cmd_deps.py:407@v2026.9.24",
+   "tags": "v2026.5.16..v2026.9.24",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Lazy refresh failed; rerun `hermes update` once resolved.": {
+   "src": "hermes_cli/update_cmd_deps.py:433@v2026.9.24",
+   "tags": "v2026.7.30..v2026.9.24",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Node.js refresh failed for: <<', '.join(node_failures)>>": {
+   "src": "hermes_cli/update_cmd_deps.py:700@v2026.9.24",
+   "tags": "v2026.8.13..v2026.9.24",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Optional extras failed, installing base dependencies...": {
+   "src": "hermes_cli/main.py:3024@v2026.3.30",
+   "tags": "v2026.3.23..v2026.3.30",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Optional extras failed, reinstalling base dependencies and retrying extras individually...": {
+   "src": "hermes_cli/main.py:10189@v2026.8.31",
+   "tags": "v2026.4.3..v2026.8.31",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Pre-update snapshot FAILED — no recovery point was saved<<snapshot_detail>>.": {
+   "src": "hermes_cli/update_cmd_maint.py:787@v0.23.2",
+   "tags": "v2026.9.21..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Repair install failed; check `hermes update` output above.": {
+   "src": "hermes_cli/main.py:10453@v2026.8.31",
+   "tags": "v2026.6.5..v2026.8.31",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Skipped optional extras that still failed: <<', '.join(failed_extras)>>": {
+   "src": "hermes_cli/main.py:10209@v2026.8.31",
+   "tags": "v2026.4.3..v2026.8.31",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Some stopped backends could not be relaunched automatically; restart them manually (hermes serve --host <ip> --port <port>).": {
+   "src": "hermes_cli/update_cmd_windows.py:459@v0.23.2",
+   "tags": "v2026.8.27..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Some untracked files could not be removed from the working tree (permission denied).": {
+   "src": "hermes_cli/update_cmd_stash.py:284@v0.23.2",
+   "tags": "v2026.7.30..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ The clean updated tree could not be fully restored automatically.": {
+   "src": "hermes_cli/update_cmd_stash.py:552@v0.23.2",
+   "tags": "v2026.8.31..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Windows gateway restart could not be verified for: <<', '.join(unready)>>": {
+   "src": "hermes_cli/update_cmd_windows.py:1552@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ Windows gateway restart could not be verified — no stable gateway process appeared after relaunch.": {
+   "src": "hermes_cli/update_cmd_windows.py:1245@v2026.9.24",
+   "tags": "v2026.9.7..v2026.9.24",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ launchctl timed out restarting <<label>>; continuing with remaining gateways": {
+   "src": "hermes_cli/update_cmd_fleet.py:1021@v0.23.2",
+   "tags": "v2026.8.19..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ npm install failed": {
+   "src": "hermes_cli/update_cmd_deps.py:798@v2026.9.24",
+   "tags": "v2026.8.13..v2026.9.24",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ npm install failed in <<label>>": {
+   "src": "hermes_cli/main.py:8330@v2026.5.29.2",
+   "tags": "v2026.4.23..v2026.5.29.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ npm install failed in repo root": {
+   "src": "hermes_cli/update_cmd.py:2113@v2026.8.3",
+   "tags": "v2026.6.5..v2026.8.3",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ npm workspace install failed": {
+   "src": "hermes_cli/update_cmd.py:2134@v2026.8.3",
+   "tags": "v2026.6.5..v2026.8.3",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ state.db integrity check FAILED after snapshot: <<_integrity.get('message', 'unknown error')>>": {
+   "src": "hermes_cli/update_cmd_maint.py:664@v0.23.2",
+   "tags": "v2026.9.7..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ state.db integrity check FAILED after snapshot: <<_msg>>": {
+   "src": "hermes_cli/update_cmd.py:4679@v2026.8.31",
+   "tags": "v2026.7.30..v2026.8.31",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ systemctl timed out during the <<scope>>-scope gateway restart (<<exc.cmd if exc.cmd else 'unknown command'>>). Check the gateway with: hermes gateway status": {
+   "src": "hermes_cli/main.py:11331@v2026.7.20",
+   "tags": "v2026.6.19..v2026.7.20",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ systemctl timed out listing <<scope>>-scope gateway units (<<exc.cmd if exc.cmd else 'unknown command'>>). Check the gateway with: hermes gateway status": {
+   "src": "hermes_cli/update_cmd_fleet.py:1418@v0.23.2",
+   "tags": "v2026.7.30..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠ systemctl timed out restarting <<svc_name>> (<<exc.cmd if exc.cmd else 'unknown command'>>); continuing with remaining gateways": {
+   "src": "hermes_cli/update_cmd_fleet.py:1428@v0.23.2",
+   "tags": "v2026.7.30..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠️  Config format update failed: <<_mig_err>>": {
+   "src": "hermes_cli/update_cmd_config.py:225@v0.23.2",
+   "tags": "v2026.6.5..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ⚠️  Could not check config version.": {
+   "src": "hermes_cli/update_cmd_config.py:192@v0.23.2",
+   "tags": "v2026.8.27..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "  ✗ <<current_label>> restarted but launchd is not supervising a new process for it.": {
+   "src": "hermes_cli/update_cmd_fleet.py:919@v0.23.2",
+   "tags": "v2026.9.21..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ <<current_label>> restarted but launchd is not supervising it.": {
+   "src": "hermes_cli/update_cmd_fleet.py:554@v2026.9.14",
+   "tags": "v2026.8.27..v2026.9.14",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ <<label>> failed to come back after restart.": {
+   "src": "hermes_cli/update_cmd_fleet.py:1015@v0.23.2",
+   "tags": "v2026.8.19..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ <<svc_name>> failed to stay running after restart.": {
+   "src": "hermes_cli/main.py:11347@v2026.6.5",
+   "tags": "v2026.5.7..v2026.6.5",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Auto-restore FAILED — restored copy also failed integrity": {
+   "src": "hermes_cli/update_cmd_maint.py:483@v0.22.2",
+   "tags": "v2026.7.30..v0.22.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Auto-restore did not complete; see the restore diagnostic above.": {
+   "src": "hermes_cli/update_cmd_maint.py:463@v0.23.2",
+   "tags": "v0.22.1..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Auto-restore file copy failed: <<_exc>>": {
+   "src": "hermes_cli/update_cmd.py:9187@v2026.8.31",
+   "tags": "v2026.7.30..v2026.8.31",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Auto-restore file copy failed: <<exc>>": {
+   "src": "hermes_cli/update_cmd_maint.py:465@v0.23.2",
+   "tags": "v2026.9.7..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Auto-restore refused or failed; state.db was not restored.": {
+   "src": "hermes_cli/update_cmd_maint.py:425@v0.23.2",
+   "tags": "v0.22.1..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Auto-restore refused: <<exc>> Close the in-process database handles (or restart Hermes) and retry.": {
+   "src": "hermes_cli/update_cmd_maint.py:446@v0.22.2",
+   "tags": "v2026.9.7..v0.22.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Auto-restore refused: process(es) <<holders>> still hold state.db or its WAL open. Stop them (hermes gateway stop), then restore manually with /snapshot restore.": {
+   "src": "hermes_cli/update_cmd_maint.py:432@v0.22.2",
+   "tags": "v2026.8.27..v0.22.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Could not check out <<rollback_branch>>; restoring its commit detached.": {
+   "src": "hermes_cli/update_cmd.py:953@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Could not compare branches. Skipping upstream sync.": {
+   "src": "hermes_cli/update_cmd_git.py:411@v0.23.2",
+   "tags": "v2026.4.3..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Could not resolve HEAD. Skipping upstream sync.": {
+   "src": "hermes_cli/update_cmd_git.py:431@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Failed to add upstream remote. Skipping upstream sync.": {
+   "src": "hermes_cli/update_cmd_git.py:364@v0.23.2",
+   "tags": "v2026.4.3..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Failed to fetch upstream. Skipping upstream sync.": {
+   "src": "hermes_cli/update_cmd_git.py:403@v0.23.2",
+   "tags": "v2026.4.3..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Failed to pull from upstream. You may need to resolve conflicts manually.": {
+   "src": "hermes_cli/update_cmd_git.py:457@v0.23.2",
+   "tags": "v2026.4.3..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ HEAD is on <<(landed or '?')[:10]>> after the upstream merge, not <<upstream[:10]>>.": {
+   "src": "hermes_cli/update_cmd_git.py:466@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Plugin '<<name>>' DISABLED: <<reason>>. Fix the plugin's declared dependencies, then `hermes plugins enable <<name>>`.": {
+   "src": "hermes_cli/update_cmd_deps.py:524@v2026.9.24",
+   "tags": "v2026.9.21..v2026.9.24",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Pre-update snapshot also failed integrity": {
+   "src": "hermes_cli/update_cmd.py:9191@v2026.8.31",
+   "tags": "v2026.7.30..v2026.8.31",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Rollback failed. Recover manually with:": {
+   "src": "hermes_cli/update_cmd.py:960@v0.23.2",
+   "tags": "v2026.5.28..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ Snapshot copy ALSO failed integrity — the source was already corrupted before the backup.": {
+   "src": "hermes_cli/update_cmd_maint.py:672@v0.23.2",
+   "tags": "v2026.7.30..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "  ✗ The branch moved to <<landed[:10]>> after <<target[:10]>> was selected.": {
+   "src": "hermes_cli/update_cmd.py:1207@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "<<head>>attempted to back up current HEAD to <<rescue_ref>> before resetting, but the backup write failed (pre-reset SHA was <<pre_pull_sha>>).": {
+   "src": "hermes_cli/update_cmd.py:873@v0.23.2",
+   "tags": "v2026.9.7..v0.23.2",
+   "verdict": "error",
+   "why": "detail / remedy line of the failure message printed just before it"
+  },
+  "→ Windows: <<shim.name>> cannot replace itself while it runs; finishing the dependency install under the venv Python.": {
+   "sample": "→ Windows: hermes.exe cannot replace itself while it runs; finishing the dependency install under the venv Python.",
+   "src": "hermes_cli/main.py:9397@v2026.8.31",
+   "tags": "v2026.8.19..v2026.8.31",
+   "verdict": "exempt",
+   "why": "Windows hand-off progress line, printed after the hand-off SUCCEEDED (main.py:9397-9404 @v2026.8.31, followed by 'The code update is already applied')."
+  },
+  "→ Windows: hermes.exe cannot replace itself while it runs; the update": {
+   "sample": "→ Windows: hermes.exe cannot replace itself while it runs; the update",
+   "src": "hermes_cli/update_handoff.py:227@v2026.9.24",
+   "tags": "v2026.9.21..v2026.9.24",
+   "verdict": "exempt",
+   "why": "Windows hand-off progress line, printed after the hand-off SUCCEEDED (update_handoff.py:227-229 @v2026.9.24, continues 'continues under the venv Python. The code update is already applied')."
+  },
+  "⚠ A web dashboard/serve process was stopped during update and could not be auto-restarted.": {
+   "src": "hermes_cli/update_cmd_maint.py:313@v0.23.2",
+   "tags": "v2026.7.30..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "⚠ Configured to discard local changes on non-interactive update, but Hermes couldn't find the stash entry to drop.": {
+   "src": "hermes_cli/update_cmd_stash.py:720@v0.23.2",
+   "tags": "v2026.6.5..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "⚠ Configured to discard local changes, but Hermes couldn't drop the saved stash entry.": {
+   "src": "hermes_cli/update_cmd_stash.py:728@v0.23.2",
+   "tags": "v2026.6.5..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "⚠ Could not fetch the <<tag>> tag (<<reason>>); the version shown may name the previous release until the next update fetches it.": {
+   "src": "hermes_cli/update_cmd_check.py:305@v0.23.2",
+   "tags": "v0.22.6..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "⚠ Could not refresh running dashboard/serve process(es): <<exc>>": {
+   "src": "hermes_cli/update_cmd_maint.py:304@v0.23.2",
+   "tags": "v2026.9.21..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "⚠ Detected a broken git trampoline and could not locate a real git binary — the update will fall back to the ZIP path.": {
+   "src": "hermes_cli/update_cmd_git.py:668@v0.23.2",
+   "tags": "v2026.8.31..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "⚠ Gateway restart failed: <<restart.stderr.strip()>>": {
+   "src": "hermes_cli/main.py:3627@v2026.4.3",
+   "tags": "v2026.3.12..v2026.4.3",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "⚠ Gateway restart failed: <<start.stderr.strip()>>": {
+   "src": "hermes_cli/main.py:3246@v2026.3.30",
+   "tags": "v2026.3.17..v2026.3.30",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "⚠ Gateway restart failed: <<stderr>>": {
+   "src": "hermes_cli/main.py:3639@v2026.4.3",
+   "tags": "v2026.4.3..v2026.4.3",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "⚠ Git update failed: <<e>>": {
+   "src": "hermes_cli/update_cmd.py:7432@v2026.8.19",
+   "tags": "v2026.3.12..v2026.8.19",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "⚠ Local changes were restored, but Hermes couldn't drop the saved stash entry.": {
+   "src": "hermes_cli/update_cmd_stash.py:648@v0.23.2",
+   "tags": "v2026.3.17..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "⚠ Local changes were restored, but Hermes couldn't find the stash entry to drop.": {
+   "src": "hermes_cli/update_cmd_stash.py:642@v0.23.2",
+   "tags": "v2026.3.17..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "⚠ Pre-update backup: could not load backup module (<<exc>>); continuing update.": {
+   "src": "hermes_cli/update_cmd_maint.py:712@v0.23.2",
+   "tags": "v2026.4.30..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "⚠ Update incomplete — gateway auto-restart failed: <<exc>>": {
+   "src": "hermes_cli/update_cmd_fleet.py:1119@v0.23.2",
+   "tags": "v2026.8.16..v0.23.2",
+   "verdict": "error",
+   "why": "warning: an update step did not work (⚠)"
+  },
+  "✗ --branch=<<branch>> is not supported on the Windows ZIP-fallback update path.": {
+   "src": "hermes_cli/update_cmd_zip.py:630@v0.23.2",
+   "tags": "v2026.5.28..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ <<detail>>.": {
+   "src": "hermes_cli/update_cmd.py:1265@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ <<merge_ref>> resolves to <<target_sha[:10]>>, not the selected channel commit <<expected_sha[:10]>>. No update was applied.": {
+   "src": "hermes_cli/update_cmd.py:1084@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ <<refused>>.": {
+   "src": "hermes_cli/update_cmd.py:1092@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ <<stage>> (the code update itself succeeded).": {
+   "src": "hermes_cli/update_cmd.py:1676@v0.23.2",
+   "tags": "v2026.9.21..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ <<stage>>.": {
+   "src": "hermes_cli/update_cmd.py:1687@v0.23.2",
+   "tags": "v2026.9.21..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ <<stage>>: <<e>>": {
+   "src": "hermes_cli/update_cmd.py:1154@v2026.9.14",
+   "tags": "v2026.8.27..v2026.9.14",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Authentication failed — check your git credentials or SSH key.": {
+   "src": "hermes_cli/update_cmd.py:4857@v2026.8.18",
+   "tags": "v2026.3.28..v2026.8.18",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Branch '<<branch>>' does not exist locally or on origin.": {
+   "src": "hermes_cli/update_cmd.py:1338@v0.23.2",
+   "tags": "v2026.5.28..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Branch '<<branch>>' not found on <<compare_branch.split('/', 1)[0]>>.": {
+   "src": "hermes_cli/update_cmd.py:666@v0.23.2",
+   "tags": "v2026.5.28..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Cannot continue the update: live Hermes launcher(s) could not be": {
+   "src": "hermes_cli/update_cmd.py:343@v2026.9.24",
+   "tags": "v2026.8.27..v2026.9.24",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Cannot update while a Git <<git_operation>> is in progress in <<root>>.": {
+   "src": "hermes_cli/update_cmd.py:1787@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Checkout no longer matches the selected channel commit. No completion was applied.": {
+   "src": "hermes_cli/update_cmd.py:1748@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Code did not move — update was a no-op.": {
+   "src": "hermes_cli/update_cmd.py:1624@v0.23.2",
+   "tags": "v2026.8.16..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Could not reach PyPI to check for updates.": {
+   "src": "hermes_cli/main.py:8873@v2026.7.20",
+   "tags": "v2026.5.16..v2026.7.20",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Could not resolve <<merge_ref>> to a commit. No update was applied.": {
+   "src": "hermes_cli/update_cmd.py:1077@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Could not resolve the <<selected>> source channel: <<exc>>. No update was applied.": {
+   "src": "hermes_cli/update_cmd_check.py:258@v0.23.2",
+   "tags": "v0.21.7..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Could not resolve the <<selected_channel>> source channel: <<exc>>": {
+   "src": "hermes_cli/update_cmd_check.py:103@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Could not resolve the <<selected_channel>> source channel: <<exc>>. No update was applied.": {
+   "src": "hermes_cli/update_cmd.py:1859@v0.21.6",
+   "tags": "v0.21.6..v0.21.6",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Could not stash local changes — update aborted.": {
+   "src": "hermes_cli/update_cmd_stash.py:275@v0.23.2",
+   "tags": "v2026.7.30..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Detected a uv-tool install but managed uv install failed.": {
+   "src": "hermes_cli/main.py:9890@v2026.7.20",
+   "tags": "v2026.6.5..v2026.7.20",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Failed to fetch from origin.": {
+   "src": "hermes_cli/main.py:6436@v2026.4.30",
+   "tags": "v2026.4.30..v2026.4.30",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Failed to fetch updates from origin.": {
+   "src": "hermes_cli/update_cmd.py:4861@v2026.8.18",
+   "tags": "v2026.3.28..v2026.8.18",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Failed to fetch.": {
+   "src": "hermes_cli/update_cmd.py:2805@v2026.8.18",
+   "tags": "v2026.5.7..v2026.8.18",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Failed to reset to origin/<<branch>>.": {
+   "src": "hermes_cli/update_cmd.py:880@v0.23.2",
+   "tags": "v2026.3.28..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Fast-forward failed; refusing to reset because history divergence was not proven.": {
+   "src": "hermes_cli/update_cmd.py:1035@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ HEAD is detached at <<sha[:12]>>, which no branch or tag contains, and backing it up to <<rescue_ref>> failed.": {
+   "src": "hermes_cli/update_cmd_git.py:136@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Merge conflict between local commits and upstream — update stopped, nothing was changed.": {
+   "src": "hermes_cli/update_cmd.py:838@v0.23.2",
+   "tags": "v2026.8.27..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Network error — cannot reach the remote repository.": {
+   "src": "hermes_cli/update_cmd.py:4852@v2026.8.18",
+   "tags": "v2026.3.28..v2026.8.18",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Not a git repository — cannot check for updates.": {
+   "src": "hermes_cli/update_cmd.py:636@v0.23.2",
+   "tags": "v2026.4.30..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Not a git repository. Please reinstall:": {
+   "src": "hermes_cli/update_cmd.py:1567@v0.23.2",
+   "tags": "v2026.3.12..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Pulled code has a syntax error in a critical file:": {
+   "src": "hermes_cli/update_cmd.py:848@v2026.9.24",
+   "tags": "v2026.5.28..v2026.9.24",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Refusing to stop the gateway process tree because this updater is running inside it (gateway PID(s): <<', '.join((str(pid) for pid in ancestors))>>).": {
+   "src": "hermes_cli/update_cmd_windows.py:392@v0.23.2",
+   "tags": "v2026.9.7..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Refusing to stop the gateway process tree because this updater is running inside it (gateway PID(s): <<rendered>>).": {
+   "src": "hermes_cli/update_cmd.py:5531@v2026.8.31",
+   "tags": "v2026.8.31..v2026.8.31",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Restored local changes made the Hermes agent unexecutable.": {
+   "src": "hermes_cli/update_cmd_stash.py:532@v0.23.2",
+   "tags": "v2026.8.31..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Switching to '<<branch>>' stopped part-way; the next `hermes` launch puts the checkout back.": {
+   "src": "hermes_cli/update_cmd.py:1250@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ The checkout landed on <<landed[:10]>>, not the selected commit <<target_sha[:10]>> (a ref moved during the update).": {
+   "src": "hermes_cli/update_cmd.py:989@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ This updater process has already loaded native venv modules that": {
+   "src": "hermes_cli/update_cmd_deps.py:1050@v2026.9.24",
+   "tags": "v2026.8.16..v2026.9.24",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Update failed": {
+   "src": "hermes_cli/main.py:9917@v2026.7.20",
+   "tags": "v2026.5.16..v2026.7.20",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Update failed: <<e>>": {
+   "src": "hermes_cli/update_cmd.py:7442@v2026.8.19",
+   "tags": "v2026.3.12..v2026.8.19",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Update left the install in an unimportable state:": {
+   "src": "hermes_cli/update_cmd_zip.py:473@v2026.9.24",
+   "tags": "v2026.8.3..v2026.9.24",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Update pulled new code, but restoring local changes failed.": {
+   "src": "hermes_cli/main.py:2093@v2026.3.17",
+   "tags": "v2026.3.17..v2026.3.17",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Update pulled new code, but restoring local changes hit conflicts.": {
+   "src": "hermes_cli/update_cmd_stash.py:609@v0.23.2",
+   "tags": "v2026.3.23..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Update pulled origin/<<branch>>, but the checkout is on '<<post_pull_branch>>' — not claiming success.": {
+   "src": "hermes_cli/update_cmd.py:1641@v0.23.2",
+   "tags": "v2026.8.18..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ Update stopped: this install's venv contains files owned by another user.": {
+   "src": "hermes_cli/update_cmd_deps.py:1226@v2026.9.24",
+   "tags": "v2026.8.31..v2026.9.24",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ ZIP fallback aborted before the swap: <<recheck_reason>>.": {
+   "src": "hermes_cli/update_cmd_zip.py:518@v0.23.2",
+   "tags": "v2026.8.27..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ ZIP fallback refused: <<reason>>.": {
+   "src": "hermes_cli/update_cmd_zip.py:344@v0.23.2",
+   "tags": "v2026.8.27..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ ZIP update failed: <<e>>": {
+   "src": "hermes_cli/update_cmd_zip.py:607@v0.23.2",
+   "tags": "v2026.3.12..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ git resolves this checkout to the enclosing repository <<enclosing>>; refusing to stash, reset or clean it.": {
+   "src": "hermes_cli/update_cmd.py:1587@v0.23.2",
+   "tags": "v0.23.2..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  },
+  "✗ git still crashed after marking this checkout's packs. See 'Fetch fails with should_include_obj' in https://hermes-agent.nousresearch.com/docs/getting-started/updating": {
+   "src": "hermes_cli/update_cmd.py:1898@v0.23.2",
+   "tags": "v0.21.6..v0.23.2",
+   "verdict": "error",
+   "why": "failure line (✗)"
+  }
+ },
+ "schema": 1
+}

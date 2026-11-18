@@ -17,7 +17,7 @@
 #   3. with the env file ABSENT it neither aborts nor loses AU_APPLY
 set -u
 SRC="${1:?usage: bash schedule_delivery.sh /path/to/auto_update.sh}"
-ROOT="${HARNESS_ROOT:-/tmp/au-harness}"
+ROOT="${HARNESS_ROOT:-${TMPDIR:-/tmp}/au-harness}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BUNDLE="$(cd "$(dirname "$SRC")" && pwd)"
 PROBE="$ROOT/stub/deliveryprobe"

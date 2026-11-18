@@ -4,7 +4,7 @@
 #
 # Usage:  bash stub_matrix.sh          (after stub_setup.sh, uses HARNESS_ROOT)
 set -u
-ROOT="${HARNESS_ROOT:-/tmp/au-harness}"
+ROOT="${HARNESS_ROOT:-${TMPDIR:-/tmp}/au-harness}"   # same default as stub_setup.sh
 AU="$ROOT/au.sh"
 test -x "$AU" || { echo "run stub_setup.sh first" >&2; exit 1; }
 ST="$ROOT/home/.hermes/state/auto_update"
@@ -57,8 +57,8 @@ check "exit"   0 "$(run)"
 check "notify" 1 "$(notifies)"
 
 echo "S4  pull-stage failure with a STALE success receipt, x3 -> alert on the 1st, then deduped"
-echo "      (the invariant is 'not one alert per tick'; the exact cadence is 1+12th"
-echo "       here, so 3 ticks give 1 alert - a 1+3rd cadence gives 2)"
+echo "      (the invariant is 'not one alert per tick'; since v5.15 the re-alert is wall clock"
+echo "       (AU_REALERT_SECS), so 3 back-to-back ticks give 1 alert - a 1+3rd cadence gives 2)"
 reset_home; echo fail > "$ROOT/mode"
 python3 -c "import json;json.dump({'finished_at':'2026-09-01T00:00:00+00:00','outcome':'success'},open('$ROOT/home/.hermes/logs/update_receipts/latest.json','w'))"
 for _ in 1 2 3; do run >/dev/null; done
@@ -155,13 +155,38 @@ PATH="$ROOT/bin:/usr/bin:/bin" HOME="$ROOT/home" bash "$ROOT/au_nobin.sh" >/dev/
 check "exit" 1 "$?"
 check "alerts" 1 "$(notifies)"
 
-echo "S16 *** exit0 + stale receipt + unrecognized output -> inconclusive, alert + exit 1 ***"
+echo "S16 *** exit0 + stale receipt + unrecognized output, HEAD unchanged -> UNPROVEN no-op (PATCH5) ***"
+echo "      (the text is not judged: no error line and the checkout did not move = nothing installed;"
+echo "       no receipt of THIS run proves it, so never silent: one ⚠ reminder, exit 1, never marked"
+echo "       installed, not a real failure, the no-op counter counts it. PATCH4 expected exit 0 / 0 alerts)"
 reset_home; echo weirdyes > "$ROOT/mode"
 python3 -c "import json;json.dump({'finished_at':'2026-09-01T00:00:00+00:00','outcome':'success'},open('$ROOT/home/.hermes/logs/update_receipts/latest.json','w'))"
 rm -f "$ROOT/notify.calls"
 HOME="$ROOT/home" PATH="$ROOT/bin:/usr/bin:/bin" AU_POLL_EVERY=0 AU_POLL_TRIES=1 AU_APPLY=1 bash "$AU" >/dev/null 2>&1
 check "exit" 1 "$?"
 check "alerts" 1 "$(notifies)"
+check "alert is the unproven reminder" yes "$(grep -q 'left no receipt of this run' "$ROOT/notify.calls" && echo yes || echo no)"
+check "never marked installed" absent "$([ -f "$ST/last_install_ts" ] && echo PRESENT || echo absent)"
+check "real-failure counter untouched" 0 "$(counter consec_real_fails)"
+check "stuck-guard counter" 1 "$(counter consec_available_noop)"
+
+echo "S16b *** exit0 + no receipt + an error line -> real failure, alert + exit 1 ***"
+reset_home; echo erroryes > "$ROOT/mode"
+rm -f "$ROOT/notify.calls"
+HOME="$ROOT/home" PATH="$ROOT/bin:/usr/bin:/bin" AU_POLL_EVERY=0 AU_POLL_TRIES=1 AU_APPLY=1 bash "$AU" >/dev/null 2>&1
+check "exit" 1 "$?"
+check "alerts" 1 "$(notifies)"
+check "real-failure counter" 1 "$(counter consec_real_fails)"
+check "alert names the error line" yes "$(grep -q 'Lazy refresh failed' "$ROOT/notify.calls" && echo yes || echo no)"
+
+echo "S16c *** exit0 + no receipt + the checkout MOVED -> install unproven, alert + exit 1 + marker ***"
+reset_home; echo moveyes > "$ROOT/mode"
+rm -f "$ROOT/notify.calls"
+HOME="$ROOT/home" PATH="$ROOT/bin:/usr/bin:/bin" AU_POLL_EVERY=0 AU_POLL_TRIES=1 AU_APPLY=1 bash "$AU" >/dev/null 2>&1
+check "exit" 1 "$?"
+check "alerts" 1 "$(notifies)"
+check "drain marker set" PRESENT "$([ -f "$ST/drain_pending" ] && echo PRESENT || echo absent)"
+check "never marked installed" absent "$([ -f "$ST/last_install_ts" ] && echo PRESENT || echo absent)"
 
 echo "S17 *** notify delivery fails (proxy/curl down) -> counted + logged, not swallowed ***"
 reset_home; echo ok > "$ROOT/mode"; touch "$ROOT/curl_fail"

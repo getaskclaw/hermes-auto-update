@@ -4,7 +4,7 @@
 # a healthy recheck clears it. Mechanical version of the manual sweep — run after any patch.
 set -u
 SRC="${1:?usage: bash marker_lifecycle_sweep.sh /path/to/auto_update.sh}"
-ROOT="${HARNESS_ROOT:-/tmp/au-harness}"
+ROOT="${HARNESS_ROOT:-${TMPDIR:-/tmp}/au-harness}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 bash "$HERE/../verify/stub_setup.sh" "$SRC" >/dev/null || exit 1
 ST="$ROOT/home/.hermes/state/auto_update"

@@ -5,9 +5,9 @@
 # candidate, which is the only way to win the candidate race.
 #
 # Usage:  bash stub_setup.sh /path/to/auto_update.sh
-# Env:    HARNESS_ROOT (default /tmp/au-harness)
+# Env:    HARNESS_ROOT (default $TMPDIR/au-harness; the release gate exports a mktemp dir)
 set -u
-ROOT="${HARNESS_ROOT:-/tmp/au-harness}"
+ROOT="${HARNESS_ROOT:-${TMPDIR:-/tmp}/au-harness}"
 SRC="${1:?usage: bash stub_setup.sh /path/to/auto_update.sh}"
 test -r "$SRC" || { echo "cannot read $SRC" >&2; exit 1; }
 # Record where the source script (and thus its bundle) lives, so artifact checks in the
@@ -115,8 +115,10 @@ if [ "\${1:-}" = "update" ] && [ "\${2:-}" = "--yes" ]; then
     race)     echo "✓ Update complete! (v9.9.9)"; echo "→ hermes-gateway: draining"; receipt partial; exit 1 ;;
     race_sha)  advance_repo; echo "✓ Code updated! [main @ \$(head -c 8 $ROOT/stub_post_head)]"; echo "→ hermes-gateway: draining"; receipt partial_sha; exit 1 ;;
     race_same) hold_repo; echo "✓ Code updated! [main @ \$(head -c 8 $ROOT/stub_pre_head)]"; echo "→ hermes-gateway: draining"; receipt partial_same; exit 1 ;;
-    noop)     echo "✓ Already up to date."; exit 0 ;;
+    noop)     echo "✓ Already up to date! [main @ abc1234]"; exit 0 ;;   # update_cmd.py:1730 + suffix
     weirdyes) echo "⚕ something unexpected happened"; exit 0 ;;
+    erroryes) echo "⚕ Updating Hermes Agent..."; echo "  ⚠ Lazy refresh failed; rerun once resolved."; exit 0 ;;   # error word, no receipt
+    moveyes)  advance_repo; echo "⚕ Updating Hermes Agent..."; exit 0 ;;   # checkout moved, no receipt
     fail)     echo "✗ Update failed: merge conflict"; exit 1 ;;
     wedged)
         # Never returns. Tolerate SIGTERM so \`timeout -k\` must escalate to SIGKILL.
