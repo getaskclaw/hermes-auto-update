@@ -1,0 +1,151 @@
+{
+  "schema": 1,
+  "started_at": "2026-11-18T21:23:09.921587+00:00",
+  "argv": [
+    "/home/user/.hermes/hermes-agent/venv/bin/hermes",
+    "update",
+    "--yes"
+  ],
+  "pid": 1644282,
+  "outcome": "partial",
+  "pre_update": {
+    "sha": "3b421578588243f920886e6fe79a6faa87ea026e",
+    "short_sha": "3b421578",
+    "version": "0.23.1",
+    "source": "git",
+    "commit_date": 1794270273
+  },
+  "post_update": {
+    "sha": "ae2a81ccc00e9b7c06301523e5bb09608397149c",
+    "short_sha": "ae2a81cc",
+    "version": "0.23.2",
+    "source": "git",
+    "commit_date": 1794857325
+  },
+  "steps": [
+    {
+      "name": "local_changes_stash",
+      "ok": false,
+      "detail": "parked: db17cef519b64af49b09d3741e9e4df709a23acc (restore hit conflicts)",
+      "at": "2026-11-18T21:24:33.001557+00:00"
+    }
+  ],
+  "skips": [
+    {
+      "name": "pre_update_backup",
+      "reason": "disabled by updates.pre_update_backup (mode: off)",
+      "at": "2026-11-18T21:23:12.307184+00:00"
+    }
+  ],
+  "gateway_restart": {
+    "restarted_services": [
+      "hermes-gateway"
+    ],
+    "relaunched_profiles": [],
+    "externally_supervised_profiles": [],
+    "killed_pids": [],
+    "failed_units": [],
+    "incomplete": false,
+    "phase_error": null
+  },
+  "fleet": [
+    {
+      "profile": "default",
+      "pid": 1646064,
+      "code_sha": "ae2a81ccc00e9b7c06301523e5bb09608397149c",
+      "code_version": "0.23.2",
+      "state": "current",
+      "code_root": "/home/user/.hermes/hermes-agent",
+      "source": "socket"
+    }
+  ],
+  "update_id": "a1873614d1af42e9a639deff0f4f861c",
+  "correlation_id": "au-0000000000000000000-0-0",
+  "action_id": null,
+  "pid_create_time": 1795036986.7,
+  "plan": {
+    "install_method": "git",
+    "updatable_in_place": true,
+    "update_mechanism": "hermes update",
+    "expected_sha": "3b421578588243f920886e6fe79a6faa87ea026e",
+    "expected_version": "0.23.1",
+    "profiles": [
+      "default"
+    ],
+    "runtimes": [
+      {
+        "kind": "gateway",
+        "profile": "default",
+        "pid": 3931046,
+        "supervisor": "systemd",
+        "code_sha": "3b421578588243f920886e6fe79a6faa87ea026e",
+        "code_version": "0.23.1",
+        "restart_via": "systemd",
+        "detail": {}
+      }
+    ]
+  },
+  "stages": [
+    {
+      "name": "plan",
+      "outcome": "success",
+      "at": "2026-11-18T21:23:12.292518+00:00"
+    },
+    {
+      "name": "snapshot",
+      "outcome": "skipped",
+      "at": "2026-11-18T21:23:12.307649+00:00"
+    },
+    {
+      "name": "apply",
+      "outcome": "skipped",
+      "at": "2026-11-18T21:24:33.035443+00:00",
+      "mode": "git"
+    },
+    {
+      "name": "deps",
+      "outcome": "success",
+      "at": "2026-11-18T21:24:38.575837+00:00"
+    },
+    {
+      "name": "build",
+      "outcome": "success",
+      "at": "2026-11-18T21:27:40.376003+00:00"
+    },
+    {
+      "name": "restart",
+      "outcome": "success",
+      "at": "2026-11-18T21:27:44.323890+00:00"
+    }
+  ],
+  "user_action": {
+    "step": "local_changes",
+    "reason": "⚠ hermes update stashed 1 local modification(s) and did NOT restore them. Stash ref: db17cef519b64af49b09d3741e9e4df709a23acc Review with: git stash show --stat db17cef519b64af49b09d3741e9e4df709a23acc Re-apply with: git stash show -p db17cef519b64af49b09d3741e9e4df709a23acc | git apply --3way"
+  },
+  "runtime_outcomes": [
+    {
+      "kind": "gateway",
+      "profile": "default",
+      "pid": 3931046,
+      "mechanism": "systemd",
+      "outcome": "restarted"
+    }
+  ],
+  "pm_venv_rebuild": {
+    "ok": false,
+    "reason": "already in sync"
+  },
+  "pm_feature_list": [
+    "all",
+    "anthropic",
+    "fal",
+    "firecrawl",
+    "matrix",
+    "telegram",
+    "wecom"
+  ],
+  "pm_steps": [],
+  "pm_exit_code": 0,
+  "pm_sync_outcome": "ok",
+  "finished_at": "2026-11-18T21:27:47.476947+00:00"
+}

@@ -161,6 +161,44 @@ EDITS = {
     "followups": ('          and not d.get("followups") and not d.get("user_action")\n', ''),
     # PATCH5 B1201: back to "only a line that STARTS with ✗"
     "midlinex": ('    case "$t" in *"✗"*) printf', '    case "$t" in "✗"*) printf'),
+    # v5.16: the owed-action reminder removed (the 2026-11-18 silence returns)
+    # (FIX3: reminders are derived from the receipts; the neuter drops the derived send)
+    "owednotice": ('        emit("SEND", key, body)\n', '        pass\n'),
+    # v5.16 / FIX3 WO item 5: the ledger check removed (the same update_id reminds on every scan)
+    "owededupe": ('        if key in sent:\n', '        if False:\n'),
+    # v5.16: the ledger written although delivery failed (the reminder is never retried)
+    "owedstamp": ('                if notify "$body"; then\n', '                notify "$body"; if true; then\n'),
+    # v5.16 / FIX3 WO item 5: the derivation at the start of every tick removed (B1900 / B1800 return:
+    # a reminder the install tick could not deliver or write is never sent)
+    "owedretry": ("# mark_installed or mid-poll, nothing writable) goes out now, whatever that tick managed to write.\nowed_deliver\n",
+                  "# mark_installed or mid-poll, nothing writable) goes out now, whatever that tick managed to write.\n:\n"),
+    # FIX3 WO item 5: the first-enable cut-off removed (old au-<ns>-... receipts count as ours too: the
+    # history floods in on the first tick after the upgrade)
+    "owedcutoff": ('AU = re.compile(r"au-r[0-9]+-([0-9]{1,12})-")', 'AU = re.compile(r"au-(?:r[0-9]+-)?([0-9]{1,10})")'),
+    # FIX3: the 30-day look-back removed
+    "owedlookback": ('        if now - t > lookback:\n', '        if False:\n'),
+    # FIX3: the newest-50-receipts bound removed
+    "owedmaxfiles": ('    sources += [(p, False) for _, _, p in files[:maxfiles]]\n',
+                     '    sources += [(p, False) for _, _, p in files]\n'),
+    # FIX3: "records an install" no longer requires the receipt's own SHA advance (a no-op that owes
+    # followups would be announced as an install). FIX4: records_install now only picks the wording.
+    "owedinstallonly": ('    return k >= 7 and a[:k] != b[:k]\n', '    return True\n'),
+    # FIX4 (r11A B2100): the eligibility of a receipt of ours requires its SHAs again (records_install
+    # instead of may_install): a real install whose receipt lacks a SHA and whose claim could not be
+    # written is never reminded after the install tick
+    "owedeligsha": ('            if not m or not may_install(d):\n', '            if not m or not records_install(d):\n'),
+    # FIX3: the install claim never written (a legacy install's reminder can no longer be re-derived)
+    "owedclaim": ('    if owed_keyfile_add "$OWED_CLAIMS" "$key" 200 "install claim list"; then\n', '    if false; then\n'),
+    # FIX3 (B1501 class): the ledger appended blindly instead of rewritten + read back
+    "owedkeyfile": ('    tmp=$(mktemp "$STATE_DIR/.owed_tmp.XXXXXX" 2>/dev/null) || return 1\n',
+                    '    printf \'%s\\n\' "$2" >> "$1" 2>/dev/null; return 0\n'),
+    # v5.16 B1300: receipt_sha_advanced back to the v5.15 short_sha string inequality
+    "shaadvance": ('    (pre, ok1), (post, ok2) = ident(d.get("pre_update")), ident(d.get("post_update"))\n'
+                   '    n = min(len(pre), len(post))\n'
+                   '    print(1 if (ok1 and ok2 and n >= 7 and pre[:n] != post[:n]) else 0)\n',
+                   '    pre = ((d.get("pre_update") or {}).get("short_sha") or "").strip()\n'
+                   '    post = ((d.get("post_update") or {}).get("short_sha") or "").strip()\n'
+                   '    print(1 if (pre and post and pre != post) else 0)\n'),
     # PATCH4 stuck guard not cleared by a proven install (next streak alerts too early)
     "stuckclear": ('mark_installed() { date +%s > "$STATE_DIR/last_install_ts"; clear_available_noop; }',
                    'mark_installed() { date +%s > "$STATE_DIR/last_install_ts"; }'),
@@ -279,6 +317,28 @@ PY
 neuter_tool_and_run parseerror "PATCH5 B1102 corpus parse error not counted -> CorpusToolFailsClosed must FAIL" CorpusToolFailsClosed.test_scan_parse_error_fails CorpusToolFailsClosed.test_gate_vacuous_or_broken_snapshot_fails
 neuter_tool_and_run zeroprints "PATCH5 B1102 zero-print tag not counted -> CorpusToolFailsClosed must FAIL" CorpusToolFailsClosed.test_scan_zero_print_tag_fails
 neuter_tool_and_run emptya "PATCH5 B1102 empty (a) corpus passes -> CorpusToolFailsClosed must FAIL" CorpusToolFailsClosed.test_gate_vacuous_or_broken_snapshot_fails
+# v5.16 teeth: owed-action reminder after a proven install, its dedupe / delivery stamp / retry, B1300
+# (FIX3: re-anchored on the derivation from the receipts; the FIX1 / FIX2 queue neuters went with the
+#  queue -- their scenarios live on as OwedActionDerived entry tests, guarded by the neuters below)
+neuter_and_run owednotice "v5.16 owed-action reminder removed -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_incident_partial_sha_advance_user_action_reminds_once OwedActionNotice.test_correlated_success_with_followups_reminds
+neuter_and_run owededupe "v5.16/FIX3 ledger check removed -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_incident_partial_sha_advance_user_action_reminds_once
+neuter_and_run owededupe "v5.16/FIX3 ledger check removed -> OwedActionDerived r8A ledger-is-directory must FAIL" "$PY_PROBE" OwedActionDerived.test_r8a_dedupe_ledger_is_directory
+neuter_and_run owedstamp "v5.16 owed-action stamped although undelivered -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_undelivered_reminder_keeps_install_and_retries_until_delivered
+# FIX3 teeth (verdict-r10A B1900, r9B B1800 / B1801; WO item 5 names the first three)
+neuter_and_run owedretry "FIX3 tick-start derivation removed -> OwedActionDerived r10A state-unwritable must FAIL" "$PY_PROBE" OwedActionDerived.test_r10a_state_unwritable_at_install_recovers
+neuter_and_run owedretry "FIX3 tick-start derivation removed -> OwedActionDerived r10A all-writes-refused must FAIL" "$PY_PROBE" OwedActionDerived.test_r10a_all_reminder_writes_refused_recovers
+neuter_and_run owedretry "FIX3 tick-start derivation removed -> OwedActionDerived B1800 kill after mark_installed must FAIL" "$PY_PROBE" OwedActionDerived.test_b1800_killed_after_mark_installed_next_tick_reminds
+neuter_and_run owedretry "FIX3 tick-start derivation removed -> OwedActionNotice retry must FAIL" "$PY_PROBE" OwedActionNotice.test_undelivered_reminder_keeps_install_and_retries_until_delivered
+neuter_and_run owedcutoff "FIX3 first-enable cut-off removed -> OwedActionDerived first enable must FAIL" "$PY_PROBE" OwedActionDerived.test_first_enable_does_not_flood_history
+neuter_and_run owedlookback "FIX3 30-day look-back removed -> OwedActionDerived must FAIL" "$PY_PROBE" OwedActionDerived.test_lookback_30_days
+neuter_and_run owedmaxfiles "FIX3 newest-50 bound removed -> OwedActionDerived must FAIL" "$PY_PROBE" OwedActionDerived.test_lookback_newest_50_receipts_and_10_per_tick
+neuter_and_run owedinstallonly "FIX3/FIX4 install shape not required for the install wording -> OwedActionNotice no-op/failure must FAIL" "$PY_PROBE" OwedActionNotice.test_noop_and_failure_paths_do_not_use_the_install_reminder
+# FIX4 teeth (verdict-r11A B2100; WO item 3: restoring the records_install condition must turn red)
+neuter_and_run owedeligsha "FIX4 SHAs required again for eligibility -> OwedActionDerived r11A main scenario must FAIL" "$PY_PROBE" OwedActionDerived.test_r11a_pre_identity_timeout_claim_refused_dead_channel_recovers
+neuter_and_run owedeligsha "FIX4 SHAs required again for eligibility -> OwedActionDerived r11A four identity shapes must FAIL" "$PY_PROBE" OwedActionDerived.test_r11a_missing_sha_shapes_recover
+neuter_and_run owedclaim "FIX3 install claim never written -> OwedActionDerived legacy recovery must FAIL" "$PY_PROBE" OwedActionDerived.test_legacy_install_recovers_through_the_claim
+neuter_and_run owedkeyfile "FIX3 ledger appended blindly -> OwedActionDerived broken ledger must FAIL" "$PY_PROBE" OwedActionDerived.test_broken_ledger_never_crashes_never_repeats
+neuter_and_run shaadvance "B1300 receipt_sha_advanced back to short_sha string inequality -> ShaAdvanceB1300 must FAIL" "$PY_PROBE" ShaAdvanceB1300.test_forged_short_length_change_is_not_an_install ShaAdvanceB1300.test_malformed_side_is_not_an_advance
 neuter_and_run realclock "B303 real failure re-alert by count/never -> RealFailureCadence must FAIL" "$PY_PROBE" RealFailureCadence
 neuter_and_run remindclock "B304 rollback reminder one-shot -> RollbackReminder must FAIL" "$PY_PROBE" RollbackReminder.test_weekly_reminder_never_installs
 neuter_and_run summarypriority "B302 summary without error priority -> AlertSummary must FAIL" "$PY_PROBE" AlertSummary

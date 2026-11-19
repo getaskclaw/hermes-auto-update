@@ -12,8 +12,10 @@ real binary cannot win. Every run asserts the stub was invoked. No network, no r
 No-op output without a fresh install receipt (exit 0, silent, nothing marked installed) is the
 INTENDED conservative behaviour; completion text without a fresh receipt is UNPROVEN.
 """
+import hashlib
 import json
 import os
+import random
 import shutil
 import subprocess
 import sys
@@ -1990,6 +1992,1070 @@ class OptionD(T):
         p = b.run(apply="1", now=T0)
         self.assert_unproven(b, p)
         self.assertIn("state.db is corrupted after update", b.reminders()[0])
+
+
+
+# ===================== v5.16: owed actions after a proven install + B1300 =====================
+# The 2026-11-18 install (v0.23.1 -> v0.23.2): `hermes update --yes` exit 1, receipt outcome=partial,
+# SHA advanced, user_action {"step": "local_changes", ...} with the stash ref. verify/fixtures/
+# receipt_partial_user_action_v0.23.2.json is that receipt with its field structure kept and host
+# paths / profile names / the launcher's correlation id replaced. Its --yes tail as logged (profile
+# rows trimmed): no completion line, so the SHA advance is the only install evidence.
+GEN3_USER_ACTION = "receipt_partial_user_action_v0.23.2.json"
+STASH_REF = "db17cef519b64af49b09d3741e9e4df709a23acc"
+INCIDENT_YES = (
+    "→ Checking configuration for new options...\n  ✓ Configuration is up to date\n\n"
+    "⚠ hermes update stashed 1 local modification(s) and did NOT restore them.\n"
+    "  Stash ref: %s\n  Review with: git stash show --stat %s\n"
+    "  Re-apply with: git stash show -p %s | git apply --3way [detached @ ae2a81ccc0]\n\n"
+    "Fleet version check:\n  ✓ default (pid 4242) @ ae2a81cc — up to date\n" % (STASH_REF, STASH_REF, STASH_REF))
+OWED = "receipt says something is still owed"
+# FIX4 (verdict-r11A B2100). Receipts written by the REAL v0.23.2 functions (version_info.get_code_identity
+# + update_receipt.UpdateReceipt, exported from the tag; evidence-r11A/upstream_identity_entry.py and
+# probes.py noidentity), kept verbatim: (1) the identity read before the update timed out (git rev-parse
+# -> TimeoutExpired -> sha=None), the one after it worked; (2) _code_identity swallowed the error -> {}.
+# Both are outcome=success with a followup; the stub stamps correlation_id / finished_at for the run.
+GEN3_PRE_ID_TIMEOUT = "receipt_success_followups_pre_identity_timeout_v0.23.2.json"
+GEN3_NO_IDENTITY = "receipt_success_followups_no_identity_v0.23.2.json"
+R11A_NEEDLE = "follow-up [build]: Independent build step still owed"
+UNPROVEN_WORDING = "The receipt alone does not show that new code was installed"
+# The --yes output of that r11A entry run, verbatim (exit 0, completion line, no SHA advance in the receipt).
+R11A_YES = (
+    "☤ Updating Hermes Agent...\n\n"
+    "→ Update channel: stable\n"
+    "→ Latest release: stable v0.23.2 (aa0ef4e16d7a)\n"
+    "→ Fetching updates...\n"
+    "→ Switching to source commit aa0ef4e16d\n"
+    "→ Pulling updates...\n\n"
+    "✓ Code updated!\n"
+    "  ✓ Fetched release history (commits only) for version identity\n\n"
+    "→ Syncing bundled skills...\n"
+    "  ↑ 2 updated: github-pr-workflow, plan\n\n"
+    "→ Checking configuration for new options...\n"
+    "  ✓ Configuration is up to date\n\n"
+    "  ⚠ Update follow-up 'build' did not finish: Independent build step still owed (the next launch or"
+    " `hermes update` retries it)\n"
+    "✓ Update complete! (v0.23.1 → v0.23.2) [detached @ aa0ef4e]\n\n"
+    "  ✓ Restarted hermes-gateway.service\n")
+
+
+class OwedActionNotice(T):
+    """v5.16: every path that reaches mark_installed relays the receipt's user_action / followups as
+    ONE ⚠ reminder per update_id (delivered after the ✓ notice, retried until delivered), and changes
+    nothing else: same install verdict, counters, exit code and ✓ text as without the fields."""
+
+    def owed(self, b):
+        return [t for t in b.texts() if OWED in t]
+
+    def ok_install(self, b, p, rc=0):
+        self.assertEqual(p.returncode, rc, b.log())
+        self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$", b.log())
+        self.assertEqual(b.st("consec_real_fails"), "0", b.log())
+        self.assertEqual(b.st("consec_available_noop"), "0", b.log())
+        self.assertTrue(any(t.startswith("✓ hermes agent updated") for t in b.texts()), b.texts())
+        self.assertNotIn("Traceback", p.stderr)
+
+    def incident(self, b, yes_rc=1, **over):
+        b.scenario(UP_AVAIL, yes=INCIDENT_YES, yes_rc=yes_rc, correlate=True,
+                   receipt=real_receipt(GEN3_USER_ACTION, **over))
+
+    def test_incident_partial_sha_advance_user_action_reminds_once(self):
+        # The real sequence: exit 1 + partial + SHA advance (race path), then the same update_id again.
+        b = self.box()
+        b.seed("consec_real_fails", "2")
+        b.seed("consec_available_noop", "2")
+        self.incident(b)
+        p = b.run(apply="1")
+        self.ok_install(b, p)
+        self.assertIn("exit=1 but receipt=partial", b.log())
+        o = self.owed(b)
+        self.assertEqual(len(o), 1, b.texts())
+        self.assertEqual(len(b.texts()), 2, b.texts())                       # ✓ + ⚠, nothing else
+        self.assertTrue(b.texts()[0].startswith("✓ hermes agent updated"), b.texts())
+        for want in ("user action [local_changes]", "Stash ref: " + STASH_REF,
+                     "Re-apply with: git stash show -p " + STASH_REF + " | git apply --3way",
+                     "outcome=partial", "update_id=a1873614d1af42e9a639deff0f4f861c", "updater v5.16"):
+            self.assertIn(want, o[0])
+        self.assertNotIn("✗", o[0])
+        self.assertEqual(b.st("owed_action_notified"), "id-a1873614d1af42e9a639deff0f4f861c", b.log())
+        self.assertEqual(local_reminder_copies(b), [])                     # FIX3: no local copy of a reminder
+        # same receipt (update_id) again: still an install, no second reminder
+        self.incident(b)
+        p = b.run(apply="1")
+        self.ok_install(b, p)
+        self.assertEqual(len(self.owed(b)), 1, b.texts())
+        self.assertEqual(len(b.texts()), 3, b.texts())                       # only the second ✓
+        self.assertIn("already delivered — not repeated", b.log())
+
+    def test_partial_exit0_paths_remind(self):
+        # partial + exit 0: gateway confirmed (healthy), and the drain-timeout branch (unhealthy).
+        for healthy in (True, False):
+            with self.subTest(healthy=healthy):
+                b = self.box()
+                if not healthy:
+                    with open(b.gw, "w") as f:
+                        f.write('{"code_sha": "0000000000000000000000000000000000000000"}')
+                self.incident(b, yes_rc=0)
+                p = b.run(apply="1")
+                self.assertEqual(p.returncode, 0, b.log())
+                self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$")
+                self.assertEqual(len(self.owed(b)), 1, b.texts())
+                self.assertIn("Stash ref: " + STASH_REF, self.owed(b)[0])
+                self.assertEqual(len(b.texts()), 2, b.texts())
+                if healthy:
+                    self.assertTrue(b.texts()[0].startswith("✓ hermes agent updated"), b.texts())
+                else:
+                    self.assertIn("still draining", b.texts()[0])
+
+    def test_correlated_success_with_followups_reminds(self):
+        fu = [{"step": "dependencies", "reason": "No module named 'fastapi'", "at": "2026-11-18T21:24:38+00:00"},
+              {"step": "build", "reason": "web UI build exited 1", "at": "2026-11-18T21:27:40+00:00"}]
+        for out, rc in ((REAL_YES_INSTALL, 0), (INCIDENT_YES, 0), (REAL_YES_INSTALL, 1)):
+            with self.subTest(out=out[:20], rc=rc):
+                b = self.box()
+                b.scenario(UP_AVAIL, yes=out, yes_rc=rc, correlate=True,
+                           receipt=real_receipt(GEN3_USER_ACTION, outcome="success", user_action=None, followups=fu))
+                p = b.run(apply="1")
+                self.ok_install(b, p)
+                o = self.owed(b)
+                self.assertEqual(len(o), 1, b.texts())
+                self.assertEqual(len(b.texts()), 2, b.texts())
+                self.assertIn("follow-up [dependencies]: No module named 'fastapi'", o[0])
+                self.assertIn("follow-up [build]: web UI build exited 1", o[0])
+                self.assertIn("outcome=success", o[0])
+                self.assertNotIn("user action", o[0])
+
+    def test_legacy_install_with_user_action_reminds(self):
+        # A legacy receipt (no correlation_id) accepted on this run's own completion line.
+        b = self.box()
+        b.scenario(LEGACY_AVAIL, yes=DONE_OLD, receipt={"outcome": "success",
+                   "user_action": {"step": "local_changes", "reason": "Stash ref: " + STASH_REF}})
+        p = b.run(apply="1")
+        self.ok_install(b, p)
+        self.assertEqual(len(self.owed(b)), 1, b.texts())
+        self.assertIn(STASH_REF, self.owed(b)[0])
+        self.assertTrue(self.owed(b)[0].startswith("⚠ hermes auto-update: Hermes was updated to (v9.9.9)"), self.owed(b)[0])
+        self.assertTrue(b.st("owed_action_notified", ).startswith("sha-"), b.log())   # no update_id: digest key
+
+    def test_nothing_owed_is_exactly_as_before(self):
+        # No / empty user_action and followups: the same single ✓ notice, exit code and state as v5.15,
+        # and no owed-action state is created at all.
+        empties = ({}, {"user_action": None, "followups": None}, {"user_action": {}, "followups": []},
+                   {"user_action": "", "followups": ""}, {"user_action": False, "followups": False},
+                   {"user_action": 0, "followups": 0})
+        paths = (("success-exit0", REAL_YES_INSTALL, 0, "success"), ("partial-exit0", INCIDENT_YES, 0, "partial"),
+                 ("race-exit1", INCIDENT_YES, 1, "partial"))
+        for name, out, rc, outcome in paths:
+            for i, e in enumerate(empties):
+                with self.subTest(path=name, empty=i):
+                    b = self.box()
+                    rec = real_receipt(GEN3_USER_ACTION, outcome=outcome)
+                    rec.pop("user_action")
+                    rec.update(e)
+                    b.scenario(UP_AVAIL, yes=out, yes_rc=rc, correlate=True, receipt=rec)
+                    p = b.run(apply="1")
+                    self.ok_install(b, p)
+                    self.assertEqual(len(b.texts()), 1, b.texts())
+                    self.assertEqual(self.owed(b), [])
+                    self.assertIsNone(b.st("owed_action_notified"))
+                    self.assertIsNone(b.st("owed_action_claims"))
+                    self.assertFalse(os.path.exists(os.path.join(b.state, "owed_action_pending")), b.log())
+                    self.assertNotIn("owed action", b.log())
+                    self.assertNotIn("owed-action", b.log())
+
+    def test_malformed_fields_never_crash_never_silent(self):
+        long = "Stash ref: " + STASH_REF + " " + "x" * 100000
+        cases = (
+            ("ua-string", {"user_action": "re-apply stash " + STASH_REF}, STASH_REF),
+            ("ua-list", {"user_action": ["local_changes", STASH_REF]}, STASH_REF),
+            ("ua-true", {"user_action": True}, "user action: true"),
+            ("ua-number", {"user_action": 7}, "user action: 7"),
+            ("ua-dict-no-fields", {"user_action": {"foo": "bar"}}, '"foo": "bar"'),
+            ("ua-dict-empty-fields", {"user_action": {"step": "", "reason": None}}, "user action"),
+            ("ua-reason-nested", {"user_action": {"step": ["a"], "reason": {"ref": STASH_REF}}}, STASH_REF),
+            ("ua-overlong", {"user_action": {"step": "s" * 5000, "reason": long}}, "Stash ref: " + STASH_REF),
+            ("ua-control-chars", {"user_action": {"step": "local\x1b[31m_changes\x07",
+                                                  "reason": "line1\nline2\r\x00\x1b]0;title\x07 " + STASH_REF}}, STASH_REF),
+            ("fu-dict", {"followups": {"step": "build", "reason": "owed"}}, "follow-up [build]: owed"),
+            ("fu-string", {"followups": "dependencies still owed"}, "follow-up: dependencies still owed"),
+            ("fu-mixed-items", {"followups": [None, 5, "text", {"step": None}, [], {"name": "n", "detail": "d"}]},
+             "follow-up [n]: d"),
+            ("fu-only-empty-items", {"followups": [None, "", {}]}, "follow-up: (no details in the receipt)"),
+            ("fu-huge", {"followups": [{"step": "s%d" % i, "reason": "r" * 400} for i in range(1000)]}, "more follow-up entries"),
+            ("uid-traversal", {"user_action": {"step": "x", "reason": "y"}, "update_id": "../../../etc/x"}, "update_id=../../../etc/x"),
+            ("uid-number", {"user_action": {"step": "x", "reason": "y"}, "update_id": 12345}, "update_id=12345"),
+            ("uid-overlong", {"user_action": {"step": "x", "reason": "y"}, "update_id": "a" * 5000}, "user action [x]: y"),
+            ("uid-missing", {"user_action": {"step": "x", "reason": "y"}, "update_id": None}, "update_id=none"),
+        )
+        for name, over, want in cases:
+            with self.subTest(case=name):
+                b = self.box()
+                self.incident(b, **over)
+                p = b.run(apply="1")
+                self.ok_install(b, p)
+                o = self.owed(b)
+                self.assertEqual(len(o), 1, (b.texts(), b.log()[-2000:]))
+                self.assertIn(want, o[0])
+                self.assertLessEqual(len(o[0].encode("utf-8")), 3500)
+                self.assertNotIn("\x1b", o[0])
+                self.assertNotIn("\x00", o[0])
+                key = b.st("owed_action_notified")
+                self.assertRegex(key or "", r"^(id-[0-9A-Za-z_-]{1,128}|sha-[0-9a-f]{64})$")
+                self.assertEqual(local_reminder_copies(b), [])
+                self.assertFalse(os.path.exists(os.path.join(b.root, "etc")), b.root)
+
+    def test_undelivered_reminder_keeps_install_and_retries_until_delivered(self):
+        b = self.box()
+        b.notify_fails(True)
+        self.incident(b)
+        p = b.run(apply="1")
+        self.assertEqual(p.returncode, 0, b.log())                            # install verdict unchanged
+        self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$")
+        self.assertEqual(b.st("consec_real_fails"), "0", b.log())
+        self.assertIn("owed-action reminder NOT delivered", b.log())
+        self.assertIsNone(b.st("owed_action_notified"))                       # stamped only on delivery
+        self.assertGreaterEqual(int(b.st("consec_notify_fails")), 2, b.log())   # notify()'s own failure path
+        # FIX3: nothing is copied out of the receipt; the receipt itself is what the next tick reads
+        self.assertEqual(local_reminder_copies(b), [])
+        # next tick: nothing to install (check up to date), channel still dead -> still owed, tried again
+        # (counted by the reminder's own head: the dead-letter meta-alert quotes it too)
+        def attempts():
+            return len([t for t in b.texts() if t.startswith("⚠ hermes auto-update: Hermes was updated")])
+        tried = attempts()
+        b.scenario(NOOP)
+        p = b.run(apply="1")
+        self.assertEqual(p.returncode, 0, b.log())
+        self.assertIsNone(b.st("owed_action_notified"))
+        self.assertEqual(attempts(), tried + 1, b.texts())                     # derived again and re-sent
+        # channel back: delivered at the start of the next tick, exactly once
+        b.notify_fails(False)
+        b.scenario(NOOP)
+        p = b.run(apply="1")
+        self.assertEqual(p.returncode, 0, b.log())
+        delivered = [t for t in self.owed(b) if "Stash ref: " + STASH_REF in t]
+        self.assertGreaterEqual(len(delivered), 1, b.texts())
+        self.assertEqual(b.st("owed_action_notified"), "id-a1873614d1af42e9a639deff0f4f861c")
+        n = len(self.owed(b))
+        b.scenario(NOOP)
+        b.run(apply="1")
+        self.assertEqual(len(self.owed(b)), n, b.texts())                     # never again
+
+    def test_noop_and_failure_paths_do_not_use_the_install_reminder(self):
+        # The reminder belongs to proven installs only: a receipt owing an action on a no-op / unproven /
+        # failed run keeps its existing handling (PATCH5 reminder or real failure), no owed-action text.
+        for name, setup, rc in (
+            ("proven-shape-noop-owing", lambda b: b.proven(UP_AVAIL, REAL_YES_NOOP, now=T0,
+                                                         user_action={"step": "stash", "reason": "parked"}), 1),
+            ("failed-outcome", lambda b: b.scenario(UP_AVAIL, yes=YES_FAIL, yes_rc=1, correlate=True,
+                                                    receipt=real_receipt(GEN3_USER_ACTION, T0, outcome="failed")), 1)):
+            with self.subTest(case=name):
+                b = self.box()
+                setup(b)
+                p = b.run(apply="1", now=T0)
+                self.assertEqual(p.returncode, rc, b.log())
+                self.assertIsNone(b.st("last_install_ts"))
+                self.assertEqual(self.owed(b), [], b.texts())
+                # FIX3: the receipt stays on disk and every later tick derives from it -- it must not
+                # turn into an install reminder there either.
+                # FIX4 (r11A B2100): eligibility no longer needs the receipt's SHAs, so the no-op of OURS
+                # (outcome success) is now reminded once at a later tick (more alerts, allowed by the WO) --
+                # but never worded as an install. A failed outcome never reaches mark_installed: silent.
+                b.scenario(NOOP)
+                self.assertEqual(b.run(apply="1", now=T0 + 3600).returncode, 0, b.log())
+                o = self.owed(b)
+                if name == "failed-outcome":
+                    self.assertEqual(o, [], b.texts())
+                else:
+                    self.assertEqual(len(o), 1, b.texts())
+                    self.assertIn(UNPROVEN_WORDING, o[0])
+                    self.assertNotIn("Hermes was updated", o[0])
+                    b.scenario(NOOP)
+                    self.assertEqual(b.run(apply="1", now=T0 + 7200).returncode, 0, b.log())
+                    self.assertEqual(len(self.owed(b)), 1, b.texts())
+
+
+OWED_UID = "a1873614d1af42e9a639deff0f4f861c"
+OWED_KEY = "id-" + OWED_UID
+# Files under the state dir whose JOB is to hold an undeliverable text for a human (dead letters) and
+# the private receipt snapshot (removed at exit; a SIGKILL may leave it, the next tick deletes it).
+_NOT_A_COPY = ("notify_dead_letter.log", "notify_dead")
+
+
+def local_reminder_copies(b):
+    """FIX3: what is owed is read from the upstream receipt every tick; the state dir must not hold a
+    copy of a reminder (queue file, fallback, marker...). Lists every state file holding its text."""
+    out = []
+    for d, _, files in os.walk(b.state):
+        for n in files:
+            if n in _NOT_A_COPY or n.startswith("receipt_snap."):
+                continue
+            p = os.path.join(d, n)
+            try:
+                with open(p, "rb") as f:
+                    data = f.read(1 << 20)
+            except OSError:
+                continue
+            if OWED.encode() in data or STASH_REF.encode() in data:
+                out.append(p)
+    return out
+
+
+# A curl stub with switches, for the entry sequences below (all files in the Box root):
+#   curl_fail          -> exit 7 (transport down)          curl_okfalse -> HTTP 200 {"ok":false}
+#   kill_on <prefix>   -> the first message starting with <prefix> SIGKILLs the running auto_update.sh
+#                         (every ancestor process running this exact script), i.e. the run dies there
+#   chmod_on <prefix>  -> the first such message makes the state dir 0555 (writes fail from then on)
+FIX3_CURL = r'''#!@PY@ -I
+import json, os, signal, sys
+ROOT, SRC, STATE = @ROOT@, @SRC@, @STATE@
+a = sys.argv[1:]
+text = None
+for i in range(len(a) - 1):
+    if a[i] == "--data-urlencode" and a[i + 1].startswith("text="):
+        text = a[i + 1][5:]
+with open(os.path.join(ROOT, "curl.calls"), "a") as f:
+    f.write(json.dumps({"args": a, "text": text}) + "\n")
+def trig(name):
+    p = os.path.join(ROOT, name)
+    if text is None or not os.path.exists(p):
+        return False
+    if not text.startswith(open(p, encoding="utf-8").read()):
+        return False
+    os.remove(p)
+    return True
+if trig("chmod_on"):
+    os.chmod(STATE, 0o555)
+if trig("kill_on"):
+    # Only the chain of `bash <SRC>` processes directly above this stub (the script and its $(...)
+    # subshells); the walk stops at the first other process, so the test runner -- whose own argv may
+    # hold the same path -- is never hit.
+    victims, pid = [], os.getppid()
+    while pid > 1:
+        try:
+            with open("/proc/%d/cmdline" % pid, "rb") as f:
+                cmd = f.read().split(b"\0")
+            with open("/proc/%d/stat" % pid) as f:
+                ppid = int(f.read().rsplit(")", 1)[1].split()[1])
+        except (OSError, ValueError, IndexError):
+            break
+        if not (len(cmd) >= 2 and os.path.basename(cmd[0]) == b"bash" and cmd[1] == SRC.encode()):
+            break
+        victims.append(pid)
+        pid = ppid
+    with open(os.path.join(ROOT, "killed"), "w") as f:
+        f.write(json.dumps(victims))
+    for v in victims:
+        os.kill(v, signal.SIGKILL)
+    sys.exit(7)
+if os.path.exists(os.path.join(ROOT, "curl_fail")):
+    sys.exit(7)
+if os.path.exists(os.path.join(ROOT, "curl_okfalse")):
+    print('{"ok":false,"error_code":403,"description":"Forbidden: bot was blocked by the user"}')
+    sys.exit(0)
+print('{"ok":true,"result":{"message_id":1}}')
+'''
+
+
+class OwedActionDerived(T):
+    """WO-HAU-USERACTION-FIX3 (verdict-r10A B1900, r9B B1800 / B1801). What is owed is DERIVED from the
+    upstream receipts at the start of every tick (and after the ✓ of an install); the dedupe ledger is the
+    only state, a reminder is done only when Telegram said ok:true AND the key reads back from the ledger.
+    Every earlier review's failure sequence is replayed through the real script entry and must end in
+    EXACTLY ONE delivery once the channel / the writes recover: r10A (2), r9A (6), r8A (3), plus a kill
+    right after mark_installed (B1800), first enable (no flood of history), the look-back window, an
+    unreadable receipt directory, a receipt that is not JSON (B1801), a broken / unwritable ledger, and a
+    recovery matrix. The receipt directory is never modified by a tick."""
+
+    def owed(self, b):
+        return [t for t in b.texts() if OWED in t]
+
+    def incident(self, b, yes_rc=1, **over):
+        b.scenario(UP_AVAIL, yes=INCIDENT_YES, yes_rc=yes_rc, correlate=True,
+                   receipt=real_receipt(GEN3_USER_ACTION, **over))
+
+    def installed(self, b, p):
+        self.assertEqual(p.returncode, 0, b.log())
+        self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$", b.log())
+        self.assertEqual(b.st("consec_real_fails"), "0", b.log())
+        self.assertEqual(b.st("consec_available_noop"), "0", b.log())
+        self.assertTrue(any(t.startswith("✓ hermes agent updated") for t in b.texts()), b.texts())
+        self.clean_stderr(p)
+
+    def clean_stderr(self, p):
+        for bad in ("Traceback", "integer expression expected", "Is a directory", "No such file", "syntax error"):
+            self.assertNotIn(bad, p.stderr)
+
+    def ledger(self, b):
+        p = os.path.join(b.state, "owed_action_notified")
+        self.assertTrue(os.path.isfile(p), "dedupe ledger is not a regular file")
+        with open(p, encoding="utf-8", errors="replace") as f:
+            return f.read().split()
+
+    def ledger_keys(self, b):
+        p = os.path.join(b.state, "owed_action_notified")
+        if not os.path.isfile(p) or os.path.islink(p):
+            return []
+        with open(p, "rb") as f:
+            return f.read().decode("ascii", "replace").split("\n")
+
+    def stub(self, b, name, body):
+        p = os.path.join(b.root, "bin", name)
+        with open(p, "w", encoding="utf-8") as f:
+            f.write(body)
+        os.chmod(p, 0o755)
+
+    def unstub(self, b, name):
+        p = os.path.join(b.root, "bin", name)
+        if os.path.exists(p):
+            os.remove(p)
+
+    def refuse_mktemp(self, b, pattern):
+        real = shutil.which("mktemp") or "/usr/bin/mktemp"
+        self.stub(b, "mktemp", '#!/bin/sh\ncase "$*" in %s) exit 1 ;; esac\nexec "%s" "$@"\n' % (pattern, real))
+
+    def switch_curl(self, b):
+        c = FIX3_CURL
+        for k, v in (("@PY@", sys.executable), ("@ROOT@", repr(b.root)), ("@SRC@", repr(SRC)),
+                     ("@STATE@", repr(b.state))):
+            c = c.replace(k, v)
+        self.stub(b, "curl", c)
+
+    def flag(self, b, name, content="1"):
+        b._w(os.path.join(b.root, name), content)
+
+    def unflag(self, b, name):
+        p = os.path.join(b.root, name)
+        if os.path.exists(p):
+            os.remove(p)
+
+    def unlock_on_cleanup(self, b):
+        def unlock():
+            for d, dirs, _ in os.walk(b.root):
+                for n in dirs:
+                    try:
+                        os.chmod(os.path.join(d, n), 0o755)
+                    except OSError:
+                        pass
+        self.addCleanup(unlock)
+
+    def receipts(self, b):
+        out = {}
+        for n in sorted(os.listdir(b.rdir)):
+            p = os.path.join(b.rdir, n)
+            st = os.lstat(p)
+            with open(p, "rb") as f:
+                out[n] = (hashlib.sha256(f.read()).hexdigest(), st.st_mtime_ns, st.st_mode)
+        return out
+
+    def noop_ticks(self, b, n, now=None):
+        # Plain ticks (--check says up to date): nothing writes a receipt, so the receipt directory must
+        # be byte-for-byte, mtime and mode the same afterwards.
+        for _ in range(n):
+            before = self.receipts(b)
+            b.scenario(NOOP)
+            p = b.run(apply="1", now=now)
+            self.assertEqual(p.returncode, 0, b.log())
+            self.clean_stderr(p)
+            self.assertEqual(self.receipts(b), before, "a tick modified the upstream receipt directory")
+
+    def recover_exactly_once(self, b, before, needle="Stash ref: " + STASH_REF, ticks=3, key=OWED_KEY):
+        # From here on the channel and the writes are healthy: exactly one owed reminder, with the real
+        # text, recorded in the ledger, and never again; no local copy of it anywhere.
+        self.noop_ticks(b, ticks)
+        o = [t for t in b.texts()[before:] if OWED in t]
+        self.assertEqual(len(o), 1, (b.texts()[before:], b.log()[-4000:]))
+        self.assertIn(needle, o[0])
+        self.assertIn(key, self.ledger(b))
+        self.noop_ticks(b, 1)
+        self.assertEqual(len([t for t in b.texts()[before:] if OWED in t]), 1, b.texts()[before:])
+        self.assertEqual(local_reminder_copies(b), [])
+        return o[0]
+
+    def archive(self, b, uid, corr, ts=None, mtime=None, **over):
+        # One upstream archive file update_<stamp>_<pid>_<update_id>.json, as _run_file names it.
+        d = real_receipt(GEN3_USER_ACTION, update_id=uid, **over)
+        if corr is None:
+            d.pop("correlation_id", None)
+        else:
+            d["correlation_id"] = corr
+        d["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%S+00:00", time.gmtime(ts if ts is not None else time.time()))
+        p = os.path.join(b.rdir, "update_20261118_212309_1644282_%s.json" % uid)
+        b._w(p, json.dumps(d))
+        if mtime is not None:
+            os.utime(p, (mtime, mtime))
+        return p
+
+    # --- r10A (verdict-r10A B1900): the two recovery scenarios -------------------------------------
+    def chmod_state_at_mark_installed(self, b):
+        # The date stub makes the state dir 0555 at the first `date +%s` after --yes ran: mark_installed's
+        # `date +%s > last_install_ts` (the shell has opened that file already). From then on nothing new
+        # can be created in the state dir for the rest of the tick.
+        p = os.path.join(b.root, "bin", "date")
+        with open(p, encoding="utf-8") as f:
+            s = f.read()
+        hook = ('if [ "$#" -eq 1 ] && [ "$1" = "+%%s" ] && [ -f "%s/chmod_on_date" ] '
+                '&& grep -q -- "--yes" "%s/hermes.calls" 2>/dev/null; then rm -f "%s/chmod_on_date"; '
+                'chmod 0555 "%s"; fi\n' % (b.root, b.root, b.root, b.state))
+        b._w(p, s.replace("#!/bin/sh\n", "#!/bin/sh\n" + hook, 1))
+        self.flag(b, "chmod_on_date")
+
+    def test_r10a_state_unwritable_at_install_recovers(self):
+        # r10A state-unwritable-at-install-recovers: after the receipt snapshot, at mark_installed, the
+        # state dir becomes 0555 and the channel is dead. Restored -> exactly 1.
+        b = self.box()
+        self.unlock_on_cleanup(b)
+        self.chmod_state_at_mark_installed(b)
+        b.notify_fails(True)
+        self.incident(b)
+        p = b.run(apply="1")
+        self.assertFalse(os.path.exists(os.path.join(b.root, "chmod_on_date")), "the trigger never fired")
+        self.assertEqual(oct(os.stat(b.state).st_mode & 0o777), "0o555")
+        self.assertEqual(p.returncode, 0, b.log())
+        self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$", b.log())
+        self.assertIsNone(b.st("owed_action_notified"))
+        os.chmod(b.state, 0o755)
+        b.notify_fails(False)
+        self.recover_exactly_once(b, len(b.texts()))
+
+    def test_r10a_all_reminder_writes_refused_recovers(self):
+        # r10A all-body-temp-creation-refused-recovers: every temp this feature could create is refused
+        # (the state dir itself stays writable), the channel is dead. Restored -> exactly 1.
+        b = self.box()
+        self.refuse_mktemp(b, "*owed*")
+        b.notify_fails(True)
+        self.incident(b)
+        self.installed_dead(b, b.run(apply="1"))
+        b._w(os.path.join(b.state, "independent-write-proof"), "state remained writable\n")
+        self.unstub(b, "mktemp")
+        b.notify_fails(False)
+        self.recover_exactly_once(b, len(b.texts()))
+
+    def installed_dead(self, b, p):
+        # The install verdict of an install whose notices all failed: rc 0, marked, counters reset.
+        self.assertEqual(p.returncode, 0, b.log())
+        self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$", b.log())
+        self.assertEqual(b.st("consec_real_fails"), "0", b.log())
+        self.clean_stderr(p)
+
+    # --- r9A (verdict-r9A B1700 / B1701 / B1702): the six scenarios --------------------------------
+    def test_r9a_invalid_sent_marker_is_not_delivery(self):
+        # invalid-sent-marker-{queue,root}-{directory,empty-file}: leftovers named like the removed
+        # .owed_sent markers mean nothing now; exactly one reminder, never again.
+        for loc in ("queue", "root"):
+            for kind in ("directory", "empty-file"):
+                with self.subTest(loc=loc, kind=kind):
+                    b = self.box()
+                    d = os.path.join(b.state, "owed_action_pending") if loc == "queue" else b.state
+                    os.makedirs(d, exist_ok=True)
+                    marker = os.path.join(d, ".owed_sent." + OWED_KEY)
+                    if kind == "directory":
+                        os.makedirs(marker)
+                    else:
+                        open(marker, "w").close()
+                    self.incident(b)
+                    p = b.run(apply="1")
+                    self.installed(b, p)
+                    self.assertNotIn("already delivered", b.log())
+                    o = self.owed(b)
+                    self.assertEqual(len(o), 1, (b.texts(), b.log()[-3000:]))
+                    self.assertIn("Stash ref: " + STASH_REF, o[0])
+                    self.assertEqual(self.ledger(b), [OWED_KEY])
+                    self.noop_ticks(b, 2)
+                    self.assertEqual(len(self.owed(b)), 1, b.texts())
+
+    def test_r9a_corrupt_queue_entry_and_refused_temps_recover(self):
+        # quarantine-before-rebuild-failure: undelivered, then the old queue slot holds an empty file and
+        # the queue-dir temps are refused for a tick. The reminder comes from the receipt: exactly one,
+        # with its REAL text (not a generic stand-in).
+        b = self.box()
+        b.notify_fails(True)
+        self.incident(b)
+        self.installed_dead(b, b.run(apply="1"))
+        pend = os.path.join(b.state, "owed_action_pending")
+        os.makedirs(pend, exist_ok=True)
+        open(os.path.join(pend, OWED_KEY), "w").close()
+        self.refuse_mktemp(b, "*/owed_action_pending/.owed_q.*")
+        b.notify_fails(False)
+        before = len(b.texts())
+        self.noop_ticks(b, 1)
+        self.unstub(b, "mktemp")
+        o = self.recover_exactly_once(b, before)
+        self.assertNotIn("receipt key", o)
+
+    def test_r9a_same_update_id_while_unwritable_respects_dedupe(self):
+        # unpersisted-direct-send-bypasses-dedupe: delivered once; the same update_id installed again while
+        # nothing of this feature can be written -> still one reminder.
+        b = self.box()
+        self.incident(b)
+        self.installed(b, b.run(apply="1"))
+        self.assertEqual(len(self.owed(b)), 1, b.texts())
+        self.refuse_mktemp(b, "*owed*")
+        self.incident(b)
+        self.installed(b, b.run(apply="1"))
+        self.assertEqual(len(self.owed(b)), 1, b.texts())
+        self.assertIn("already delivered — not repeated", b.log())
+        self.assertEqual(self.ledger(b), [OWED_KEY])
+        self.noop_ticks(b, 2)
+        self.assertEqual(len(self.owed(b)), 1, b.texts())
+
+    # --- r8A (verdict-r8A B1500 / B1501): the three scenarios --------------------------------------
+    def test_r8a_queue_path_blocked_and_dead_channel_recovers(self):
+        # queue-write-fail-and-channel-recovery: owed_action_pending is a plain file, the channel is dead
+        # on the install tick and the next one. Back -> exactly once, whether or not the blocker stays.
+        for unblock in (True, False):
+            with self.subTest(unblock=unblock):
+                b = self.box()
+                b.seed("consec_real_fails", "2")
+                b.seed("consec_available_noop", "2")
+                blocker = os.path.join(b.state, "owed_action_pending")
+                b._w(blocker, "corrupt queue path\n")
+                b.notify_fails(True)
+                self.incident(b)
+                p = b.run(apply="1")
+                self.installed_dead(b, p)
+                self.assertEqual(b.st("consec_available_noop"), "0", b.log())
+                self.assertIsNone(b.st("owed_action_notified"))
+                self.noop_ticks(b, 1)
+                self.assertIsNone(b.st("owed_action_notified"))
+                if unblock:
+                    os.remove(blocker)
+                b.notify_fails(False)
+                self.recover_exactly_once(b, len(b.texts()))
+
+    def test_r8a_pending_key_directory_is_irrelevant(self):
+        # pending-key-directory: owed_action_pending/<key> pre-exists as a directory / empty / foreign file.
+        # Nothing reads it any more: exactly one reminder, the leftover is not touched.
+        for kind in ("directory", "empty-file", "foreign-file"):
+            with self.subTest(kind=kind):
+                b = self.box()
+                pend = os.path.join(b.state, "owed_action_pending")
+                os.makedirs(pend)
+                slot = os.path.join(pend, OWED_KEY)
+                if kind == "directory":
+                    os.makedirs(slot)
+                    b._w(os.path.join(slot, "keep"), "not ours\n")
+                else:
+                    b._w(slot, "" if kind == "empty-file" else "some other content\n")
+                self.incident(b)
+                self.installed(b, b.run(apply="1"))
+                o = self.owed(b)
+                self.assertEqual(len(o), 1, (b.texts(), b.log()[-3000:]))
+                self.assertIn("Stash ref: " + STASH_REF, o[0])
+                self.assertEqual(self.ledger(b), [OWED_KEY])
+                self.assertTrue(os.path.lexists(slot))
+                self.noop_ticks(b, 1)
+                self.assertEqual(len(self.owed(b)), 1, b.texts())
+
+    def test_r8a_dedupe_ledger_is_directory(self):
+        # dedupe-ledger-is-directory (B1501): the ledger is a directory, the same update_id is installed
+        # twice. No shell error, one reminder, the ledger moved aside (not deleted) and rebuilt.
+        b = self.box()
+        os.makedirs(os.path.join(b.state, "owed_action_notified"))
+        b._w(os.path.join(b.state, "owed_action_notified", "keep"), "x\n")
+        for _ in range(2):
+            self.incident(b)
+            self.installed(b, b.run(apply="1"))
+        self.assertEqual(len(self.owed(b)), 1, b.texts())
+        self.assertEqual(self.ledger(b), [OWED_KEY])
+        aside = [n for n in os.listdir(b.state) if n.startswith(".owed_bad.owed_action_notified.")]
+        self.assertEqual(len(aside), 1, os.listdir(b.state))
+        self.assertTrue(os.path.isfile(os.path.join(b.state, aside[0], "keep")))
+        self.assertIn("already delivered — not repeated", b.log())
+
+    # --- B1800: killed right after mark_installed --------------------------------------------------
+    def kill_at_mark_installed(self, b):
+        # mark_installed runs `date +%s > last_install_ts` as a plain child of the script: the date stub
+        # SIGKILLs its parent (the script) at that moment and then still prints the epoch, so the install
+        # IS recorded and the run dies right after it -- the exact r9B B1800 window.
+        p = os.path.join(b.root, "bin", "date")
+        with open(p, encoding="utf-8") as f:
+            s = f.read()
+        hook = ('if [ "$#" -eq 1 ] && [ "$1" = "+%%s" ] && [ -f "%s/kill_on_date" ] '
+                '&& grep -q -- "--yes" "%s/hermes.calls" 2>/dev/null; then rm -f "%s/kill_on_date"; '
+                'echo "$PPID" > "%s/killed"; kill -9 "$PPID"; fi\n' % (b.root, b.root, b.root, b.root))
+        b._w(p, s.replace("#!/bin/sh\n", "#!/bin/sh\n" + hook, 1))
+        self.flag(b, "kill_on_date")
+
+    def test_b1800_killed_after_mark_installed_next_tick_reminds(self):
+        # The run is SIGKILLed right at mark_installed, or at its first notice after it (the ✓ / the
+        # "still draining"): nothing of the reminder was delivered by that run. The next plain tick derives
+        # it from the receipt: exactly once.
+        cases = (("race-exit1-at-mark_installed", 1, None, None),
+                 ("partial-exit0-at-mark_installed", 0, None, None),
+                 ("race-exit1", 1, None, "✓ hermes agent updated"),
+                 ("partial-exit0-confirmed", 0, None, "✓ hermes agent updated"),
+                 ("partial-exit0-draining", 0, "0" * 40, "⚠ hermes auto-update: installed"))
+        for name, rc, gw, prefix in cases:
+            with self.subTest(case=name):
+                b = self.box()
+                if gw:
+                    b._w(b.gw, json.dumps({"code_sha": gw}))
+                self.switch_curl(b)
+                if prefix:
+                    self.flag(b, "kill_on", prefix)
+                else:
+                    self.kill_at_mark_installed(b)
+                self.incident(b, yes_rc=rc)
+                p = b.run(apply="1")
+                self.assertEqual(p.returncode, -9, (p.returncode, b.log()[-2000:]))
+                with open(os.path.join(b.root, "killed")) as f:
+                    self.assertTrue(json.loads(f.read()))
+                if not prefix:
+                    self.assertEqual(b.texts(), [])                     # died before any notice
+                self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$", b.log())
+                self.assertEqual(self.owed(b), [])
+                self.assertIsNone(b.st("owed_action_notified"))
+                if gw:   # the gateway comes up, so the plain ticks below exit 0 (drain marker consumed)
+                    with open(b.gw, "w") as f:
+                        f.write(json.dumps({"code_sha": subprocess.run(
+                            [shutil.which("git"), "-C", b.repo, "rev-parse", "HEAD"],
+                            capture_output=True, text=True).stdout.strip()}))
+                self.recover_exactly_once(b, len(b.texts()))
+
+    # --- first enable, look-back window ------------------------------------------------------------
+    def test_first_enable_does_not_flood_history(self):
+        # Receipts that existed before this version: the real 11-18 shape (old au-<ns>-... id, partial,
+        # SHA advanced, user_action) as latest.json AND as an archive, more old-id archives owing
+        # followups, a legacy receipt without correlation_id, all fresh. Plain ticks: no reminder at all.
+        # The next install by THIS version reminds once, about its own receipt only.
+        b = self.box()
+        now = int(time.time())
+        old = []
+        for i in range(4):
+            uid = "0ld%029d" % i
+            corr = "au-%d-1643952-%d" % ((now - 3600 * (i + 1)) * 10 ** 9 + 123456789, 27745 + i)
+            over = {"followups": [{"step": "dependencies", "reason": "No module named 'fastapi'"}]} if i % 2 else {}
+            old.append(self.archive(b, uid, corr, ts=now - 3600 * (i + 1), **over))
+        old.append(self.archive(b, "1egacy00000000000000000000000000", None, ts=now - 600))
+        with open(old[0], encoding="utf-8") as f:
+            b._w(os.path.join(b.rdir, "latest.json"), f.read())
+        self.noop_ticks(b, 2)
+        self.assertEqual(self.owed(b), [], b.texts())
+        self.assertIsNone(b.st("owed_action_notified"))
+        new_uid = "fe" * 16
+        self.incident(b, update_id=new_uid)
+        self.installed(b, b.run(apply="1"))
+        o = self.owed(b)
+        self.assertEqual(len(o), 1, (b.texts(), b.log()[-3000:]))
+        self.assertIn("update_id=" + new_uid, o[0])
+        self.assertEqual(self.ledger(b), ["id-" + new_uid])
+        self.noop_ticks(b, 2)
+        self.assertEqual(len(self.owed(b)), 1, b.texts())
+
+    def test_lookback_30_days(self):
+        # Receipts this version launched, owing a user action: launched 29 days ago -> reminded; 31 days
+        # ago -> not reminded, said in the log every tick. (fake clock; the launch epoch is in the id)
+        b = self.box()
+        for uid, age in (("young" + "0" * 27, 29 * DAY), ("aged" + "0" * 28, 31 * DAY)):
+            self.archive(b, uid, "au-r1-%d-1-2-3" % (T0 - age), ts=T0 - age)
+        self.noop_ticks(b, 2, now=T0)
+        o = self.owed(b)
+        self.assertEqual(len(o), 1, (b.texts(), b.log()[-3000:]))
+        self.assertIn("update_id=young", o[0])
+        self.assertEqual(self.ledger(b), ["id-young" + "0" * 27])
+        self.assertIn("is older than 30 days — no longer reminded", b.log())
+        self.assertIn("aged" + "0" * 28, b.log())
+
+    def test_lookback_newest_50_receipts_and_10_per_tick(self):
+        # 55 owed receipts this version launched, all within 30 days: only the newest 50 receipt files
+        # count; at most 10 reminders per tick, the rest on the following ticks; then silence.
+        b = self.box()
+        uids = ["u%031d" % i for i in range(55)]
+        for i, uid in enumerate(uids):
+            self.archive(b, uid, "au-r1-%d-1-2-3" % (T0 - DAY + i), ts=T0 - DAY + i, mtime=T0 - DAY + 60 * i)
+        for tick in range(5):
+            self.noop_ticks(b, 1, now=T0)
+            self.assertEqual(len(self.owed(b)), 10 * (tick + 1), b.texts())
+        self.assertIn("more owed reminder(s) — continued at the next tick", b.log())
+        self.noop_ticks(b, 2, now=T0)
+        got = sorted(t.split("update_id=")[1].split(")")[0] for t in self.owed(b))
+        self.assertEqual(got, sorted(uids[5:]))
+        self.assertEqual(sorted(self.ledger(b)), sorted("id-" + u for u in uids[5:]))
+
+    # --- unreadable receipt directory / receipt that is not JSON (B1801) ---------------------------
+    def test_unreadable_receipt_dir_is_logged_and_reminds_once_readable(self):
+        b = self.box()
+        self.unlock_on_cleanup(b)
+        self.archive(b, OWED_UID, "au-r1-%d-1-2-3" % int(time.time()))
+        os.chmod(b.rdir, 0o000)
+        try:
+            b.scenario(NOOP)
+            p = b.run(apply="1")
+        finally:
+            os.chmod(b.rdir, 0o755)
+        self.assertEqual(p.returncode, 0, b.log())
+        self.clean_stderr(p)
+        self.assertEqual(self.owed(b), [])
+        self.assertIn("the receipt directory %s cannot be read" % b.rdir, b.log())
+        self.recover_exactly_once(b, 0)
+
+    def test_b1801_receipt_not_json_is_retried_next_tick(self):
+        # Undelivered install; then latest.json is torn (not JSON) for a tick: logged, nothing crashes;
+        # once it parses again the reminder goes out exactly once.
+        b = self.box()
+        b.notify_fails(True)
+        self.incident(b)
+        self.installed_dead(b, b.run(apply="1"))
+        latest = os.path.join(b.rdir, "latest.json")
+        with open(latest, encoding="utf-8") as f:
+            good = f.read()
+        b._w(latest, good[: len(good) // 2])
+        b.notify_fails(False)
+        before = len(b.texts())
+        self.noop_ticks(b, 1)
+        self.assertEqual([t for t in b.texts()[before:] if OWED in t], [])
+        self.assertIn("could not be read as JSON", b.log())
+        self.assertIn("read again at the next tick", b.log())
+        b._w(latest, good)
+        self.recover_exactly_once(b, len(b.texts()))
+
+    # --- the ledger: broken, or not writable -------------------------------------------------------
+    def test_broken_ledger_never_crashes_never_repeats(self):
+        for kind in ("empty-file", "garbage", "no-final-newline", "read-only", "empty-dir", "dangling-symlink",
+                     "unreadable"):
+            with self.subTest(kind=kind):
+                b = self.box()
+                led = os.path.join(b.state, "owed_action_notified")
+                if kind == "empty-file":
+                    b._w(led, "")
+                elif kind == "garbage":
+                    with open(led, "wb") as f:
+                        f.write(b"\xff\x00garbage\nid-older1\n\x1b[31mjunk")
+                elif kind == "no-final-newline":
+                    b._w(led, "id-older1")
+                elif kind == "read-only":                      # FIX1 test_readonly_ledger_keeps_its_keys
+                    b._w(led, "id-older1\n")
+                    os.chmod(led, 0o444)
+                elif kind == "empty-dir":
+                    os.makedirs(led)
+                elif kind == "dangling-symlink":
+                    os.symlink(os.path.join(b.root, "nowhere"), led)
+                else:
+                    b._w(led, "id-older1\n")
+                    os.chmod(led, 0o000)
+                self.incident(b)
+                self.installed(b, b.run(apply="1"))
+                self.assertEqual(len(self.owed(b)), 1, (b.texts(), b.log()[-3000:]))
+                want = [OWED_KEY] if kind in ("empty-file", "empty-dir", "dangling-symlink", "unreadable") \
+                    else ["id-older1", OWED_KEY]
+                self.assertEqual(self.ledger(b), want)
+                self.noop_ticks(b, 2)
+                self.incident(b)
+                self.installed(b, b.run(apply="1"))
+                self.assertEqual(len(self.owed(b)), 1, b.texts())
+
+    def test_ledger_unwritable_resends_until_recorded(self):
+        # Delivered, but the ledger cannot be written: logged, sent again at the next tick (more alerts,
+        # never fewer), and recorded -- then silent -- as soon as the ledger can be written.
+        b = self.box()
+        self.refuse_mktemp(b, "*.owed_tmp.*")
+        self.incident(b)
+        self.installed(b, b.run(apply="1"))
+        self.assertEqual(len(self.owed(b)), 1, b.texts())
+        self.assertIn("could not be written and read back — it will be sent again at the next tick", b.log())
+        self.noop_ticks(b, 1)
+        self.assertEqual(len(self.owed(b)), 2, b.texts())
+        self.unstub(b, "mktemp")
+        self.noop_ticks(b, 1)
+        self.assertEqual(len(self.owed(b)), 3, b.texts())
+        self.assertEqual(self.ledger(b), [OWED_KEY])
+        self.noop_ticks(b, 2)
+        self.assertEqual(len(self.owed(b)), 3, b.texts())
+
+    def test_legacy_install_recovers_through_the_claim(self):
+        # A legacy receipt (no correlation_id, no SHAs): only this run's completion line proves the install,
+        # so the claim written before mark_installed is what lets a later tick derive the reminder.
+        b = self.box()
+        b.notify_fails(True)
+        b.scenario(LEGACY_AVAIL, yes=DONE_OLD, receipt={"outcome": "success",
+                   "user_action": {"step": "local_changes", "reason": "Stash ref: " + STASH_REF}})
+        self.installed_dead(b, b.run(apply="1"))
+        claims = b.st("owed_action_claims") or ""
+        self.assertRegex(claims, r"^sha-[0-9a-f]{64}$")
+        b.notify_fails(False)
+        self.recover_exactly_once(b, len(b.texts()), key=claims)
+        self.assertEqual(self.ledger(b), [claims])
+
+    # --- r11A (verdict-r11A B2100): a receipt of ours WITHOUT SHAs, claim refused, channel dead -------
+    def r11a_sequence(self, b, receipt, refuse_claim=True):
+        # Install tick: --check available; --yes exit 0 with the completion line, writing `receipt`
+        # (correlated to this run); every *owed* temp refused (the claim cannot be written; the state dir
+        # stays writable and the receipt snapshot works); Telegram down. Then: writes and channel healthy,
+        # plain ticks. Returns the one recovered reminder.
+        uid = receipt["update_id"]
+        if refuse_claim:
+            self.refuse_mktemp(b, "*owed*")
+        b.notify_fails(True)
+        b.scenario(REAL_CHECK, yes=R11A_YES, correlate=True, receipt=receipt)
+        self.installed_dead(b, b.run(apply="1"))
+        self.assertEqual(b.st("consec_available_noop"), "0", b.log())
+        self.assertIn("(receipt: success)", b.log())
+        self.assertIn("owed-action reminder NOT delivered (id-%s)" % uid, b.log())
+        self.assertIsNone(b.st("owed_action_notified"))
+        if refuse_claim:
+            self.assertIn("the install claim could not be written", b.log())
+            self.assertIsNone(b.st("owed_action_claims"))
+            b._w(os.path.join(b.state, "independent-write-proof"), "state remained writable\n")
+            self.unstub(b, "mktemp")
+        b.notify_fails(False)
+        o = self.recover_exactly_once(b, len(b.texts()), needle=R11A_NEEDLE, key="id-" + uid)
+        self.assertEqual(self.ledger(b), ["id-" + uid])
+        return o
+
+    def test_r11a_pre_identity_timeout_claim_refused_dead_channel_recovers(self):
+        # r11A main scenario: the real upstream pre-update identity read timed out (pre sha=None), the
+        # claim temp is refused, the channel is dead -> after recovery exactly ONE reminder. Its key comes
+        # from the receipt alone (our correlation id), so it is worded as "not shown by the receipt".
+        o = self.r11a_sequence(self.box(), real_receipt(GEN3_PRE_ID_TIMEOUT))
+        self.assertIn(UNPROVEN_WORDING, o)
+        self.assertIn("outcome=success, update_id=49e5f4a63b0445e0a965854e14aaaec4", o)
+
+    def test_r11a_missing_sha_shapes_recover(self):
+        # The same sequence for every identity shape upstream can write: pre side without SHA, post side
+        # without SHA, both null, the whole identity {} (_code_identity swallowed the error). Control:
+        # with the claim written, the same receipt recovers too and is worded as an install.
+        full = {"sha": "91339898c3182cd8ae4046ccde75d37255e6c720", "short_sha": "91339898", "version": "0.23.1"}
+        null = {"sha": None, "short_sha": None, "version": "unknown", "source": "git"}
+        cases = (("pre-missing", real_receipt(GEN3_PRE_ID_TIMEOUT, pre_update={"version": "0.23.1", "source": "git"}), True),
+                 ("post-missing", real_receipt(GEN3_PRE_ID_TIMEOUT, pre_update=full, post_update=dict(null)), True),
+                 ("both-null", real_receipt(GEN3_PRE_ID_TIMEOUT, post_update=dict(null)), True),
+                 ("identity-empty-dict", real_receipt(GEN3_NO_IDENTITY), True),
+                 ("control-claim-written", real_receipt(GEN3_NO_IDENTITY), False))
+        for name, rec, refuse in cases:
+            with self.subTest(case=name):
+                o = self.r11a_sequence(self.box(), rec, refuse_claim=refuse)
+                if refuse:
+                    self.assertIn(UNPROVEN_WORDING, o)
+                else:
+                    self.assertTrue(o.startswith("⚠ hermes auto-update: Hermes was updated"), o)
+
+    # --- recovery matrix ---------------------------------------------------------------------------
+    FAILS = ("dead", "okfalse-refused", "chmod-at-notice", "kill-at-notice")
+    JUNK = ("none", "queue-file", "queue-key-dir", "sent-markers")
+    LEDGER = ("absent", "empty-file", "garbage", "dir")
+
+    def junk(self, b, kind):
+        pend = os.path.join(b.state, "owed_action_pending")
+        if kind == "queue-file":
+            b._w(pend, "corrupt queue path\n")
+        elif kind == "queue-key-dir":
+            os.makedirs(os.path.join(pend, OWED_KEY))
+        elif kind == "sent-markers":
+            os.makedirs(os.path.join(b.state, ".owed_sent." + OWED_KEY))
+            os.makedirs(pend)
+            open(os.path.join(pend, ".owed_sent." + OWED_KEY), "w").close()
+
+    def ledger_state(self, b, kind):
+        led = os.path.join(b.state, "owed_action_notified")
+        if kind == "empty-file":
+            b._w(led, "")
+        elif kind == "garbage":
+            with open(led, "wb") as f:
+                f.write(b"\x00\xfe\xfd not a key\n")
+        elif kind == "dir":
+            os.makedirs(led)
+
+    def test_recovery_matrix_delivers_exactly_once(self):
+        # 4 failure modes at the install tick x 4 kinds of leftovers x 4 ledger states, as a 4x4 Latin
+        # square (every pair of levels of every two factors meets exactly once): 16 runs. Each: install
+        # under that failure -> one more tick still failing -> everything healthy -> exactly one reminder.
+        combos = [(self.FAILS[i], self.JUNK[j], self.LEDGER[(i + j) % 4]) for i in range(4) for j in range(4)]
+        for fail, junk, led in combos:
+            with self.subTest(fail=fail, junk=junk, ledger=led):
+                b = self.box()
+                self.unlock_on_cleanup(b)
+                self.junk(b, junk)
+                self.ledger_state(b, led)
+                self.switch_curl(b)
+                if fail in ("dead", "chmod-at-notice"):
+                    b.notify_fails(True)
+                if fail == "okfalse-refused":
+                    self.flag(b, "curl_okfalse")
+                    self.refuse_mktemp(b, "*owed*")
+                if fail == "chmod-at-notice":
+                    self.flag(b, "chmod_on", "✓ hermes agent updated")
+                if fail == "kill-at-notice":
+                    self.flag(b, "kill_on", "✓ hermes agent updated")
+                self.incident(b)
+                p = b.run(apply="1")
+                self.assertIn(p.returncode, (0, -9), b.log()[-2000:])
+                self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$", b.log())
+                self.assertNotIn(OWED_KEY, self.ledger_keys(b))
+                if fail == "chmod-at-notice":
+                    os.chmod(b.state, 0o755)
+                if fail != "kill-at-notice":
+                    self.noop_ticks(b, 1)                                  # still failing
+                    self.assertNotIn(OWED_KEY, self.ledger_keys(b))
+                b.notify_fails(False)
+                self.unflag(b, "curl_okfalse")
+                self.unstub(b, "mktemp")
+                self.recover_exactly_once(b, len(b.texts()))
+
+
+class ShaAdvanceB1300(T):
+    """B1300 (verdict-r7A): receipt_sha_advanced compares full SHAs when both sides carry one, else the
+    common prefix; a short_sha length change (7 vs 8) of the SAME commit is not an advance. Entry
+    sequence of evidence-r7A/entry_probes.py forged-short-length-change, plus the short-only variant."""
+
+    def forged(self, sides, out=YES_NOOP):
+        b = self.box()
+        b.seed("consec_real_fails", "8")
+        h = subprocess.run([shutil.which("git"), "-C", b.repo, "rev-parse", "HEAD"], capture_output=True,
+                           text=True, check=True).stdout.strip()
+        rec = real_receipt(GEN3_NOOP, T0)
+        pre, post = sides(h)
+        rec["pre_update"], rec["post_update"] = pre, post
+        b.scenario(REAL_CHECK, yes=out, receipt=rec, correlate=True)
+        return b, b.run(apply="1", now=T0), h
+
+    def test_forged_short_length_change_is_not_an_install(self):
+        cases = (
+            ("r7A-full-equal-short-7-8", lambda h: ({"sha": h, "short_sha": h[:7]}, {"sha": h, "short_sha": h[:8]})),
+            ("short-only-7-8", lambda h: ({"short_sha": h[:7]}, {"short_sha": h[:8]})),
+            ("short-only-8-12", lambda h: ({"short_sha": h[:12]}, {"short_sha": h[:8]})),
+            ("short-vs-full", lambda h: ({"short_sha": h[:8]}, {"sha": h})),
+            ("case-only", lambda h: ({"short_sha": h[:8].upper()}, {"short_sha": h[:8]})),
+            ("full-equal-short-garbage", lambda h: ({"sha": h, "short_sha": "0000000"}, {"sha": h, "short_sha": h[:8]})),
+            ("non-hex-shorts", lambda h: ({"short_sha": "pre-sha"}, {"short_sha": "post-sha"})),
+            ("six-hex-shorts", lambda h: ({"short_sha": "abcdef"}, {"short_sha": "123456"})),
+            ("non-string-shas", lambda h: ({"sha": 1, "short_sha": ["a" * 8]}, {"sha": None, "short_sha": 12345678})),
+        )
+        for out in (YES_NOOP, "→ Fetching updates...\n"):
+            for name, sides in cases:
+                with self.subTest(case=name, out=out.strip()):
+                    b, p, _h = self.forged(sides, out)
+                    self.assertIsNone(b.st("last_install_ts"), b.log())
+                    self.assertFalse(any("updated to" in t for t in b.texts()), b.texts())
+                    self.assertNotIn("success $", b.log())
+                    if name == "case-only":
+                        # same commit in both cases: a genuine no-op receipt (PROVEN, silent) — or, with no
+                        # no-op line, still never an install
+                        continue
+                    self.assertEqual(p.returncode, 1, b.log())
+                    self.assertTrue(b.texts(), b.log())                       # never silent either
+                    self.assertNotIn("PROVEN by this run's receipt", b.log())
+
+    def test_real_advance_still_installs(self):
+        # Positive controls on the discriminating output (no completion line): only the SHAs decide.
+        other = "1234567890abcdef1234567890abcdef12345678"
+        for name, sides in (
+            ("full-differ", lambda h: ({"sha": h, "short_sha": h[:8]}, {"sha": other, "short_sha": other[:8]})),
+            ("short-only-differ", lambda h: ({"short_sha": h[:8]}, {"short_sha": other[:8]})),
+            ("full-differ-same-short-prefix", lambda h: ({"sha": h}, {"sha": h[:8] + other[8:]})),
+            ("mixed-full-short", lambda h: ({"sha": h}, {"short_sha": other[:8]}))):
+            with self.subTest(case=name):
+                b, p, _h = self.forged(sides, "→ Fetching updates...\n")
+                self.assertEqual(p.returncode, 0, b.log())
+                self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$", b.log())
+                self.assertTrue(any("updated to" in t for t in b.texts()), b.texts())
+
+    def test_malformed_side_is_not_an_advance(self):
+        # A short_sha that is not a prefix of its own side's full sha: malformed receipt, no evidence.
+        other = "1234567890abcdef1234567890abcdef12345678"
+        b, p, _h = self.forged(lambda h: ({"sha": h, "short_sha": h[:8]}, {"sha": other, "short_sha": "deadbeef"}),
+                               "→ Fetching updates...\n")
+        self.assertEqual(p.returncode, 1, b.log())
+        self.assertIsNone(b.st("last_install_ts"), b.log())
 
 
 class CorpusToolFailsClosed(T):

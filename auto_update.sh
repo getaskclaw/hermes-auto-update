@@ -73,6 +73,25 @@
 #   - behaviour change: exit 0 with no receipt for THIS run is no longer a success (completion
 #     text -> "install unproven", exit 1; otherwise the PATCH4 state rules). Hermes builds that write no
 #     update receipt therefore alert on every install.
+# v5.16 (2026-11-19): relay what the receipt says is still OWED after a proven install, and B1300.
+#   Incident 2026-11-18 (v0.23.1 -> v0.23.2): exit 1, receipt partial, SHA advanced, user_action
+#   {"step":"local_changes", reason: stash parked + stash ref + re-apply command}. The install was
+#   judged right (race branch) but user_action / followups were read ONLY by the PROVEN_NOOP proof, so
+#   nobody learned that a local change had been shelved.
+#   - every path that reaches mark_installed (correlated success, partial + evidence exit 0, the
+#     non-zero race branch, a legacy receipt on this run's evidence): any truthy user_action /
+#     followups in the receipt -> ONE ⚠ reminder after the ✓ (step + reason verbatim, sanitized,
+#     bounded). Verdict, counters and exit codes unchanged. Malformed fields: no crash, no silence.
+#   - B1300: receipt_sha_advanced compares full SHAs when both sides have one, else the common prefix;
+#     a short_sha length change of the same commit (r7A forged 7 vs 8) is NOT an advance.
+#   - fix rounds 1 / 2 (r8A, r8B, r9A) hardened a local queue of reminder copies; each review found
+#     one more way to fail writing it. fix round 3 (r10A B1900, r9B B1800 / B1801) removes the queue,
+#     its fallback, markers and temps: what is owed is DERIVED from the upstream receipts (read only) at
+#     the start of every tick and after the ✓ (owed_scan / owed_deliver; THE INVARIANT above OWED_RDIR):
+#     receipts with this version's correlation id au-r1-<epoch>-... (fix round 4, r11A B2100: no SHA
+#     needed, kind / outcome must allow an install), or a key claimed before mark_installed; done
+#     only when ok:true AND the key reads back from owed_action_notified; look-back 30 days / newest
+#     50 receipts; older-format ids = handled.
 # v5.12 (2026-09-17): notify proxy→direct fallback (to6429 incident). The updater kept
 #   "succeeding" for 14 ticks while its ONLY alert channel was dead: hardcoded default
 #   TG_PROXY=127.0.0.1:18089 was a Kimi-sandbox leftover; that host isn't walled, xray
@@ -383,7 +402,7 @@ clear_drain_marker() {
 # real-machine defaults, but AU_REPO_DIR / AU_GATEWAY_STATE let stub tests point at
 # throwaway fixtures instead of this machine's live state (C1: hardcoded paths made
 # S10/S11 pass by borrowing the real machine's health).
-UPDATER_VERSION="5.15"   # this script's own version (changelog in header) — distinct from the Hermes version it installs
+UPDATER_VERSION="5.16"   # this script's own version (changelog in header) — distinct from the Hermes version it installs
 REPO_DIR="${AU_REPO_DIR:-/usr/local/lib/hermes-agent}"
 REPO="${AU_REPO_DIR:-$REPO_DIR}"   # harness compatibility: stub_setup rewrites REPO=
 GATEWAY_STATE="${AU_GATEWAY_STATE:-$HOME/.hermes/gateway_state.json}"
@@ -773,19 +792,38 @@ parse_version() {
 }
 
 # 1 only when the receipt is a Hermes install receipt (kind absent = upstream shape, or kind "update")
-# AND post_update.short_sha differs from pre_update.short_sha. $1 = receipt snapshot path.
+# AND its own SHAs say the code moved. $1 = receipt snapshot path.
+# v5.16 (B1300): a short_sha string difference alone is NOT an advance. Per side, the identity is the
+# full `sha` (40/64 hex) when present, else `short_sha` (>= 7 hex); case-insensitive; a short_sha
+# that is not a prefix of its own side's full sha makes the receipt malformed (0). Both sides full:
+# compare the full SHAs. Otherwise compare the common prefix (the shorter length): two identifiers
+# of different length where one is a prefix of the other name the same commit = NOT advanced
+# (r7A forged receipt: sha == sha, short_sha 7 vs 8 chars). Anything else unusable -> 0.
 receipt_sha_advanced() {
     [ -n "${1:-}" ] && [ -f "$1" ] || { echo 0; return 0; }
     python3 - "$1" <<'PYEOF' 2>/dev/null || echo 0
-import json, sys
+import json, re, sys
+HEX = re.compile(r"[0-9a-f]+")
+def ident(side):
+    # -> (identifier, ok). ok=False = malformed side (short not a prefix of its own full sha).
+    if not isinstance(side, dict):
+        return "", True
+    full = side.get("sha"); short = side.get("short_sha")
+    full = full.strip().lower() if isinstance(full, str) else ""
+    short = short.strip().lower() if isinstance(short, str) else ""
+    full = full if len(full) in (40, 64) and HEX.fullmatch(full) else ""
+    short = short if len(short) >= 7 and HEX.fullmatch(short) else ""
+    if full and short and not full.startswith(short):
+        return "", False
+    return (full or short), True
 try:
     d = json.load(open(sys.argv[1]))
     kind = d.get("kind")
     if kind is not None and str(kind).strip().lower() != "update":
         print(0); raise SystemExit(0)
-    pre = ((d.get("pre_update") or {}).get("short_sha") or "").strip()
-    post = ((d.get("post_update") or {}).get("short_sha") or "").strip()
-    print(1 if (pre and post and pre != post) else 0)
+    (pre, ok1), (post, ok2) = ident(d.get("pre_update")), ident(d.get("post_update"))
+    n = min(len(pre), len(post))
+    print(1 if (ok1 and ok2 and n >= 7 and pre[:n] != post[:n]) else 0)
 except Exception:
     print(0)
 PYEOF
@@ -873,6 +911,400 @@ except Exception:
 PYEOF
 }
 
+# --- v5.16: relay what the upstream receipt says is still OWED after a proven install ------------
+# Upstream keeps an install whose post-commit step failed a "success" and lists the step in
+# `followups` (update_receipt.record_followup, v0.23.2 :416-432: [{"step","reason","at"}]); a step
+# only the user can finish (an autostash whose restore conflicted) goes to `user_action`
+# (record_user_action :436-443: {"step","reason"}, reason <= 500 chars) and makes the run "partial",
+# exit 1. Before v5.16 the install paths below read neither: the 2026-11-18 install parked a local
+# change (stash ref in user_action.reason) and nobody was told.
+#
+# ==== THE INVARIANT (fix round 3: verdict-r10A B1900, r9B B1800 / B1801) ==========================
+# What is owed is decided by the UPSTREAM RECEIPTS ALONE; this script keeps no copy of a reminder. A
+# reminder is done ONLY when Telegram answered an explicit "ok":true for it AND its key was then
+# written into the dedupe ledger and read back. Until then every tick derives it again from the
+# receipt and sends it again. Concretely (owed_scan / owed_deliver below):
+#   - at the start of EVERY tick, and right after the ✓ notice of an install, the receipt directory
+#     ($HOME/.hermes/logs/update_receipts: latest.json + upstream's update_*_<update_id>.json archive)
+#     is read -- READ ONLY, nothing in it is ever written, moved or deleted -- and every receipt that
+#     (a) this tool launched (and that may be an install), (b) has a truthy user_action / followups,
+#     (c) is inside the look-back window and (d) whose key is not in the ledger, gets one reminder.
+#   - (a) "launched by this tool" (fix round 4, r11A B2100): correlation_id has this version's format
+#     au-r<gen>-<launch epoch>-... (AU_CORR_ID -- only our own --yes ever receives it), the kind is
+#     absent / "update" and the outcome is success or partial (may_install: both are needed by EVERY
+#     path to mark_installed, so no real install is filtered out). NO SHA is required: upstream
+#     v0.23.2 get_code_identity returns sha=None when git times out, or {}; whether the run installed
+#     is the install verdict's job. Read from the receipt alone, no state needed. A receipt of ours
+#     that was not judged an install (no-op owing followups, partial without evidence) is reminded
+#     too -- more alerts, never fewer -- worded "the receipt alone does not show that new code was
+#     installed" unless this tick, a claim or the receipt's own SHA advance (B1300) proves it.
+#     OR its key is in $OWED_CLAIMS (written BEFORE mark_installed): the only way to recognise a
+#     legacy receipt with NO correlation id; for receipts of ours correctness never depends on it.
+#   - first enable: a receipt launched by an older version carries the old id format au-<digits>-...
+#     and no claim, so (a) never holds for it: whatever was owed before this version was installed
+#     counts as handled, and nothing has to be written for that to stay true.
+#   - (c) look-back: launched within the last OWED_LOOKBACK_DAYS (30) days AND among the newest
+#     OWED_MAX_RECEIPTS (50) receipt files -- whichever is smaller. Older owed receipts are logged
+#     every tick ("no longer reminded"), never sent.
+#   - key = id-<update_id> (else sha-<sha256 of the receipt bytes>); the ledger keeps the last 500.
+#   - the ledger cannot be written after an ok:true: logged, and the reminder is sent again at the
+#     next tick (more alerts, never fewer). A ledger that is a directory / symlink is moved aside and
+#     rebuilt; garbage lines are dropped, valid keys kept; an unreadable one is read as empty (logged).
+#   - a receipt that is not valid JSON is logged and read again at the next tick; one whose text
+#     cannot be formatted still gets a reminder naming the receipt (and is deduped like any other).
+#   - an unreadable receipt directory is logged; once it can be read the reminder goes out.
+OWED_RDIR=${RECEIPT%/*}
+OWED_SENT="$STATE_DIR/owed_action_notified"
+OWED_CLAIMS="$STATE_DIR/owed_action_claims"
+OWED_LOOKBACK_DAYS=30
+OWED_MAX_RECEIPTS=50
+OWED_TICK_SEEN=" "   # keys already attempted in THIS tick (one attempt per key per tick)
+# $1 = mode. "key <receipt>": print the receipt's key when it owes something. "scan <snapshot|''>
+# <version>": NUL-separated records LOG <text> | DONE <key> | SEND <key> <message>, then END.
+owed_scan() {
+    python3 - "$@" "$OWED_RDIR" "$OWED_SENT" "$OWED_CLAIMS" "$TICK_TS" "$((OWED_LOOKBACK_DAYS * 86400))" \
+        "$OWED_MAX_RECEIPTS" "$UPDATER_VERSION" <<'PYEOF'
+import hashlib, json, os, re, stat, sys
+from datetime import datetime
+OUT = sys.stdout.buffer
+KEY = re.compile(r"(gen-)?(id|sha)-[0-9A-Za-z_-]+")
+AU = re.compile(r"au-r[0-9]+-([0-9]{1,12})-")   # AU_CORR_ID; the old au-<digits>-... format never matches
+MAXB = 4 << 20
+
+def emit(*fields):
+    for f in fields:
+        OUT.write(str(f).replace("\0", " ").encode("utf-8", "replace") + b"\0")
+
+def read_receipt(path):
+    with open(path, "rb") as f:
+        raw = f.read(MAXB + 1)
+    if len(raw) > MAXB:
+        raise ValueError("larger than 4 MiB")
+    return raw, json.loads(raw.decode("utf-8-sig", "replace"))
+
+def owes(d):
+    return isinstance(d, dict) and bool(d.get("user_action") or d.get("followups"))
+
+def key_of(raw, d):
+    uid = d.get("update_id")
+    if isinstance(uid, str) and re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z_-]{0,127}", uid):
+        return "id-" + uid
+    return "sha-" + hashlib.sha256(raw).hexdigest()
+
+HEXD = set("0123456789abcdef")
+def side_id(side):
+    # Same rule as receipt_sha_advanced (B1300): full sha if both exist, else the common prefix.
+    if not isinstance(side, dict):
+        return ""
+    f, s = side.get("sha"), side.get("short_sha")
+    f = f.strip().lower() if isinstance(f, str) else ""
+    s = s.strip().lower() if isinstance(s, str) else ""
+    f = f if len(f) in (40, 64) and set(f) <= HEXD else ""
+    s = s if len(s) >= 7 and set(s) <= HEXD else ""
+    if f and s and not f.startswith(s):
+        return None
+    return f or s
+
+def may_install(d):
+    # FIX4 (r11A B2100): what EVERY mark_installed path needs from the receipt itself -- kind absent /
+    # "update" (receipt_outcome_fresh says "foreign" otherwise) and outcome success / partial (the only
+    # outcomes that reach mark_installed). NO SHA requirement: upstream v0.23.2 get_code_identity
+    # legitimately returns sha=None (git timed out) or {} for a real install.
+    kind = d.get("kind")
+    if kind is not None and str(kind).strip().lower() != "update":
+        return False
+    return d.get("outcome") in ("success", "partial")
+
+def records_install(d):
+    # The receipt PROVES the install by itself (B1300 SHA rule). Since FIX4 this only picks the wording
+    # of the reminder ("Hermes was updated" vs "the receipt alone does not show it"); eligibility is may_install.
+    if not may_install(d):
+        return False
+    a, b = side_id(d.get("pre_update")), side_id(d.get("post_update"))
+    if a is None or b is None:
+        return False
+    k = min(len(a), len(b))
+    return k >= 7 and a[:k] != b[:k]
+
+def receipt_time(d, path):
+    try:
+        return int(datetime.fromisoformat(str(d.get("finished_at"))).timestamp())
+    except Exception:
+        try:
+            return int(os.stat(path).st_mtime)
+        except OSError:
+            return 0
+
+# Same sanitizing as the other alert summaries: escapes and control characters removed, whitespace
+# collapsed to one line, every field bounded. 600 > upstream's own 500-char reason cap, so a real
+# reason (the stash ref and its re-apply command) arrives whole.
+ESC = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b.?")
+def clean(v, lim):
+    if v is None or v == "":
+        return ""
+    if not isinstance(v, str):
+        try:
+            v = json.dumps(v, ensure_ascii=False, default=str)
+        except Exception:
+            v = repr(v)
+    v = ESC.sub("", v[:8000])
+    v = " ".join("".join(c if c.isprintable() else " " for c in v).split())
+    return v if len(v) <= lim else v[:lim - 1] + "…"
+
+def item(kind, x):
+    step = reason = None
+    if isinstance(x, dict):
+        step = x.get("step", x.get("name"))
+        reason = x.get("reason", x.get("detail"))
+        if not clean(step, 80) and not clean(reason, 600):
+            reason = x or None
+    else:
+        reason = x
+    s, r = clean(step, 80), clean(reason, 600)
+    return "• %s%s: %s" % (kind, " [%s]" % s if s else "", r or "(no details in the receipt)")
+
+def render(d, version, upd, proven=True):
+    ua, fu = d.get("user_action"), d.get("followups")
+    uid = d.get("update_id")
+    entries, extra = [], 0
+    if ua:
+        entries.append(item("user action", ua))
+    if fu:
+        seq = fu if isinstance(fu, list) else [fu]
+        real = [x for x in seq[:10000] if x not in (None, "", {}, [])]
+        if not real:
+            entries.append(item("follow-up", None))
+        entries += [item("follow-up", x) for x in real[:50]]
+        extra = max(len(real) - 50, 0) + max(len(seq) - 10000, 0)   # never formatted, only counted
+    ver = clean(version, 40)
+    if proven:
+        head = ("⚠ hermes auto-update: Hermes was updated%s, but the updater's receipt says something is still"
+                " owed (outcome=%s, update_id=%s). The install itself stands; this is a one-time reminder"
+                " (updater v%s)" % (" to " + ver if ver else "", clean(d.get("outcome"), 20) or "?",
+                                    clean(uid, 40) or "none", clean(upd, 10)))
+    else:
+        # FIX4: launched by this updater, but neither this tick, a claim nor the receipt's own SHAs prove
+        # an install (e.g. the pre-update identity read timed out upstream). Remind anyway, worded honestly.
+        head = ("⚠ hermes auto-update: an update run launched by this updater finished, and its receipt says"
+                " something is still owed (outcome=%s, update_id=%s%s). The receipt alone does not show that"
+                " new code was installed (no SHA change recorded) — check the host; this is a one-time"
+                " reminder (updater v%s)" % (clean(d.get("outcome"), 20) or "?", clean(uid, 40) or "none",
+                                             ", version " + ver if ver else "", clean(upd, 10)))
+    # Bounded in BYTES (a cut inside a UTF-8 sequence would be rejected by the API on every retry).
+    # The user action comes first and always fits (header < 400 bytes, one entry <= 4 * 690);
+    # follow-ups are added while they fit, the rest counted.
+    msg, shown = head, 0
+    for e in entries:
+        if shown and len((msg + "\n" + e).encode("utf-8")) > 3300:
+            break
+        msg += "\n" + e
+        shown += 1
+    omitted = len(entries) - shown + max(extra, 0)
+    if omitted > 0:
+        msg += "\n• … %d more follow-up entr%s not shown — see the receipt" % (omitted, "y" if omitted == 1 else "ies")
+    b = msg.encode("utf-8")
+    if len(b) > 3500:
+        msg = b[:3496].decode("utf-8", "ignore") + "…"
+    return msg
+
+def keyfile(path, what):
+    if not os.path.lexists(path):
+        return set(), ""
+    try:
+        if os.path.islink(path) or not os.path.isfile(path):
+            return set(), "the %s %s is not a regular file" % (what, path)
+        with open(path, "rb") as f:
+            data = f.read(1 << 20)
+    except OSError as e:
+        return set(), "the %s %s cannot be read (%s)" % (what, path, e.strerror or e)
+    return {l for l in data.decode("ascii", "replace").split("\n") if KEY.fullmatch(l)}, ""
+
+def scan(snap, snap_ver, rdir, ledger, claims, now, lookback, maxfiles, upd):
+    now, lookback, maxfiles = int(now or 0), int(lookback), int(maxfiles)
+    sent, sent_problem = keyfile(ledger, "dedupe ledger")
+    claimed, claim_problem = keyfile(claims, "install claim list")
+    sources = [(snap, True)] if snap else []
+    try:
+        names = os.listdir(rdir)
+    except FileNotFoundError:
+        names = []
+    except OSError as e:
+        emit("LOG", "⚠ owed-action: the receipt directory %s cannot be read (%s) — owed reminders cannot be"
+             " derived from it this tick; it is read again at the next tick" % (rdir, e.strerror or e))
+        names = []
+    files = []
+    for n in names:
+        if n == "latest.json" or (n.startswith("update_") and n.endswith(".json")):
+            p = os.path.join(rdir, n)
+            try:
+                st = os.stat(p)
+            except OSError as e:
+                emit("LOG", "⚠ owed-action: receipt %s cannot be read (%s) — read again at the next tick" % (p, e.strerror or e))
+                continue
+            if stat.S_ISREG(st.st_mode):
+                files.append((st.st_mtime, n, p))
+    files.sort(reverse=True)
+    sources += [(p, False) for _, _, p in files[:maxfiles]]
+    seen, pending, unclaimed = set(), [], 0
+    for path, is_snap in sources:
+        try:
+            raw, d = read_receipt(path)
+        except Exception as e:
+            emit("LOG", "⚠ owed-action: receipt %s could not be read as JSON (%s) — skipped this tick, read again"
+                 " at the next tick" % (path, clean(str(e) or type(e).__name__, 200)))
+            continue
+        if not owes(d):
+            continue
+        key = key_of(raw, d)
+        if key in seen:
+            continue
+        if is_snap:
+            t = now                                   # this run's own proven install
+        elif key in claimed:
+            t = receipt_time(d, path)
+        else:
+            # FIX4 (r11A B2100): eligible = launched by THIS tool (this version's correlation-id format,
+            # which only our own --yes ever receives) and nothing in the receipt rules an install out.
+            # Whether it installed is the install verdict's job, not this filter's: no SHA needed.
+            c = d.get("correlation_id")
+            m = AU.match(c) if isinstance(c, str) else None
+            if not m or not may_install(d):
+                unclaimed += 1
+                continue
+            t = int(m.group(1))
+        seen.add(key)
+        if key in sent:
+            if is_snap:
+                emit("DONE", key)
+            continue
+        if now - t > lookback:
+            emit("LOG", "⚠ owed-action: receipt %s (%s) still owes a user_action / followups but is older than"
+                 " %d days — no longer reminded, read it by hand" % (path, key, lookback // 86400))
+            continue
+        pending.append((t, key, path, d, is_snap, is_snap or key in claimed or records_install(d)))
+    if pending and sent_problem:
+        emit("LOG", "⚠ owed-action: %s — read as empty, so a reminder already delivered may be sent again" % sent_problem)
+    if unclaimed and claim_problem:
+        emit("LOG", "⚠ owed-action: %s — installs whose receipt lacks this updater's correlation id (legacy Hermes) cannot be matched" % claim_problem)
+    pending.sort(key=lambda x: x[0])
+    for i, (t, key, path, d, is_snap, proven) in enumerate(pending):
+        if i == 10:
+            emit("LOG", "owed-action: %d more owed reminder(s) — continued at the next tick" % (len(pending) - 10))
+            break
+        if is_snap:
+            ver = snap_ver
+        else:
+            v = (d.get("post_update") or {}).get("version") if isinstance(d.get("post_update"), dict) else None
+            ver = ("v" + v) if isinstance(v, str) and v else ""
+        try:
+            body = render(d, ver, upd, proven)
+        except Exception as e:
+            # B1801: the obligation is still known even if its text is not -- remind with the receipt's name.
+            body = ("⚠ hermes auto-update: %s, but the updater's receipt says something is still"
+                    " owed (receipt key %s, %s); its text could not be formatted — read the receipt for"
+                    " user_action / followups (updater v%s)" % ("Hermes was updated" if proven else
+                                                                "an update run launched by this updater finished",
+                                                                key, os.path.basename(path), clean(upd, 10)))
+            emit("LOG", "⚠ owed-action: receipt %s could not be formatted (%s) — a reminder naming it is sent"
+                 % (path, clean(type(e).__name__, 60)))
+        emit("SEND", key, body)
+
+mode = sys.argv[1]
+if mode == "key":
+    try:
+        raw, d = read_receipt(sys.argv[2])
+        if owes(d):
+            sys.stdout.write(key_of(raw, d) + "\n")
+    except Exception:
+        pass
+    raise SystemExit(0)
+try:
+    scan(*sys.argv[2:11])
+except Exception as e:
+    emit("LOG", "⚠ owed-action: the receipt scan failed (%s: %s) — retried at the next tick"
+         % (type(e).__name__, str(e)[:200]))
+emit("END")
+PYEOF
+}
+# A delivered key in the ledger counts by CONTENT only: a regular, non-symlink, readable file holding the
+# key as a whole line.
+owed_keyfile_has() { # $1 = file, $2 = key
+    [ -f "$1" ] && [ ! -L "$1" ] && [ -r "$1" ] && grep -aqxF -- "$2" "$1" 2>/dev/null
+}
+# Add key $2 to the key list $1 (the ledger or the claim list), keeping its valid key lines (last $3).
+# Rewritten whole through a temp + mv, so an empty / garbage / read-only file, or one without a final
+# newline, cannot swallow the key; a directory or symlink in its place is moved aside first (never
+# deleted). 0 ONLY when the key reads back.
+owed_keyfile_add() { # $1 = file, $2 = key, $3 = lines kept, $4 = what it is (for the log)
+    local tmp q
+    if [ -L "$1" ] || { [ -e "$1" ] && [ ! -f "$1" ]; }; then
+        q="${1%/*}/.owed_bad.${1##*/}.$(date +%s).$$.$RANDOM"
+        if mv -fT -- "$1" "$q" 2>/dev/null; then
+            log "⚠ owed-action: the $4 $1 was not a regular file — moved aside to $q and rebuilt"
+        else
+            log "⚠ owed-action: the $4 $1 is not a regular file and could not be moved aside"
+            return 1
+        fi
+    fi
+    if [ -e "$1" ] && [ ! -r "$1" ]; then
+        log "⚠ owed-action: the $4 $1 cannot be read — rebuilt with $2 only"
+    fi
+    tmp=$(mktemp "$STATE_DIR/.owed_tmp.XXXXXX" 2>/dev/null) || return 1
+    if { if [ -f "$1" ] && [ -r "$1" ]; then
+             grep -aE '^(gen-)?(id|sha)-[0-9A-Za-z_-]+$' -- "$1" 2>/dev/null | grep -vxF -- "$2" | tail -n "$(($3 - 1))"
+         fi
+         printf '%s\n' "$2"; } > "$tmp" 2>/dev/null \
+        && mv -fT -- "$tmp" "$1" 2>/dev/null && owed_keyfile_has "$1" "$2"; then
+        return 0
+    fi
+    rm -f -- "$tmp" 2>/dev/null
+    return 1
+}
+# Call BEFORE mark_installed with this run's receipt snapshot: when it owes something, record its key as
+# an install this run proved. Since FIX4 (r11A B2100) a receipt carrying this updater's correlation id is
+# re-derived WITHOUT the claim, SHAs or not; the claim is needed only for a legacy receipt with no
+# correlation id at all, and otherwise only picks the reminder's wording ("Hermes was updated").
+# Never fails the run.
+owed_claim() {
+    local key
+    key=$(owed_scan key "${1:-}" 2>/dev/null)
+    [ -n "$key" ] || return 0
+    if owed_keyfile_add "$OWED_CLAIMS" "$key" 200 "install claim list"; then
+        log "owed action in this install's receipt ($key) — the reminder follows the install notice"
+    else
+        log "⚠ owed action in this install's receipt ($key), but the install claim could not be written to $OWED_CLAIMS — a later tick still re-derives it from the receipt when it carries this updater's correlation id (with or without SHAs); a legacy receipt without one is reminded in this tick only"
+    fi
+}
+# Derive the owed reminders from the receipts and send each one not yet in the ledger (see THE
+# INVARIANT). $1 = this run's receipt snapshot (proven install, after the ✓ notice), or nothing (tick
+# start). Never fails the run; verdict, counters and exit code are untouched.
+owed_deliver() {
+    local kind key body fin=0
+    while IFS= read -r -d '' -u 3 kind; do
+        case "$kind" in
+            LOG)  IFS= read -r -d '' -u 3 body; log "$body" ;;
+            DONE) IFS= read -r -d '' -u 3 key; log "owed-action reminder $key already delivered — not repeated" ;;
+            SEND)
+                IFS= read -r -d '' -u 3 key
+                IFS= read -r -d '' -u 3 body
+                case "$OWED_TICK_SEEN" in *" $key "*) continue ;; esac
+                OWED_TICK_SEEN="$OWED_TICK_SEEN$key "
+                if notify "$body"; then
+                    if owed_keyfile_add "$OWED_SENT" "$key" 500 "dedupe ledger"; then
+                        log "owed-action reminder delivered ($key)"
+                    else
+                        log "⚠ owed-action reminder delivered ($key), but the dedupe ledger $OWED_SENT could not be written and read back — it will be sent again at the next tick"
+                    fi
+                else
+                    log "⚠ owed-action reminder NOT delivered ($key) — derived again from the receipt and retried at the next tick"
+                fi ;;
+            END) fin=1 ;;
+        esac
+    done 3< <(owed_scan scan "${1:-}" "${VERSION:-}" 2>/dev/null)
+    [ "$fin" = 1 ] || log "⚠ owed-action: the receipt scan did not complete (python3 failed?) — owed reminders are derived again at the next tick"
+    return 0
+}
+
 # Resolve hermes by absolute path — cron PATH is minimal.
 HERMES_BIN=""
 for cand in "$HOME/.hermes/venvs/hermes-dev/bin/hermes" /usr/local/lib/hermes-agent/venv/bin/hermes ${AU_HERMES_BIN:+"$AU_HERMES_BIN"}; do
@@ -915,6 +1347,12 @@ fi
 # Orphaned receipt snapshots (SIGKILL skips the EXIT trap). Safe here: only the lock holder
 # ever creates them, and we now hold the lock.
 find "$STATE_DIR" -maxdepth 1 -type f -name 'receipt_snap.*' -delete 2>/dev/null || true
+# Interrupted ledger / claim rewrites (keys only, never a reminder): the files they were for are intact.
+rm -f -- "$STATE_DIR"/.owed_tmp.* 2>/dev/null
+# v5.16 (fix round 3): what is owed is derived from the receipts at the start of EVERY tick, so a
+# reminder that an earlier tick could not deliver or record (dead channel, the run killed after
+# mark_installed or mid-poll, nothing writable) goes out now, whatever that tick managed to write.
+owed_deliver
 
 # Bounded check: it fetches from origin while already holding the lock. A hung fetch would
 # hold the flock forever and every later tick would skip with no alert.
@@ -1003,8 +1441,11 @@ receipt_digest() {  # $1 = file path; empty output = read error (callers fail cl
 PRE_RECEIPT_DIGEST=$(receipt_digest "$RECEIPT")
 # Upstream records HERMES_UPDATE_CORRELATION_ID as the receipt's correlation_id. When a
 # receipt carries one, it must be ours.
-AU_CORR_ID="au-$(date +%s%N)-$$-$RANDOM"
+# v5.16 fix round 3: "au-r1-<launch epoch>-..." -- the r1 marks a receipt that this version's
+# derivation of owed reminders may act on (owed_scan); receipts launched by older versions carry
+# au-<digits>-... and are never reminded about (first enable treats them as handled).
 RUN_STARTED=$(date +%s)
+AU_CORR_ID="au-r1-${RUN_STARTED}-$(date +%N 2>/dev/null)-$$-$RANDOM"
 # Observed checkout identity BEFORE this command (read-only). Paired with POST_HEAD after
 # --yes, it is this run's own install evidence for receipts that carry no correlation_id.
 PRE_HEAD=$(read_head)
@@ -1205,6 +1646,7 @@ if [ "$STATUS" -eq 0 ]; then
     if [ "$OUTCOME" = "success" ]; then
         log "success $VERSION (receipt: success)"
         reset_real_fails
+        owed_claim "$SNAP"   # v5.16: BEFORE mark_installed, so no kill window between the two
         mark_installed   # fresh, kind-checked success receipt owned by THIS run (correlated, or legacy + this run's own evidence) = proven install
         # receipt=success means the restart was ISSUED (upstream: restart.incomplete only
         # covers a failed signal) — NOT that the new gateway process actually came up on
@@ -1213,6 +1655,7 @@ if [ "$STATUS" -eq 0 ]; then
         # marker; the in-line recheck below (and any later tick) verifies and clears it.
         touch "$STATE_DIR/drain_pending"
         notify "✓ hermes agent updated to ${VERSION:-unknown} — gateway restarting (updater v${UPDATER_VERSION})"
+        owed_deliver "$SNAP"   # v5.16: the receipt's user_action / followups -> one ⚠ reminder
         # Consume the marker now when possible (C7: hot streaks starve no-update ticks):
         # after a short settle wait, verify and clear on health.
         sleep "${AU_SETTLE_SECONDS:-45}"   # env knob: matrix sets 0 to keep runs fast
@@ -1241,6 +1684,7 @@ if [ "$STATUS" -eq 0 ]; then
     touch "$STATE_DIR/drain_pending"
     # Install is proven here (accepted partial receipt + SHA/completion evidence gate above);
     # gateway health is separate, so record the install once now, before polling can time out.
+    owed_claim "$SNAP"   # v5.16: before mark_installed; a kill mid-poll loses nothing (next tick derives it)
     mark_installed
     GW_OK=0
     # Env knobs so the drain-timeout branch is testable in seconds, not minutes
@@ -1261,6 +1705,7 @@ if [ "$STATUS" -eq 0 ]; then
         reset_real_fails
         clear_drain_marker
         notify "✓ hermes agent updated to ${VERSION:-unknown} — gateway restarted (updater v${UPDATER_VERSION})"
+        owed_deliver "$SNAP"
         exit 0
     fi
     # Drain can legitimately take up to 30 min (restart_after_turn_timeout) — our 3 min
@@ -1270,6 +1715,7 @@ if [ "$STATUS" -eq 0 ]; then
     touch "$STATE_DIR/drain_pending"
     log "⚠ install ok, gateway not confirmed within 3 min (still draining?) — drain_pending set, next tick re-verifies"
     notify "⚠ hermes auto-update: installed $VERSION, gateway restart still draining (no failure) — re-check next tick"
+    owed_deliver "$SNAP"
     exit 0
     fi
     # Reaching here means exit 0 with outcome failed/running/refused/unknown. The success/partial
@@ -1289,6 +1735,7 @@ if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "partial" ]; then
     if [ "$SHA_ADVANCED" = "1" ] || [ "$HAS_COMPLETE" = "1" ]; then
         log "success $VERSION (exit=$STATUS but receipt=$OUTCOME, code landed per SHA advance/text — restart race, not failure)"
         reset_real_fails
+        owed_claim "$SNAP"   # v5.16: e.g. user_action local_changes (stash parked); before mark_installed
         if [ "$SHA_ADVANCED" = "1" ] || [ "$HAS_COMPLETE" = "1" ]; then mark_installed; fi
         # DO NOT clear the drain marker here: the race means the gateway was NOT
         # confirmed current — the receipt froze stale. Keep/refresh the marker so the
@@ -1296,6 +1743,7 @@ if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "partial" ]; then
         # reproduced Nova's Defect-2 class in this branch (gateway dies → silence).
         touch "$STATE_DIR/drain_pending"
         notify "✓ hermes agent updated to ${VERSION:-unknown} (exit=$STATUS race; fleet catches up on next restart) (updater v${UPDATER_VERSION})"
+        owed_deliver "$SNAP"
         exit 0
     fi
 fi
