@@ -14,6 +14,7 @@ INTENDED conservative behaviour; completion text without a fresh receipt is UNPR
 """
 import json
 import os
+import random
 import shutil
 import subprocess
 import sys
@@ -2489,6 +2490,288 @@ class OwedActionPersistence(T):
                 self.assertEqual(self.leftovers(b), [])
                 self.noop_ticks(b, 1)
                 self.assertEqual(len(self.owed(b)), 1, b.texts())
+
+
+CHECK_CURL = r'''#!@PY@ -I
+import glob, json, os, sys
+ROOT = @ROOT@
+STATE = os.path.join(ROOT, "home", ".hermes", "state", "auto_update")
+KEY, NEEDLE = @KEY@, @NEEDLE@
+a = sys.argv[1:]
+text = None
+for i in range(len(a) - 1):
+    if a[i] == "--data-urlencode" and a[i + 1].startswith("text="):
+        text = a[i + 1][5:]
+def present():
+    pend = os.path.join(STATE, "owed_action_pending")
+    c = [os.path.join(pend, KEY), os.path.join(STATE, "owed_action_fallback." + KEY)]
+    c += glob.glob(os.path.join(pend, ".owed_q." + KEY + ".*")) + glob.glob(os.path.join(STATE, ".owed_q." + KEY + ".*"))
+    for p in c:
+        try:
+            if os.path.isfile(p) and not os.path.islink(p):
+                with open(p, encoding="utf-8", errors="replace") as f:
+                    if NEEDLE in f.read():
+                        return True
+        except OSError:
+            pass
+    return False
+with open(os.path.join(ROOT, "curl.calls"), "a") as f:
+    f.write(json.dumps({"args": a, "text": text}) + "\n")
+if text is not None and NEEDLE in text:
+    with open(os.path.join(ROOT, "body_seen"), "a") as f:
+        f.write(json.dumps(present()) + "\n")
+if os.path.exists(os.path.join(ROOT, "curl_fail")):
+    sys.exit(7)
+print('{"ok":true,"result":{"message_id":1}}')
+'''
+
+
+class OwedActionInvariant(T):
+    """WO-HAU-USERACTION-FIX2 (verdict-r9A B1700 / B1701 / B1702). One invariant instead of one patch per
+    hole: a reminder body is deleted only in the flush where Telegram answered ok:true for it AND the
+    delivered record was written and read back; in every other case it stays where it is. The six r9A
+    entry sequences, plus a corruption matrix over the queue dir, the fallback slot, the dedupe ledger
+    and the .owed_sent markers: after the channel comes back the reminder arrives exactly once, and a
+    copy of it is on disk at every tick boundary (and at every send attempt) until it has arrived."""
+
+    STATES = ("absent", "empty-file", "empty-dir", "garbage", "unwritable")
+    TARGETS = ("queue", "fallback", "ledger", "marker")
+    # the same entry helpers as OwedActionPersistence (borrowed, so its tests do not run twice)
+    owed = OwedActionPersistence.owed
+    incident = OwedActionPersistence.incident
+    installed = OwedActionPersistence.installed
+    clean_stderr = OwedActionPersistence.clean_stderr
+    ledger = OwedActionPersistence.ledger
+    stub = OwedActionPersistence.stub
+    noop_ticks = OwedActionPersistence.noop_ticks
+
+    def ledger_has_key(self, b):
+        p = os.path.join(b.state, "owed_action_notified")
+        if not os.path.isfile(p):
+            return False
+        with open(p, "rb") as f:
+            return OWED_KEY.encode() in f.read().split(b"\n")
+
+    def pend(self, b):
+        return os.path.join(b.state, "owed_action_pending")
+
+    def fb(self, b, key=OWED_KEY):
+        return os.path.join(b.state, "owed_action_fallback." + key)
+
+    def body_on_disk(self, b, needle="Stash ref: " + STASH_REF, key=OWED_KEY):
+        pend = self.pend(b)
+        cands = [os.path.join(pend, key), self.fb(b, key)]
+        for d in (pend, b.state):
+            if os.path.isdir(d):
+                cands += [os.path.join(d, n) for n in os.listdir(d) if n.startswith(".owed_q.%s." % key)]
+        for p in cands:
+            if os.path.isfile(p) and not os.path.islink(p):
+                with open(p, encoding="utf-8", errors="replace") as f:
+                    if needle in f.read():
+                        return True
+        return False
+
+    def key_carried(self, b):
+        # Something a later flush scans still stands for OWED_KEY: an entry at its slot (even a bad one)
+        # or a rebuilt gen- reminder.
+        pend = self.pend(b)
+        for p in (os.path.join(pend, OWED_KEY), self.fb(b), os.path.join(pend, "gen-" + OWED_KEY),
+                  self.fb(b, "gen-" + OWED_KEY)):
+            if os.path.lexists(p):
+                return True
+        return False
+
+    def unlock_on_cleanup(self, b):
+        def unlock():
+            for d, dirs, _ in os.walk(b.root):
+                for n in dirs:
+                    try:
+                        os.chmod(os.path.join(d, n), 0o755)
+                    except OSError:
+                        pass
+        self.addCleanup(unlock)
+
+    # --- the six r9A entry sequences (evidence-r9A/extra_probes.py) ----------------------------------
+    def test_invalid_sent_marker_is_not_delivery(self):
+        # r9A invalid-sent-marker-{queue,root}-{directory,empty-file} (B1700): a .owed_sent.<key> that
+        # no delivery ever wrote must not count as delivered, whatever is at that path.
+        for loc in ("queue", "root"):
+            for kind in ("directory", "empty-file"):
+                with self.subTest(loc=loc, kind=kind):
+                    b = self.box()
+                    d = self.pend(b) if loc == "queue" else b.state
+                    os.makedirs(d, exist_ok=True)
+                    marker = os.path.join(d, ".owed_sent." + OWED_KEY)
+                    if kind == "directory":
+                        os.makedirs(marker)
+                    else:
+                        open(marker, "w").close()
+                    self.incident(b)
+                    p = b.run(apply="1")
+                    self.installed(b, p)
+                    self.assertNotIn("already delivered", b.log())
+                    self.assertIn("is not a valid delivered record", b.log())
+                    o = self.owed(b)
+                    self.assertEqual(len(o), 1, (b.texts(), b.log()[-3000:]))
+                    self.assertIn("Stash ref: " + STASH_REF, o[0])
+                    self.assertEqual(self.ledger(b), [OWED_KEY])
+                    self.noop_ticks(b, 2)
+                    self.assertEqual(len(self.owed(b)), 1, b.texts())
+
+    def corrupt_body_then_recover(self, refuse):
+        # Queued + undelivered -> body truncated -> one tick in which mktemp refuses the reminder temps
+        # matching `refuse` (channel already back) -> mktemp healthy again, three plain ticks.
+        b = self.box()
+        b.notify_fails(True)
+        self.incident(b)
+        p = b.run(apply="1")
+        self.installed(b, p)
+        slot = os.path.join(self.pend(b), OWED_KEY)
+        self.assertTrue(self.body_on_disk(b), os.listdir(self.pend(b)))
+        with open(slot, "w"):
+            pass                                                   # the body's text is lost
+        real = shutil.which("mktemp") or "/usr/bin/mktemp"
+        self.stub(b, "mktemp", '#!/bin/sh\ncase "$*" in %s) exit 1 ;; esac\nexec "%s" "$@"\n' % (refuse, real))
+        b.notify_fails(False)
+        before = len(b.texts())
+        self.noop_ticks(b, 1)
+        self.assertTrue(self.key_carried(b), (os.listdir(self.pend(b)), os.listdir(b.state), b.log()[-3000:]))
+        os.remove(os.path.join(b.root, "bin", "mktemp"))
+        for _ in range(3):
+            if not [t for t in b.texts()[before:] if OWED in t]:
+                self.assertTrue(self.key_carried(b), (os.listdir(self.pend(b)), b.log()[-3000:]))
+            self.noop_ticks(b, 1)
+        o = [t for t in b.texts()[before:] if OWED in t]
+        self.assertEqual(len(o), 1, (b.texts(), b.log()[-4000:]))
+        self.assertIn("receipt key " + OWED_KEY, o[0])
+        self.assertIn("gen-" + OWED_KEY, self.ledger(b))
+        self.assertEqual([n for n in os.listdir(self.pend(b)) if not n.startswith(".")], [])
+        self.assertEqual([n for n in os.listdir(b.state) if n.startswith("owed_action_fallback.")], [])
+        self.noop_ticks(b, 1)
+        self.assertEqual(len([t for t in b.texts()[before:] if OWED in t]), 1, b.texts())
+        return b
+
+    def test_corrupt_body_rebuild_refused_in_queue_uses_the_fallback(self):
+        # r9A quarantine-before-rebuild-failure (B1701), exactly: only the queue dir refuses the temp.
+        b = self.corrupt_body_then_recover("*/owed_action_pending/.owed_q.*")
+        self.assertNotIn("none could be rebuilt", b.log())
+
+    def test_corrupt_body_every_rebuild_refused_keeps_its_key(self):
+        # B1701, no location can take the rebuilt reminder for one tick: the bad entry must stay at its
+        # slot (not moved aside), so the next healthy tick rebuilds and delivers it.
+        b = self.box()
+        b.notify_fails(True)
+        self.incident(b)
+        self.installed(b, b.run(apply="1"))
+        slot = os.path.join(self.pend(b), OWED_KEY)
+        with open(slot, "w"):
+            pass
+        real = shutil.which("mktemp") or "/usr/bin/mktemp"
+        self.stub(b, "mktemp", '#!/bin/sh\ncase "$*" in *.owed_q.*) exit 1 ;; esac\nexec "%s" "$@"\n' % real)
+        b.notify_fails(False)
+        before = len(b.texts())
+        self.noop_ticks(b, 1)
+        self.assertTrue(os.path.isfile(slot), os.listdir(self.pend(b)))
+        self.assertIn("left in place, retried next tick", b.log())
+        os.remove(os.path.join(b.root, "bin", "mktemp"))
+        self.noop_ticks(b, 3)
+        o = [t for t in b.texts()[before:] if OWED in t]
+        self.assertEqual(len(o), 1, (b.texts(), b.log()[-4000:]))
+        self.assertIn("receipt key " + OWED_KEY, o[0])
+        self.assertFalse(os.path.exists(slot), os.listdir(self.pend(b)))
+
+    def test_unpersisted_direct_send_respects_dedupe(self):
+        # r9A unpersisted-direct-send-bypasses-dedupe (B1702): delivered once; the same update_id again
+        # while no reminder temp can be created -> the direct-send branch must not remind again.
+        b = self.box()
+        self.incident(b)
+        self.installed(b, b.run(apply="1"))
+        self.assertEqual(len(self.owed(b)), 1, b.texts())
+        real = shutil.which("mktemp") or "/usr/bin/mktemp"
+        self.stub(b, "mktemp", '#!/bin/sh\ncase "$*" in *.owed_q.*) exit 1 ;; esac\nexec "%s" "$@"\n' % real)
+        self.incident(b)
+        p = b.run(apply="1")
+        self.installed(b, p)
+        self.assertEqual(len(self.owed(b)), 1, b.texts())
+        self.assertNotIn("could NOT be persisted", b.log())
+        self.assertNotIn("unpersisted", b.log())
+        self.assertIn("already delivered — not repeated", b.log())
+        self.assertEqual(self.ledger(b), [OWED_KEY])
+
+    # --- the corruption matrix -------------------------------------------------------------------
+    def corrupt(self, b, rnd, target, state):
+        pend = self.pend(b)
+        paths = {"queue": [pend], "fallback": [self.fb(b)], "ledger": [os.path.join(b.state, "owed_action_notified")],
+                 "marker": [os.path.join(b.state, ".owed_sent." + OWED_KEY)]}[target]
+        if target == "marker" and os.path.isdir(pend):
+            paths.append(os.path.join(pend, ".owed_sent." + OWED_KEY))
+        for path in paths:
+            if state == "absent":
+                continue
+            if state == "empty-file":
+                open(path, "w").close()
+            elif state == "empty-dir":
+                os.makedirs(path)
+            elif state == "garbage":
+                with open(path, "wb") as f:
+                    f.write(bytes(rnd.randrange(256) for _ in range(rnd.randrange(1, 300))))
+            elif target == "queue":                                 # unwritable dir
+                os.makedirs(path, exist_ok=True)
+            else:                                                   # unwritable: a 0555 dir with a file
+                os.makedirs(path)
+                with open(os.path.join(path, "x"), "w") as f:
+                    f.write("not ours\n")
+                os.chmod(path, 0o555)
+
+    def combos(self):
+        # A strength-2 orthogonal array OA(25, 4, 5): every pair of (target, state) choices appears
+        # together exactly once, so each state of each target meets each state of every other target.
+        out = [(i, j, (i + j) % 5, (i + 2 * j) % 5) for i in range(5) for j in range(5)]
+        rnd = random.Random(int(os.environ.get("AU_CORRUPT_SEED", "20261119")))
+        out += [tuple(rnd.randrange(5) for _ in range(4)) for _ in range(3)]
+        return [dict(zip(self.TARGETS, (self.STATES[x] for x in c))) for c in out]
+
+    def test_corruption_matrix_delivers_exactly_once_and_never_drops_the_body(self):
+        combos = self.combos()
+        self.assertGreaterEqual(len(combos), 20)
+        for n, combo in enumerate(combos):
+            with self.subTest(n=n, **combo):
+                b = self.box()
+                self.unlock_on_cleanup(b)
+                rnd = random.Random(n)
+                # the marker goes into the queue dir, so the queue dir's own state comes first and an
+                # unwritable queue dir is locked only after everything inside it is placed
+                for target in ("queue", "fallback", "ledger", "marker"):
+                    self.corrupt(b, rnd, target, combo[target])
+                if combo["queue"] == "unwritable":
+                    os.chmod(self.pend(b), 0o555)
+                curl = CHECK_CURL
+                for k, v in (("@PY@", sys.executable), ("@ROOT@", repr(b.root)), ("@KEY@", repr(OWED_KEY)),
+                             ("@NEEDLE@", repr("Stash ref: " + STASH_REF))):
+                    curl = curl.replace(k, v)
+                self.stub(b, "curl", curl)
+                b.notify_fails(True)
+                self.incident(b)
+                p = b.run(apply="1")
+                self.installed(b, p)
+                self.assertTrue(self.body_on_disk(b), ("install tick", b.log()[-4000:]))
+                self.noop_ticks(b, 1)
+                self.assertTrue(self.body_on_disk(b), ("dead tick", b.log()[-4000:]))
+                self.assertFalse(self.ledger_has_key(b), "recorded as delivered while the channel is dead")
+                before = len(b.texts())
+                b.notify_fails(False)
+                for _ in range(3):
+                    if not [t for t in b.texts()[before:] if OWED in t]:
+                        self.assertTrue(self.body_on_disk(b), ("before delivery", b.log()[-4000:]))
+                    self.noop_ticks(b, 1)
+                o = [t for t in b.texts()[before:] if OWED in t]
+                self.assertEqual(len(o), 1, (combo, b.texts()[before:], b.log()[-4000:]))
+                self.assertIn("Stash ref: " + STASH_REF, o[0])
+                self.assertIn(OWED_KEY, self.ledger(b))
+                self.assertFalse(self.body_on_disk(b), b.log()[-2000:])
+                seen = [json.loads(l) for l in b._lines("body_seen")]
+                self.assertGreaterEqual(len(seen), 2, seen)              # >= 1 dead attempt + the delivery
+                self.assertTrue(all(seen), (combo, seen))
 
 
 class ShaAdvanceB1300(T):

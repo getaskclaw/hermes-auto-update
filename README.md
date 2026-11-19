@@ -104,6 +104,7 @@ bash install.sh    # 只做前置检查——绝不运行更新器
 1. **本工具是更新器，不监控宿主健康**：不检查 venv / 依赖、`state.db` 等数据、gateway 以外的运行时是否健康。检出已是最新时，`--check` 判“已是最新”，脚本根本不跑 `--yes`，看不见 venv 坏没坏。带本轮收据、上游判为 `success` 且没有 `followups` 的运行，脚本信任收据，不再解读文字里的 ⚠ 提示。
 2. **没有本轮收据的版本上（第一、二代），每次“检查说有更新却没装上”都会提醒**（每 `AU_CHECK_ALERT_INTERVAL` 至多一次），包括完全正常的竞态无事可做。这是“静默需要正面证据”的代价，设计如此。
 3. **pip / PyPI 安装形态不在范围内**（`--check` 的 `⚕ Update available on PyPI.` 判未知、不安装，见 `verify/upstream_error_review.json` 的 `check_registered`）。
+4. **本地 state 目录整体不可写时（磁盘满、只读挂载），待办提醒不承诺当下送达**（v5.16 第 2 修复轮）：只承诺日志 / stderr 可见。已经落盘的提醒在此期间不删除，等能写之后的 tick 继续投递（期间送达了却记不了账的，可能重复一次）；安装当时就一处都没能落盘的提醒只直接发一次，发不出去就把全文留在日志和 stderr，没有地方可存，也就不会再自动补发。队列目录、备用位置、去重账本、标记中某一处坏掉或写不了，不在此列，照样恰好送达一次。
 
 错误词规则用全部正式发布版的上游 `print()` 模板验证过（`scripts/upstream_print_corpus.py`，快照 `verify/upstream_corpus.json`，见下文“上游措辞语料”）：命中的每一行都在 `verify/upstream_error_review.json` 里逐条登记为“报告失败”或“正常句”。正常句只有 4 句，按**上游整句**豁免（`auto_update.sh` 的 `V_YES_EXEMPT`，逐句附出处）：systemd 任务超时但已完成（状态限 active / inactive，`(failed)` 仍算错误）、`ℹ Got updates from upstream but couldn't push to fork (no write access?)`、两句 Windows 交接进度句。
 
@@ -142,11 +143,15 @@ bash install.sh    # 只做前置检查——绝不运行更新器
   - **不改变安装判定**：仍 `mark_installed`、仍清零计数，各路径的退出码与 v5.15 完全相同（success 0、partial 退出码 0 两支 0、竞态分支 0）；提醒送达与否都不影响。
   - **送达**：先把提醒写进 `state/auto_update/owed_action_pending/<key>`，再在 ✓ 之后投递；送达失败按 notify 自己的失败路径计数（连续第 3 次写死信并附加告警），提醒留在队列里，**以后每个 tick 开头**重试，直到送达。gateway 轮询途中脚本被杀也不会丢。
   - **去重**：`<key>` = 收据的 `update_id`（缺失 / 非法时用快照的 sha256），**送达后**才追加到 `state/auto_update/owed_action_notified`；同一 `update_id` 再出现只记日志、不再提醒。
-  - **“已入队”可核查**（PR #4 第 1 修复轮，审查 B1500 / B1501 / B1604）：只有读回校验过的普通提醒文件才算已入队；队列目录写不了（不是目录、不可写、mktemp/mv 失败）时改写 state 目录根下的备用文件 `owed_action_fallback.<key>`，同样每个 tick 重试直到送达；同名目录 / 坏文件被改名隔离（`.owed_bad.*`，不删除）并记日志，flush 不会静默跳过，坏条目代表的提醒按 key 重建（`gen-<key>`，真提醒到了就作废）；去重账本写入读回确认后才删待办，账本是目录 / 只读时先隔离再重建（保留原有 key），实在写不了就把待办改名为“已送达”标记；中断留下的 `.owed_q.*` 临时文件下次 flush 恢复。所有持久位置都写不了时：直接发一次，失败则全文写进日志并打到 stderr（cron 行把 stderr 写进 `auto_update_cron.log`），安装判定、计数与退出码不变。
+  - **“已入队”可核查**（PR #4 第 1 修复轮，审查 B1500 / B1501 / B1604）：只有读回校验过的普通提醒文件才算已入队；队列目录写不了（不是目录、不可写、mktemp/mv 失败）时改写 state 目录根下的备用文件 `owed_action_fallback.<key>`，同样每个 tick 重试直到送达；同名目录 / 坏文件被改名隔离（`.owed_bad.*`，不删除）并记日志，flush 不会静默跳过，坏条目代表的提醒按 key 重建（`gen-<key>`，真提醒送达的那次 flush 里作废；第 2 修复轮起先写好并读回重建件、再隔离坏条目）；去重账本写入读回确认后才删待办，账本是目录 / 只读时先隔离再重建（保留原有 key），实在写不了就另写一个“已送达”标记 `.owed_sent.<key>`（第 2 修复轮起：内容就是这个 key，读回校验；此前是把待办本身改名）；中断留下的 `.owed_q.*` 临时文件下次 flush 恢复。所有持久位置都写不了时：直接发一次，失败则全文写进日志并打到 stderr（cron 行把 stderr 写进 `auto_update_cron.log`），安装判定、计数与退出码不变。
+  - **一条不变式**（PR #4 第 2 修复轮，审查 B1700 / B1701 / B1702；不再一个洞一个洞补，队列逻辑按它重写，代码落点 `auto_update.sh` 里 `THE INVARIANT` 注释块）：**提醒正文只在“本 tick 收到 Telegram 明确 `ok:true`，且去重记录已写入并读回校验”之后才可删除。任何其他情况（标记存在但无效、重建失败、改名失败、读回失败、该 key 已被更早的 tick 记过）都保留原正文，不移动、不删除。** 正文 = `owed_action_pending/<key>` 或 `owed_action_fallback.<key>` 里的文件。具体做法：
+    - “已送达”一律按**内容**判断：账本或 `.owed_sent.<key>` 标记必须是普通文件（非符号链接）、可读、非空、且有一行恰好等于该 key；目录、空文件、乱码都当不存在，记日志，不作为送达证据（B1700：以前 `-e` 命中空目录 / 空文件就删掉了刚入队的真提醒）。账本整份重写（保留其中合法的 key 行，加上本 key，最多 500 行）经临时文件 + `mv` 落盘再读回，空 / 乱码 / 只读 / 无结尾换行的账本都吞不掉 key；标记只在账本写不进时另写，挡路的无效标记先隔离（只动标记，不动正文）。
+    - 坏条目（不是可读提醒的槽位）只有在**别处已有东西承载它的 key** 时才隔离：key 已记账、该 key 有合法正文、或已**先**在空闲槽位（队列目录，不行就 state 根的备用位置）写出重建件并读回成功。都做不到就原地不动，下个 tick 的 flush 照样扫到这个 key 再试（B1701：以前先隔离、重建写失败后 key 就没了）。
+    - 入队只写**空闲**槽位并读回，不挤走任何已有东西；去重检查在队列 / 备用文件 / 直接发送所有分支之前（B1702：以前持久化失败时的直接发送绕过了去重）。
   - 字段异常（字符串、列表、数字、布尔、null、超长、非 dict 条目、空 dict）不崩溃，也不永久静默：任何真值的 `user_action` / `followups` 都会提醒；空值（`null`、`""`、`[]`、`{}`、`false`、`0`）= 没有待办，与 v5.15 输出完全一致。
   - 无事可做 / 失败路径不变：欠着待办的无事可做收据本来就不算证明（5b 提醒），失败仍是失败。
 - **B1300 加固**（`receipt_sha_advanced`）：不再凭 `short_sha` 字符串不等判“代码前进”。每一侧优先取完整 `sha`（40/64 位十六进制），否则取 `short_sha`（≥ 7 位十六进制），不分大小写；`short_sha` 不是同侧完整 `sha` 的前缀 = 收据自相矛盾 = 不算前进。两侧都有完整 sha 时比完整 sha；否则按较短者的长度比前缀——长度不同但互为前缀（r7A 伪造收据：`sha` 相同、`short_sha` 7 位对 8 位）= 同一提交 = **未前进**。
-- 回归：`scripts/check_compat_sanity.py` 新增 `OwedActionNotice`（夹具 `verify/fixtures/receipt_partial_user_action_v0.23.2.json` = 11-18 真实收据，字段结构照抄，主机路径 / profile 名 / 启动 id 已脱敏）与 `ShaAdvanceB1300`；发布闸门新增 5 个变异（删提醒、删去重、未送达也记已送达、删 tick 开头重试、恢复旧 `receipt_sha_advanced`），各须变红。修复轮 1 再加入口级 `OwedActionPersistence`（r8A 三个场景：入队失败 + 通道恢复、待办 key 是目录、去重账本是目录；外加全部持久位置不可写、只读账本、账本不可恢复、`.owed_q.*` 残留）与 4 个变异（删备用持久化、恢复 `-e` 判断、删账本写入检查、删临时文件恢复）。
+- 回归：`scripts/check_compat_sanity.py` 新增 `OwedActionNotice`（夹具 `verify/fixtures/receipt_partial_user_action_v0.23.2.json` = 11-18 真实收据，字段结构照抄，主机路径 / profile 名 / 启动 id 已脱敏）与 `ShaAdvanceB1300`；发布闸门新增 5 个变异（删提醒、删去重、未送达也记已送达、删 tick 开头重试、恢复旧 `receipt_sha_advanced`），各须变红。修复轮 1 再加入口级 `OwedActionPersistence`（r8A 三个场景：入队失败 + 通道恢复、待办 key 是目录、去重账本是目录；外加全部持久位置不可写、只读账本、账本不可恢复、`.owed_q.*` 残留）与 4 个变异（删备用持久化、恢复 `-e` 判断、删账本写入检查、删临时文件恢复）。修复轮 2 再加入口级 `OwedActionInvariant`：r9A 六个场景（无效“已送达”标记 × 队列 / 根目录 × 目录 / 空文件、坏正文 + 队列重建失败、已送达后持久化失败的直接发送），外加“所有位置都拒绝重建一个 tick”与一个破坏矩阵——队列目录、备用位置、去重账本、`.owed_sent.*` 各取（不存在 / 空文件 / 空目录 / 乱码 / 不可写），按 2 阶正交表取 25 种（任意两项的任意两种状态都同时出现过）再加 3 种随机，共 28 种；每种都断言通道恢复后恰好送达 1 次，且送达前每个 tick 结束时、每次发送尝试时磁盘上都有正文。新增 3 个变异（标记恢复 `-e` 判断、先隔离再重建、去掉入队前的去重），各须变红；`owededupe` / `owedfallback` / `owedledgercheck` 换了锚点（守的还是同一件事）。
 
 ## v5.15 变更说明
 
@@ -194,5 +199,5 @@ bash scripts/release_gate.sh
 
 要求 PASS。闸门包含 `python3 scripts/check_compat_sanity.py auto_update.sh`。矩阵和兼容探针是脚本行为的可执行契约（场景数以它们自己打印的统计为准，不在文档里抄写）；验收点与测试的对应关系见 `verify/README.md`。
 
-sha256（auto_update.sh，updater v5.16）: `81133eb66b15356fa1db05e7a78972fc5b80a941b562e4961f53606e72f5c92e`
+sha256（auto_update.sh，updater v5.16）: `952eb7e636bccbc5e8f5a7f147c9403b6a9f3e0bcd1457de6e501d67f23fe708`
 _重新打包前用 `sha256sum auto_update.sh` 重新生成。_

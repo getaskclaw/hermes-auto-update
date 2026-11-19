@@ -165,14 +165,27 @@ EDITS = {
     "owednotice": ('    out=$(receipt_owed_text "${1:-}" "${VERSION:-}" "$UPDATER_VERSION")\n', '    out=""\n'),
     # v5.16: the per-update_id dedupe removed (the same receipt reminds on every install of it)
     # (FIX1: the flush's delivered check moved into owed_delivered; same guard, new anchor)
-    "owededupe": ('        if owed_delivered "$key"; then\n', '        if false; then\n'),
+    # (FIX2: the queue now checks owed_delivered before the flush does, so the neuter makes
+    #  owed_delivered itself answer "never delivered"; same guard, new anchor)
+    "owededupe": ('owed_delivered() {\n', 'owed_delivered() {\n    return 1\n'),
     # FIX1 B1500: the fallback file removed (blocked queue dir + dead channel -> reminder lost again)
-    "owedfallback": ('    if owed_free "$fb" && owed_write "$STATE_DIR" "$key" "$fb" "$body"; then\n', '    if false; then\n'),
+    # (FIX2: owed_write takes free slots only, owed_free is gone; same guard, new anchor)
+    "owedfallback": ('    if owed_write "$STATE_DIR" "$key" "$fb" "$body"; then\n', '    if false; then\n'),
     # FIX1 B1500: back to the bare -e test (a same-name directory counts as "already queued")
     "owedexists": ('    if owed_msg_ok "$qf" || owed_msg_ok "$fb"; then\n', '    if [ -e "$OWED_DIR/$key" ]; then\n'),
     # FIX1 B1501: the ledger write no longer checked/recovered before the pending file is removed
-    "owedledgercheck": ('            if owed_ledger_add "$key"; then\n',
-                        '            { printf \'%s\\n\' "$key" >> "$OWED_SENT"; } 2>/dev/null; if true; then\n'),
+    # (FIX2: the record step is owed_record_delivery, ledger then marker; same guard, new anchor)
+    "owedledgercheck": ('    if owed_ledger_add "$1"; then return 0; fi\n',
+                        '    { printf \'%s\\n\' "$1" >> "$OWED_SENT"; } 2>/dev/null; return 0\n'),
+    # FIX2 B1700: a delivered marker counted by path existence again (-e), not by its content
+    "owedsentexists": ('        || owed_marker_ok "$OWED_DIR/.owed_sent.$1" "$1" || owed_marker_ok "$STATE_DIR/.owed_sent.$1" "$1"\n',
+                       '        || [ -e "$OWED_DIR/.owed_sent.$1" ] || [ -e "$STATE_DIR/.owed_sent.$1" ]\n'),
+    # FIX2 B1701: a bad entry moved aside FIRST and its replacement rebuilt afterwards
+    "owedmovefirst": ('    if owed_carried "$2" || owed_rebuild "$2"; then\n        owed_quarantine "$1"\n',
+                      '    owed_quarantine "$1"\n    if owed_carried "$2" || owed_rebuild "$2"; then\n        :\n'),
+    # FIX2 B1702: the dedupe check before the queue / fallback / direct-send branches removed
+    "owedqueuededupe": ('    # B1702: the dedupe check comes before EVERY branch below (queue, fallback, direct send).\n    if owed_delivered "$key"; then\n',
+                        '    # B1702: the dedupe check comes before EVERY branch below (queue, fallback, direct send).\n    if false; then\n'),
     # FIX1 B1604: leftover .owed_q.* temps no longer recovered
     "owedtmp": ('        owed_recover_tmp "$f"\n', '        :\n'),
     # v5.16: the dedupe key / pending removal written although delivery failed (reminder lost)
@@ -315,6 +328,12 @@ neuter_and_run owedfallback "FIX1 B1500 fallback persistence removed -> OwedActi
 neuter_and_run owedexists "FIX1 B1500 bare -e 'already queued' restored -> OwedActionPersistence must FAIL" "$PY_PROBE" OwedActionPersistence.test_immovable_pending_key_directory_uses_the_fallback
 neuter_and_run owedledgercheck "FIX1 B1501 ledger write unchecked before pending removal -> OwedActionPersistence must FAIL" "$PY_PROBE" OwedActionPersistence.test_dedupe_ledger_is_directory
 neuter_and_run owedtmp "FIX1 B1604 leftover queue temp not recovered -> OwedActionPersistence must FAIL" "$PY_PROBE" OwedActionPersistence.test_leftover_queue_temp_is_recovered
+# FIX2 teeth (verdict-r9A B1700 / B1701 / B1702): the invariant's two named regressions, each against
+# the r9A entry test it reproduces, and -e also against the corruption matrix
+neuter_and_run owedsentexists "FIX2 B1700 delivered marker counted by -e -> OwedActionInvariant r9A marker test must FAIL" "$PY_PROBE" OwedActionInvariant.test_invalid_sent_marker_is_not_delivery
+neuter_and_run owedsentexists "FIX2 B1700 delivered marker counted by -e -> OwedActionInvariant corruption matrix must FAIL" "$PY_PROBE" OwedActionInvariant.test_corruption_matrix_delivers_exactly_once_and_never_drops_the_body
+neuter_and_run owedmovefirst "FIX2 B1701 bad entry moved aside before its rebuild -> OwedActionInvariant must FAIL" "$PY_PROBE" OwedActionInvariant.test_corrupt_body_every_rebuild_refused_keeps_its_key
+neuter_and_run owedqueuededupe "FIX2 B1702 direct send without the dedupe check -> OwedActionInvariant must FAIL" "$PY_PROBE" OwedActionInvariant.test_unpersisted_direct_send_respects_dedupe
 neuter_and_run shaadvance "B1300 receipt_sha_advanced back to short_sha string inequality -> ShaAdvanceB1300 must FAIL" "$PY_PROBE" ShaAdvanceB1300.test_forged_short_length_change_is_not_an_install ShaAdvanceB1300.test_malformed_side_is_not_an_advance
 neuter_and_run realclock "B303 real failure re-alert by count/never -> RealFailureCadence must FAIL" "$PY_PROBE" RealFailureCadence
 neuter_and_run remindclock "B304 rollback reminder one-shot -> RollbackReminder must FAIL" "$PY_PROBE" RollbackReminder.test_weekly_reminder_never_installs
