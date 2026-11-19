@@ -104,7 +104,7 @@ bash install.sh    # 只做前置检查——绝不运行更新器
 1. **本工具是更新器，不监控宿主健康**：不检查 venv / 依赖、`state.db` 等数据、gateway 以外的运行时是否健康。检出已是最新时，`--check` 判“已是最新”，脚本根本不跑 `--yes`，看不见 venv 坏没坏。带本轮收据、上游判为 `success` 且没有 `followups` 的运行，脚本信任收据，不再解读文字里的 ⚠ 提示。
 2. **没有本轮收据的版本上（第一、二代），每次“检查说有更新却没装上”都会提醒**（每 `AU_CHECK_ALERT_INTERVAL` 至多一次），包括完全正常的竞态无事可做。这是“静默需要正面证据”的代价，设计如此。
 3. **pip / PyPI 安装形态不在范围内**（`--check` 的 `⚕ Update available on PyPI.` 判未知、不安装，见 `verify/upstream_error_review.json` 的 `check_registered`）。
-4. **本地 state 目录整体不可写时（磁盘满、只读挂载），待办提醒不承诺当下送达**（v5.16 第 2 修复轮）：只承诺日志 / stderr 可见。已经落盘的提醒在此期间不删除，等能写之后的 tick 继续投递（期间送达了却记不了账的，可能重复一次）；安装当时就一处都没能落盘的提醒只直接发一次，发不出去就把全文留在日志和 stderr，没有地方可存，也就不会再自动补发。队列目录、备用位置、去重账本、标记中某一处坏掉或写不了，不在此列，照样恰好送达一次。
+4. **待办提醒以上游收据为准**（v5.16 第 3 修复轮，见“v5.16 变更说明”的不变式）：收据还在、在回看上限内，就一直推导、一直补发，直到送达并记账——state 目录暂时整体不可写（磁盘满、只读挂载）也只是推迟。由此带来的边界：(a) 收据已被上游清理（上游只留最近 20 份存档）、启动已超过 30 天、或不在最新 50 份之内，仍未送达的不再提醒（超期而仍在目录里的每个 tick 记一行日志）；(b) 去重账本写不进去时，同一条提醒每个 tick 会再发一次，直到能记账（多报警方向）；账本被删 / 读不了时，回看上限内已送达过的提醒可能再发一次；(c) 没有本工具新格式 `correlation_id` 或没有前后 SHA 的收据（旧版 Hermes），只能靠安装时写下的认领记录认出，认领也没写进去时只在安装那次 tick 发；(d) 本工具发起、SHA 已前进的收据，即使那次运行没被判为安装（例如超时被杀、时钟偏差判过期），也会被当作安装提醒一次。
 
 错误词规则用全部正式发布版的上游 `print()` 模板验证过（`scripts/upstream_print_corpus.py`，快照 `verify/upstream_corpus.json`，见下文“上游措辞语料”）：命中的每一行都在 `verify/upstream_error_review.json` 里逐条登记为“报告失败”或“正常句”。正常句只有 4 句，按**上游整句**豁免（`auto_update.sh` 的 `V_YES_EXEMPT`，逐句附出处）：systemd 任务超时但已完成（状态限 active / inactive，`(failed)` 仍算错误）、`ℹ Got updates from upstream but couldn't push to fork (no write access?)`、两句 Windows 交接进度句。
 
@@ -124,7 +124,7 @@ bash install.sh    # 只做前置检查——绝不运行更新器
 | 检出比所选正式版新（`→`） | 进入该状态时 | 每 `AU_ROLLBACK_REMIND_SECS` | `AU_ROLLBACK_REMIND_SECS` | `604800 − 3600`（7 天 − 1 小时）：需要人做决定，不是紧急事件，每周提醒一次 |
 | 有更新却连续无事可做，收据已证明（空转护栏，`⚠`） | 连续第 3 次 | 每 `AU_CHECK_ALERT_INTERVAL` | 同检查告警 | `82800`：和检查告警同一种“流水线卡住”，同样每天提醒一次 |
 | 有更新却没装上，且没有本轮收据（5b，`⚠`） | 第 1 次 | 每 `AU_CHECK_ALERT_INTERVAL` | 同检查告警 | `82800`：没有证据就不安静；不算失败，所以用检查告警的节奏而不是真实失败的节奏 |
-| 安装成功但收据欠着 `user_action` / `followups`（v5.16，`⚠`） | 那次安装，`✓` 之后 | 不重发；未送达则每个 tick 开头重试直到送达 | 无 | 每个 `update_id` 只提醒一次（`owed_action_notified` 送达后才写）；要人动手的事说一次就够，送达前不放弃 |
+| 安装成功但收据欠着 `user_action` / `followups`（v5.16，`⚠`） | 那次安装，`✓` 之后 | 送达并记账后不重发；否则之后每个 tick 开头从收据重新推导并重发，直到送达且记账（回看上限 30 天 / 50 份） | 无 | 每个 `update_id` 只提醒一次（`owed_action_notified` 送达并读回后才算）；要人动手的事说一次就够，送达前不放弃 |
 
 - 所有时间戳（`check_alert_last_ts`、`real_alert_last_ts`、`notify_alert_last_ts`、`rollback_remind_ts`、`available_noop_alert_last_ts`）都经同一个读取器：空、乱码、超长、负号、或比现在晚 300 秒以上 → 视为“没有时间戳”，立即告警，送达后覆盖（自愈），不会让 `set -u` 崩溃，也不会永久静默。
 - 时间戳**只在送达后**写入（死信例外，见上）。送达失败时，下一次 tick 重试。
@@ -139,19 +139,21 @@ bash install.sh    # 只做前置检查——绝不运行更新器
 
 ## v5.16 变更说明
 
-- **安装成功时转达上游的待办**（2026-11-18 事故：v0.23.1→v0.23.2 的安装判对了，但收据里的 `user_action`——`local_changes`，本地改动被 stash 搁置、没有恢复，附 stash ref 和重新应用命令——没有告诉任何人）。现在凡是走到 `mark_installed` 的成功路径（带本轮 id 的 success、partial + SHA 前进且退出码 0、退出码非 0 的竞态分支、旧版收据靠本轮证据接受）都读同一份收据快照里的 `user_action` 与 `followups`：只要任一非空，就在 ✓ 通知之后另发**一条** ⚠ 提醒，列出 `user_action` 的 `step` / `reason` 原文与每个 followup 的 `step` / `reason`（去掉转义序列和控制字符、空白压成一行；每条 reason 至多 600 字符——上游自己截到 500，所以 stash ref 与重新应用命令完整保留；follow-up 放到 3300 字节为止，其余计数；整条按字节 ≤ 3500）。
+- **安装成功时转达上游的待办**（2026-11-18 事故：v0.23.1→v0.23.2 的安装判对了，但收据里的 `user_action`——`local_changes`，本地改动被 stash 搁置、没有恢复，附 stash ref 和重新应用命令——没有告诉任何人）。现在凡是走到 `mark_installed` 的成功路径（带本轮 id 的 success、partial + SHA 前进且退出码 0、退出码非 0 的竞态分支、旧版收据靠本轮证据接受）之后，收据里的 `user_action` 与 `followups` 只要任一非空，就在 ✓ 通知之后另发**一条** ⚠ 提醒，列出 `user_action` 的 `step` / `reason` 原文与每个 followup 的 `step` / `reason`（去掉转义序列和控制字符、空白压成一行；每条 reason 至多 600 字符——上游自己截到 500，所以 stash ref 与重新应用命令完整保留；follow-up 放到 3300 字节为止，其余计数；整条按字节 ≤ 3500）。
   - **不改变安装判定**：仍 `mark_installed`、仍清零计数，各路径的退出码与 v5.15 完全相同（success 0、partial 退出码 0 两支 0、竞态分支 0）；提醒送达与否都不影响。
-  - **送达**：先把提醒写进 `state/auto_update/owed_action_pending/<key>`，再在 ✓ 之后投递；送达失败按 notify 自己的失败路径计数（连续第 3 次写死信并附加告警），提醒留在队列里，**以后每个 tick 开头**重试，直到送达。gateway 轮询途中脚本被杀也不会丢。
-  - **去重**：`<key>` = 收据的 `update_id`（缺失 / 非法时用快照的 sha256），**送达后**才追加到 `state/auto_update/owed_action_notified`；同一 `update_id` 再出现只记日志、不再提醒。
-  - **“已入队”可核查**（PR #4 第 1 修复轮，审查 B1500 / B1501 / B1604）：只有读回校验过的普通提醒文件才算已入队；队列目录写不了（不是目录、不可写、mktemp/mv 失败）时改写 state 目录根下的备用文件 `owed_action_fallback.<key>`，同样每个 tick 重试直到送达；同名目录 / 坏文件被改名隔离（`.owed_bad.*`，不删除）并记日志，flush 不会静默跳过，坏条目代表的提醒按 key 重建（`gen-<key>`，真提醒送达的那次 flush 里作废；第 2 修复轮起先写好并读回重建件、再隔离坏条目）；去重账本写入读回确认后才删待办，账本是目录 / 只读时先隔离再重建（保留原有 key），实在写不了就另写一个“已送达”标记 `.owed_sent.<key>`（第 2 修复轮起：内容就是这个 key，读回校验；此前是把待办本身改名）；中断留下的 `.owed_q.*` 临时文件下次 flush 恢复。所有持久位置都写不了时：直接发一次，失败则全文写进日志并打到 stderr（cron 行把 stderr 写进 `auto_update_cron.log`），安装判定、计数与退出码不变。
-  - **一条不变式**（PR #4 第 2 修复轮，审查 B1700 / B1701 / B1702；不再一个洞一个洞补，队列逻辑按它重写，代码落点 `auto_update.sh` 里 `THE INVARIANT` 注释块）：**提醒正文只在“本 tick 收到 Telegram 明确 `ok:true`，且去重记录已写入并读回校验”之后才可删除。任何其他情况（标记存在但无效、重建失败、改名失败、读回失败、该 key 已被更早的 tick 记过）都保留原正文，不移动、不删除。** 正文 = `owed_action_pending/<key>` 或 `owed_action_fallback.<key>` 里的文件。具体做法：
-    - “已送达”一律按**内容**判断：账本或 `.owed_sent.<key>` 标记必须是普通文件（非符号链接）、可读、非空、且有一行恰好等于该 key；目录、空文件、乱码都当不存在，记日志，不作为送达证据（B1700：以前 `-e` 命中空目录 / 空文件就删掉了刚入队的真提醒）。账本整份重写（保留其中合法的 key 行，加上本 key，最多 500 行）经临时文件 + `mv` 落盘再读回，空 / 乱码 / 只读 / 无结尾换行的账本都吞不掉 key；标记只在账本写不进时另写，挡路的无效标记先隔离（只动标记，不动正文）。
-    - 坏条目（不是可读提醒的槽位）只有在**别处已有东西承载它的 key** 时才隔离：key 已记账、该 key 有合法正文、或已**先**在空闲槽位（队列目录，不行就 state 根的备用位置）写出重建件并读回成功。都做不到就原地不动，下个 tick 的 flush 照样扫到这个 key 再试（B1701：以前先隔离、重建写失败后 key 就没了）。
-    - 入队只写**空闲**槽位并读回，不挤走任何已有东西；去重检查在队列 / 备用文件 / 直接发送所有分支之前（B1702：以前持久化失败时的直接发送绕过了去重）。
-  - 字段异常（字符串、列表、数字、布尔、null、超长、非 dict 条目、空 dict）不崩溃，也不永久静默：任何真值的 `user_action` / `followups` 都会提醒；空值（`null`、`""`、`[]`、`{}`、`false`、`0`）= 没有待办，与 v5.15 输出完全一致。
-  - 无事可做 / 失败路径不变：欠着待办的无事可做收据本来就不算证明（5b 提醒），失败仍是失败。
+  - **不变式**（PR #4 第 3 修复轮，审查 r10A B1900、r9B B1800 / B1801；代码落点 `auto_update.sh` 的 `THE INVARIANT` 注释块与 `owed_scan` / `owed_deliver`）：**待办以上游收据为准；送达（Telegram 明确 `ok:true`）且账本写入并读回成功，才算完成。** 本地不再保存任何提醒副本——前两轮的队列目录 `owed_action_pending/`、备用文件 `owed_action_fallback.*`、`.owed_sent.*` 标记、`.owed_q.*` 临时文件、`gen-` 重建件整套删除；以前三轮都在加固“我们自己复制的那份”，每轮都还能再找到一种写不进去的方式，而真源（收据）一直都在。
+  - **推导**：**每个 tick 开头**（以及安装那次 ✓ 之后）只读地扫描上游收据目录 `~/.hermes/logs/update_receipts/`（`latest.json` 与上游每次运行的存档 `update_*_<update_id>.json`；绝不写、移动或删除其中任何文件），对每份满足以下全部条件的收据各发一条提醒，消息正文每次从收据现算：
+    - **本工具发起、且记录了一次安装**：`correlation_id` 是本版本的格式 `au-r1-<启动时刻>-…`（`AU_CORR_ID`），`kind` 缺省或为 `update`，`outcome` 为 `success` / `partial`，且收据自己的前后 SHA 不同（B1300 规则）——全部从收据本身读出，不依赖任何本地状态；**或者**它的 key 在 `state/auto_update/owed_action_claims` 里：本轮靠收据之外的证据（旧版收据没有 `correlation_id`、只有完成行没有 SHA）证明了安装时，在 `mark_installed` **之前**写下的认领记录。
+    - `user_action` / `followups` 非空；key（`id-<update_id>`，缺失 / 非法时 `sha-<收据字节的 sha256>`）不在去重账本 `state/auto_update/owed_action_notified` 里。
+    - **回看上限**：启动时刻在最近 30 天内，**并且**是最新的 50 份收据文件之一（二者取小）。理由：上游自己只保留最近 20 份存档（`update_receipt._RECEIPT_KEEP = 20`），每日调度下约 20 天，50 份只是兜底（手动运行、profile 镜像多时也不会无限扫）；30 天：一个月都没能送达的提醒，通道早已触发死信与附加告警，再继续推导只会在通道恢复那天把很久以前的事倒出来。超出上限但仍欠着的收据每个 tick 记一行日志（“no longer reminded”），不发。每个 tick 至多发 10 条，其余下个 tick 继续。
+  - **首次启用不轰炸历史**：选“按安装时间截断”，截断点由收据自己携带——v5.16 起本工具传给上游的 `HERMES_UPDATE_CORRELATION_ID` 是新格式 `au-r1-…`，装上新版本之前的收据都是旧格式 `au-<纳秒>-…`（或没有 `correlation_id`）且没有认领记录，所以一律视为已处理。理由：不需要在首跑时写任何东西才能成立（另一种做法“首跑把历史 update_id 一次性记入账本”在首跑恰好写不进 state 时，要么轰炸、要么得先停发；时间戳文件坏了又要二选一），也不会因为账本 / 标记文件丢失而把历史重新翻出来。
+  - **因此**：安装那次 tick 送达失败、什么都没写进去、或者在 `mark_installed` 之后被杀（B1800），下一个 tick 开头照样从收据推导出这条提醒补发；state 目录整个暂时不可写、只有正文相关的临时文件被拒（r10A 的两个场景）也一样，恢复后恰好送达 1 次。
+  - **账本**：送达后整份重写（保留其中合法的 key 行，加上本 key，最多 500 行）经临时文件 + `mv` 落盘再读回。账本是目录 / 符号链接 → 改名隔离（`.owed_bad.*`，不删除）后重建；乱码行丢弃、合法 key 保留；读不了 → 按空账本处理并记日志。**账本写不进去**（送达了却记不了账）→ 记日志，下个 tick 会再发一次，直到能记账为止（多报警方向，可接受）。
+  - **收据异常**（B1801）：某份收据不是合法 JSON → 记日志，下个 tick 重新解析，解析成功后照常提醒；正文无法格式化 → 仍发一条点名该收据的提醒，同样去重；收据目录读不了 → 记日志，可读之后补发。
+  - 字段异常（字符串、列表、数字、布尔、null、超长、非 dict 条目、空 dict）不崩溃，也不永久静默：任何真值的 `user_action` / `followups` 都会提醒；空值（`null`、`""`、`[]`、`{}`、`false`、`0`）= 没有待办，与 v5.15 输出完全一致，也不写任何 state。
+  - 无事可做 / 失败路径不变：欠着待办的无事可做收据本来就不算证明（5b 提醒），失败仍是失败；这类收据的 SHA 没有前进 / outcome 不是 success、partial，以后的 tick 推导时也不会把它当成安装提醒。
 - **B1300 加固**（`receipt_sha_advanced`）：不再凭 `short_sha` 字符串不等判“代码前进”。每一侧优先取完整 `sha`（40/64 位十六进制），否则取 `short_sha`（≥ 7 位十六进制），不分大小写；`short_sha` 不是同侧完整 `sha` 的前缀 = 收据自相矛盾 = 不算前进。两侧都有完整 sha 时比完整 sha；否则按较短者的长度比前缀——长度不同但互为前缀（r7A 伪造收据：`sha` 相同、`short_sha` 7 位对 8 位）= 同一提交 = **未前进**。
-- 回归：`scripts/check_compat_sanity.py` 新增 `OwedActionNotice`（夹具 `verify/fixtures/receipt_partial_user_action_v0.23.2.json` = 11-18 真实收据，字段结构照抄，主机路径 / profile 名 / 启动 id 已脱敏）与 `ShaAdvanceB1300`；发布闸门新增 5 个变异（删提醒、删去重、未送达也记已送达、删 tick 开头重试、恢复旧 `receipt_sha_advanced`），各须变红。修复轮 1 再加入口级 `OwedActionPersistence`（r8A 三个场景：入队失败 + 通道恢复、待办 key 是目录、去重账本是目录；外加全部持久位置不可写、只读账本、账本不可恢复、`.owed_q.*` 残留）与 4 个变异（删备用持久化、恢复 `-e` 判断、删账本写入检查、删临时文件恢复）。修复轮 2 再加入口级 `OwedActionInvariant`：r9A 六个场景（无效“已送达”标记 × 队列 / 根目录 × 目录 / 空文件、坏正文 + 队列重建失败、已送达后持久化失败的直接发送），外加“所有位置都拒绝重建一个 tick”与一个破坏矩阵——队列目录、备用位置、去重账本、`.owed_sent.*` 各取（不存在 / 空文件 / 空目录 / 乱码 / 不可写），按 2 阶正交表取 25 种（任意两项的任意两种状态都同时出现过）再加 3 种随机，共 28 种；每种都断言通道恢复后恰好送达 1 次，且送达前每个 tick 结束时、每次发送尝试时磁盘上都有正文。新增 3 个变异（标记恢复 `-e` 判断、先隔离再重建、去掉入队前的去重），各须变红；`owededupe` / `owedfallback` / `owedledgercheck` 换了锚点（守的还是同一件事）。
+- 回归：`scripts/check_compat_sanity.py` 的 `OwedActionNotice`（夹具 `verify/fixtures/receipt_partial_user_action_v0.23.2.json` = 11-18 真实收据，字段结构照抄，主机路径 / profile 名 / 启动 id 已脱敏）与 `ShaAdvanceB1300`；第 3 修复轮把前两轮针对本地队列的 `OwedActionPersistence` / `OwedActionInvariant` 换成入口级 `OwedActionDerived`：r10A 两个恢复场景、r9A 六个场景、r8A 三个场景全部改为断言**恢复后最终恰好送达 1 次**；外加 `mark_installed` 之后被 SIGKILL（三条安装路径）、首次启用不轰炸历史收据、30 天与 50 份回看上限（每 tick 10 条）、收据目录不可读、收据不是 JSON、账本损坏 6 种、账本写不进去时重发直到记账、旧版收据靠认领记录恢复，以及一个恢复矩阵（安装时 4 种故障 × 4 种旧版残留 × 4 种账本状态，按拉丁方取 16 种）。每个无更新 tick 都断言收据目录的内容、mtime、权限不变。发布闸门的变异：删提醒、删账本检查、未送达也记账、**删 tick 开头的推导**、**删首跑截断**、删 30 天上限、删 50 份上限、不再要求“记录了安装”、不写认领、账本盲目追加、恢复旧 `receipt_sha_advanced`，各须变红。
 
 ## v5.15 变更说明
 
@@ -199,5 +201,5 @@ bash scripts/release_gate.sh
 
 要求 PASS。闸门包含 `python3 scripts/check_compat_sanity.py auto_update.sh`。矩阵和兼容探针是脚本行为的可执行契约（场景数以它们自己打印的统计为准，不在文档里抄写）；验收点与测试的对应关系见 `verify/README.md`。
 
-sha256（auto_update.sh，updater v5.16）: `952eb7e636bccbc5e8f5a7f147c9403b6a9f3e0bcd1457de6e501d67f23fe708`
+sha256（auto_update.sh，updater v5.16）: `701578b3ff01228ab90fa8b3d8c221357abf06ddc09e3b542e1a5b17eb8273af`
 _重新打包前用 `sha256sum auto_update.sh` 重新生成。_

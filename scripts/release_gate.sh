@@ -162,37 +162,32 @@ EDITS = {
     # PATCH5 B1201: back to "only a line that STARTS with ✗"
     "midlinex": ('    case "$t" in *"✗"*) printf', '    case "$t" in "✗"*) printf'),
     # v5.16: the owed-action reminder removed (the 2026-11-18 silence returns)
-    "owednotice": ('    out=$(receipt_owed_text "${1:-}" "${VERSION:-}" "$UPDATER_VERSION")\n', '    out=""\n'),
-    # v5.16: the per-update_id dedupe removed (the same receipt reminds on every install of it)
-    # (FIX1: the flush's delivered check moved into owed_delivered; same guard, new anchor)
-    # (FIX2: the queue now checks owed_delivered before the flush does, so the neuter makes
-    #  owed_delivered itself answer "never delivered"; same guard, new anchor)
-    "owededupe": ('owed_delivered() {\n', 'owed_delivered() {\n    return 1\n'),
-    # FIX1 B1500: the fallback file removed (blocked queue dir + dead channel -> reminder lost again)
-    # (FIX2: owed_write takes free slots only, owed_free is gone; same guard, new anchor)
-    "owedfallback": ('    if owed_write "$STATE_DIR" "$key" "$fb" "$body"; then\n', '    if false; then\n'),
-    # FIX1 B1500: back to the bare -e test (a same-name directory counts as "already queued")
-    "owedexists": ('    if owed_msg_ok "$qf" || owed_msg_ok "$fb"; then\n', '    if [ -e "$OWED_DIR/$key" ]; then\n'),
-    # FIX1 B1501: the ledger write no longer checked/recovered before the pending file is removed
-    # (FIX2: the record step is owed_record_delivery, ledger then marker; same guard, new anchor)
-    "owedledgercheck": ('    if owed_ledger_add "$1"; then return 0; fi\n',
-                        '    { printf \'%s\\n\' "$1" >> "$OWED_SENT"; } 2>/dev/null; return 0\n'),
-    # FIX2 B1700: a delivered marker counted by path existence again (-e), not by its content
-    "owedsentexists": ('        || owed_marker_ok "$OWED_DIR/.owed_sent.$1" "$1" || owed_marker_ok "$STATE_DIR/.owed_sent.$1" "$1"\n',
-                       '        || [ -e "$OWED_DIR/.owed_sent.$1" ] || [ -e "$STATE_DIR/.owed_sent.$1" ]\n'),
-    # FIX2 B1701: a bad entry moved aside FIRST and its replacement rebuilt afterwards
-    "owedmovefirst": ('    if owed_carried "$2" || owed_rebuild "$2"; then\n        owed_quarantine "$1"\n',
-                      '    owed_quarantine "$1"\n    if owed_carried "$2" || owed_rebuild "$2"; then\n        :\n'),
-    # FIX2 B1702: the dedupe check before the queue / fallback / direct-send branches removed
-    "owedqueuededupe": ('    # B1702: the dedupe check comes before EVERY branch below (queue, fallback, direct send).\n    if owed_delivered "$key"; then\n',
-                        '    # B1702: the dedupe check comes before EVERY branch below (queue, fallback, direct send).\n    if false; then\n'),
-    # FIX1 B1604: leftover .owed_q.* temps no longer recovered
-    "owedtmp": ('        owed_recover_tmp "$f"\n', '        :\n'),
-    # v5.16: the dedupe key / pending removal written although delivery failed (reminder lost)
-    "owedstamp": ('        if notify "$(head -c 4000 -- "$f")"; then\n', '        notify "$(head -c 4000 -- "$f")"; if true; then\n'),
-    # v5.16: the tick-start retry of an undelivered reminder removed
-    "owedretry": ("# the run killed mid-poll) is retried first, on every tick, until it is delivered.\nowed_action_flush\n",
-                  "# the run killed mid-poll) is retried first, on every tick, until it is delivered.\n:\n"),
+    # (FIX3: reminders are derived from the receipts; the neuter drops the derived send)
+    "owednotice": ('        emit("SEND", key, body)\n', '        pass\n'),
+    # v5.16 / FIX3 WO item 5: the ledger check removed (the same update_id reminds on every scan)
+    "owededupe": ('        if key in sent:\n', '        if False:\n'),
+    # v5.16: the ledger written although delivery failed (the reminder is never retried)
+    "owedstamp": ('                if notify "$body"; then\n', '                notify "$body"; if true; then\n'),
+    # v5.16 / FIX3 WO item 5: the derivation at the start of every tick removed (B1900 / B1800 return:
+    # a reminder the install tick could not deliver or write is never sent)
+    "owedretry": ("# mark_installed or mid-poll, nothing writable) goes out now, whatever that tick managed to write.\nowed_deliver\n",
+                  "# mark_installed or mid-poll, nothing writable) goes out now, whatever that tick managed to write.\n:\n"),
+    # FIX3 WO item 5: the first-enable cut-off removed (old au-<ns>-... receipts count as ours too: the
+    # history floods in on the first tick after the upgrade)
+    "owedcutoff": ('AU = re.compile(r"au-r[0-9]+-([0-9]{1,12})-")', 'AU = re.compile(r"au-(?:r[0-9]+-)?([0-9]{1,10})")'),
+    # FIX3: the 30-day look-back removed
+    "owedlookback": ('        if now - t > lookback:\n', '        if False:\n'),
+    # FIX3: the newest-50-receipts bound removed
+    "owedmaxfiles": ('    sources += [(p, False) for _, _, p in files[:maxfiles]]\n',
+                     '    sources += [(p, False) for _, _, p in files]\n'),
+    # FIX3: "records an install" no longer requires the receipt's own SHA advance (a no-op that owes
+    # followups would be announced as an install)
+    "owedinstallonly": ('    return k >= 7 and a[:k] != b[:k]\n', '    return True\n'),
+    # FIX3: the install claim never written (a legacy install's reminder can no longer be re-derived)
+    "owedclaim": ('    if owed_keyfile_add "$OWED_CLAIMS" "$key" 200 "install claim list"; then\n', '    if false; then\n'),
+    # FIX3 (B1501 class): the ledger appended blindly instead of rewritten + read back
+    "owedkeyfile": ('    tmp=$(mktemp "$STATE_DIR/.owed_tmp.XXXXXX" 2>/dev/null) || return 1\n',
+                    '    printf \'%s\\n\' "$2" >> "$1" 2>/dev/null; return 0\n'),
     # v5.16 B1300: receipt_sha_advanced back to the v5.15 short_sha string inequality
     "shaadvance": ('    (pre, ok1), (post, ok2) = ident(d.get("pre_update")), ident(d.get("post_update"))\n'
                    '    n = min(len(pre), len(post))\n'
@@ -319,21 +314,23 @@ neuter_tool_and_run parseerror "PATCH5 B1102 corpus parse error not counted -> C
 neuter_tool_and_run zeroprints "PATCH5 B1102 zero-print tag not counted -> CorpusToolFailsClosed must FAIL" CorpusToolFailsClosed.test_scan_zero_print_tag_fails
 neuter_tool_and_run emptya "PATCH5 B1102 empty (a) corpus passes -> CorpusToolFailsClosed must FAIL" CorpusToolFailsClosed.test_gate_vacuous_or_broken_snapshot_fails
 # v5.16 teeth: owed-action reminder after a proven install, its dedupe / delivery stamp / retry, B1300
+# (FIX3: re-anchored on the derivation from the receipts; the FIX1 / FIX2 queue neuters went with the
+#  queue -- their scenarios live on as OwedActionDerived entry tests, guarded by the neuters below)
 neuter_and_run owednotice "v5.16 owed-action reminder removed -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_incident_partial_sha_advance_user_action_reminds_once OwedActionNotice.test_correlated_success_with_followups_reminds
-neuter_and_run owededupe "v5.16 owed-action dedupe removed -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_incident_partial_sha_advance_user_action_reminds_once
+neuter_and_run owededupe "v5.16/FIX3 ledger check removed -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_incident_partial_sha_advance_user_action_reminds_once
+neuter_and_run owededupe "v5.16/FIX3 ledger check removed -> OwedActionDerived r8A ledger-is-directory must FAIL" "$PY_PROBE" OwedActionDerived.test_r8a_dedupe_ledger_is_directory
 neuter_and_run owedstamp "v5.16 owed-action stamped although undelivered -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_undelivered_reminder_keeps_install_and_retries_until_delivered
-neuter_and_run owedretry "v5.16 undelivered owed-action reminder never retried -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_undelivered_reminder_keeps_install_and_retries_until_delivered
-# FIX1 teeth (verdict-r8A B1500 / B1501, r8B B1604): each named after the r8A entry scenario it guards
-neuter_and_run owedfallback "FIX1 B1500 fallback persistence removed -> OwedActionPersistence must FAIL" "$PY_PROBE" OwedActionPersistence.test_queue_path_blocked_and_dead_channel_recovers
-neuter_and_run owedexists "FIX1 B1500 bare -e 'already queued' restored -> OwedActionPersistence must FAIL" "$PY_PROBE" OwedActionPersistence.test_immovable_pending_key_directory_uses_the_fallback
-neuter_and_run owedledgercheck "FIX1 B1501 ledger write unchecked before pending removal -> OwedActionPersistence must FAIL" "$PY_PROBE" OwedActionPersistence.test_dedupe_ledger_is_directory
-neuter_and_run owedtmp "FIX1 B1604 leftover queue temp not recovered -> OwedActionPersistence must FAIL" "$PY_PROBE" OwedActionPersistence.test_leftover_queue_temp_is_recovered
-# FIX2 teeth (verdict-r9A B1700 / B1701 / B1702): the invariant's two named regressions, each against
-# the r9A entry test it reproduces, and -e also against the corruption matrix
-neuter_and_run owedsentexists "FIX2 B1700 delivered marker counted by -e -> OwedActionInvariant r9A marker test must FAIL" "$PY_PROBE" OwedActionInvariant.test_invalid_sent_marker_is_not_delivery
-neuter_and_run owedsentexists "FIX2 B1700 delivered marker counted by -e -> OwedActionInvariant corruption matrix must FAIL" "$PY_PROBE" OwedActionInvariant.test_corruption_matrix_delivers_exactly_once_and_never_drops_the_body
-neuter_and_run owedmovefirst "FIX2 B1701 bad entry moved aside before its rebuild -> OwedActionInvariant must FAIL" "$PY_PROBE" OwedActionInvariant.test_corrupt_body_every_rebuild_refused_keeps_its_key
-neuter_and_run owedqueuededupe "FIX2 B1702 direct send without the dedupe check -> OwedActionInvariant must FAIL" "$PY_PROBE" OwedActionInvariant.test_unpersisted_direct_send_respects_dedupe
+# FIX3 teeth (verdict-r10A B1900, r9B B1800 / B1801; WO item 5 names the first three)
+neuter_and_run owedretry "FIX3 tick-start derivation removed -> OwedActionDerived r10A state-unwritable must FAIL" "$PY_PROBE" OwedActionDerived.test_r10a_state_unwritable_at_install_recovers
+neuter_and_run owedretry "FIX3 tick-start derivation removed -> OwedActionDerived r10A all-writes-refused must FAIL" "$PY_PROBE" OwedActionDerived.test_r10a_all_reminder_writes_refused_recovers
+neuter_and_run owedretry "FIX3 tick-start derivation removed -> OwedActionDerived B1800 kill after mark_installed must FAIL" "$PY_PROBE" OwedActionDerived.test_b1800_killed_after_mark_installed_next_tick_reminds
+neuter_and_run owedretry "FIX3 tick-start derivation removed -> OwedActionNotice retry must FAIL" "$PY_PROBE" OwedActionNotice.test_undelivered_reminder_keeps_install_and_retries_until_delivered
+neuter_and_run owedcutoff "FIX3 first-enable cut-off removed -> OwedActionDerived first enable must FAIL" "$PY_PROBE" OwedActionDerived.test_first_enable_does_not_flood_history
+neuter_and_run owedlookback "FIX3 30-day look-back removed -> OwedActionDerived must FAIL" "$PY_PROBE" OwedActionDerived.test_lookback_30_days
+neuter_and_run owedmaxfiles "FIX3 newest-50 bound removed -> OwedActionDerived must FAIL" "$PY_PROBE" OwedActionDerived.test_lookback_newest_50_receipts_and_10_per_tick
+neuter_and_run owedinstallonly "FIX3 install shape not required -> OwedActionNotice no-op/failure must FAIL" "$PY_PROBE" OwedActionNotice.test_noop_and_failure_paths_do_not_use_the_install_reminder
+neuter_and_run owedclaim "FIX3 install claim never written -> OwedActionDerived legacy recovery must FAIL" "$PY_PROBE" OwedActionDerived.test_legacy_install_recovers_through_the_claim
+neuter_and_run owedkeyfile "FIX3 ledger appended blindly -> OwedActionDerived broken ledger must FAIL" "$PY_PROBE" OwedActionDerived.test_broken_ledger_never_crashes_never_repeats
 neuter_and_run shaadvance "B1300 receipt_sha_advanced back to short_sha string inequality -> ShaAdvanceB1300 must FAIL" "$PY_PROBE" ShaAdvanceB1300.test_forged_short_length_change_is_not_an_install ShaAdvanceB1300.test_malformed_side_is_not_an_advance
 neuter_and_run realclock "B303 real failure re-alert by count/never -> RealFailureCadence must FAIL" "$PY_PROBE" RealFailureCadence
 neuter_and_run remindclock "B304 rollback reminder one-shot -> RollbackReminder must FAIL" "$PY_PROBE" RollbackReminder.test_weekly_reminder_never_installs

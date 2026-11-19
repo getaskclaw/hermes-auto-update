@@ -79,26 +79,18 @@
 #   judged right (race branch) but user_action / followups were read ONLY by the PROVEN_NOOP proof, so
 #   nobody learned that a local change had been shelved.
 #   - every path that reaches mark_installed (correlated success, partial + evidence exit 0, the
-#     non-zero race branch, a legacy receipt on this run's evidence) calls owed_action_queue on the
-#     same snapshot: any truthy user_action / followups -> ONE ⚠ reminder after the ✓ (step + reason
-#     verbatim, sanitized, bounded). Verdict, counters and exit codes unchanged.
-#   - queued in $STATE_DIR/owed_action_pending/<key> before delivery and retried at every tick start
-#     until delivered; key (update_id, else the snapshot sha256) appended to owed_action_notified only
-#     on delivery = one reminder per receipt. Malformed fields: no crash, no permanent silence.
+#     non-zero race branch, a legacy receipt on this run's evidence): any truthy user_action /
+#     followups in the receipt -> ONE ⚠ reminder after the ✓ (step + reason verbatim, sanitized,
+#     bounded). Verdict, counters and exit codes unchanged. Malformed fields: no crash, no silence.
 #   - B1300: receipt_sha_advanced compares full SHAs when both sides have one, else the common prefix;
 #     a short_sha length change of the same commit (r7A forged 7 vs 8) is NOT an advance.
-#   - fix round 1 (r8A B1500 / B1501, r8B B1604): "queued" = a read-back-verified reminder file; a
-#     queue dir that cannot hold it -> fallback $STATE_DIR/owed_action_fallback.<key>; a same-name
-#     directory / bad file is moved aside (.owed_bad.*) and rebuilt from the key (gen-<key>), never
-#     skipped; pending removed only after the ledger write reads back (a broken ledger is moved aside
-#     and rebuilt, else a .owed_sent.<key> marker); leftover .owed_q.<key>.* temps are recovered;
-#     nothing writable at all -> one direct attempt, then the full text to the log and stderr.
-#   - fix round 2 (r9A B1700 / B1701 / B1702): the queue logic rewritten around ONE invariant (see
-#     THE INVARIANT above owed_msg_ok): a body is deleted only after this tick's ok:true AND a
-#     delivered record that reads back; "delivered" is a content check (a marker / the ledger must
-#     hold the key as a line); a bad entry is moved aside only after its replacement is written and
-#     read back (else it stays, retried next tick); queueing takes free slots only; the dedupe check
-#     comes before every queue / direct-send branch.
+#   - fix rounds 1 / 2 (r8A, r8B, r9A) hardened a local queue of reminder copies; each review found
+#     one more way to fail writing it. fix round 3 (r10A B1900, r9B B1800 / B1801) removes the queue,
+#     its fallback, markers and temps: what is owed is DERIVED from the upstream receipts (read only) at
+#     the start of every tick and after the ✓ (owed_scan / owed_deliver; THE INVARIANT above OWED_RDIR):
+#     receipts with this version's correlation id au-r1-<epoch>-... and their own SHA advance, or a key
+#     claimed before mark_installed; done only when ok:true AND the key reads back from
+#     owed_action_notified; look-back 30 days / newest 50 receipts; older-format ids = handled.
 # v5.12 (2026-09-17): notify proxy→direct fallback (to6429 incident). The updater kept
 #   "succeeding" for 14 ticks while its ONLY alert channel was dead: hardcoded default
 #   TG_PROXY=127.0.0.1:18089 was a Kimi-sandbox leftover; that host isn't walled, xray
@@ -924,30 +916,110 @@ PYEOF
 # only the user can finish (an autostash whose restore conflicted) goes to `user_action`
 # (record_user_action :436-443: {"step","reason"}, reason <= 500 chars) and makes the run "partial",
 # exit 1. Before v5.16 the install paths below read neither: the 2026-11-18 install parked a local
-# change (stash ref in user_action.reason) and nobody was told. Now every path that reaches
-# mark_installed queues ONE ⚠ reminder per receipt and delivers it after the ✓ notice:
-#   - the install verdict, the counters and the exit code are untouched (nothing here exits);
-#   - queued as a file in $STATE_DIR/owed_action_pending/<key> BEFORE delivery is attempted, so an
-#     undelivered reminder (dead channel, a kill during the gateway poll) is retried at the start of
-#     every later tick until delivered; delivery failures go through notify()'s own failure path;
-#   - dedupe: <key> = the receipt's update_id (else the snapshot's sha256), appended to
-#     $STATE_DIR/owed_action_notified ONLY after delivery; a delivered key is never sent again;
-#   - malformed fields (string / list / number / bool / null / overlong / non-dict items) never
-#     crash and never go silent: any truthy user_action / followups yields a reminder.
-# Prints "<key>\n<message>" for a receipt snapshot that owes something, nothing otherwise.
-# $1 = receipt snapshot, $2 = installed version (may be empty), $3 = updater version.
-receipt_owed_text() {
-    [ -n "${1:-}" ] && [ -f "$1" ] || return 0
-    python3 - "$1" "${2:-}" "${3:-}" <<'PYEOF' 2>/dev/null
-import hashlib, json, re, sys
-path, version, upd = sys.argv[1], sys.argv[2], sys.argv[3]
-raw = open(path, "rb").read()
-d = json.loads(raw.decode("utf-8", "replace"))
-if not isinstance(d, dict):
-    raise SystemExit(0)
-ua, fu = d.get("user_action"), d.get("followups")
-if not ua and not fu:
-    raise SystemExit(0)
+# change (stash ref in user_action.reason) and nobody was told.
+#
+# ==== THE INVARIANT (fix round 3: verdict-r10A B1900, r9B B1800 / B1801) ==========================
+# What is owed is decided by the UPSTREAM RECEIPTS ALONE; this script keeps no copy of a reminder. A
+# reminder is done ONLY when Telegram answered an explicit "ok":true for it AND its key was then
+# written into the dedupe ledger and read back. Until then every tick derives it again from the
+# receipt and sends it again. Concretely (owed_scan / owed_deliver below):
+#   - at the start of EVERY tick, and right after the ✓ notice of an install, the receipt directory
+#     ($HOME/.hermes/logs/update_receipts: latest.json + upstream's update_*_<update_id>.json archive)
+#     is read -- READ ONLY, nothing in it is ever written, moved or deleted -- and every receipt that
+#     (a) this tool launched and that records an install, (b) has a truthy user_action / followups,
+#     (c) is inside the look-back window and (d) whose key is not in the ledger, gets one reminder.
+#   - (a) "launched by this tool and an install": correlation_id has this version's format
+#     au-r<gen>-<launch epoch>-... (AU_CORR_ID), the kind is absent / "update", the outcome is success
+#     or partial and its own pre/post SHAs differ (the B1300 rule) -- all read from the receipt, no
+#     state needed; OR its key is in $OWED_CLAIMS, the list of installs this run proved on evidence
+#     the receipt cannot show by itself (a legacy receipt without correlation_id, a completion line
+#     without SHAs). The claim is written BEFORE mark_installed.
+#   - first enable: a receipt launched by an older version carries the old id format au-<digits>-...
+#     and no claim, so (a) never holds for it: whatever was owed before this version was installed
+#     counts as handled, and nothing has to be written for that to stay true.
+#   - (c) look-back: launched within the last OWED_LOOKBACK_DAYS (30) days AND among the newest
+#     OWED_MAX_RECEIPTS (50) receipt files -- whichever is smaller. Older owed receipts are logged
+#     every tick ("no longer reminded"), never sent.
+#   - key = id-<update_id> (else sha-<sha256 of the receipt bytes>); the ledger keeps the last 500.
+#   - the ledger cannot be written after an ok:true: logged, and the reminder is sent again at the
+#     next tick (more alerts, never fewer). A ledger that is a directory / symlink is moved aside and
+#     rebuilt; garbage lines are dropped, valid keys kept; an unreadable one is read as empty (logged).
+#   - a receipt that is not valid JSON is logged and read again at the next tick; one whose text
+#     cannot be formatted still gets a reminder naming the receipt (and is deduped like any other).
+#   - an unreadable receipt directory is logged; once it can be read the reminder goes out.
+OWED_RDIR=${RECEIPT%/*}
+OWED_SENT="$STATE_DIR/owed_action_notified"
+OWED_CLAIMS="$STATE_DIR/owed_action_claims"
+OWED_LOOKBACK_DAYS=30
+OWED_MAX_RECEIPTS=50
+OWED_TICK_SEEN=" "   # keys already attempted in THIS tick (one attempt per key per tick)
+# $1 = mode. "key <receipt>": print the receipt's key when it owes something. "scan <snapshot|''>
+# <version>": NUL-separated records LOG <text> | DONE <key> | SEND <key> <message>, then END.
+owed_scan() {
+    python3 - "$@" "$OWED_RDIR" "$OWED_SENT" "$OWED_CLAIMS" "$TICK_TS" "$((OWED_LOOKBACK_DAYS * 86400))" \
+        "$OWED_MAX_RECEIPTS" "$UPDATER_VERSION" <<'PYEOF'
+import hashlib, json, os, re, stat, sys
+from datetime import datetime
+OUT = sys.stdout.buffer
+KEY = re.compile(r"(gen-)?(id|sha)-[0-9A-Za-z_-]+")
+AU = re.compile(r"au-r[0-9]+-([0-9]{1,12})-")   # AU_CORR_ID; the old au-<digits>-... format never matches
+MAXB = 4 << 20
+
+def emit(*fields):
+    for f in fields:
+        OUT.write(str(f).replace("\0", " ").encode("utf-8", "replace") + b"\0")
+
+def read_receipt(path):
+    with open(path, "rb") as f:
+        raw = f.read(MAXB + 1)
+    if len(raw) > MAXB:
+        raise ValueError("larger than 4 MiB")
+    return raw, json.loads(raw.decode("utf-8-sig", "replace"))
+
+def owes(d):
+    return isinstance(d, dict) and bool(d.get("user_action") or d.get("followups"))
+
+def key_of(raw, d):
+    uid = d.get("update_id")
+    if isinstance(uid, str) and re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z_-]{0,127}", uid):
+        return "id-" + uid
+    return "sha-" + hashlib.sha256(raw).hexdigest()
+
+HEXD = set("0123456789abcdef")
+def side_id(side):
+    # Same rule as receipt_sha_advanced (B1300): full sha if both exist, else the common prefix.
+    if not isinstance(side, dict):
+        return ""
+    f, s = side.get("sha"), side.get("short_sha")
+    f = f.strip().lower() if isinstance(f, str) else ""
+    s = s.strip().lower() if isinstance(s, str) else ""
+    f = f if len(f) in (40, 64) and set(f) <= HEXD else ""
+    s = s if len(s) >= 7 and set(s) <= HEXD else ""
+    if f and s and not f.startswith(s):
+        return None
+    return f or s
+
+def records_install(d):
+    kind = d.get("kind")
+    if kind is not None and str(kind).strip().lower() != "update":
+        return False
+    if d.get("outcome") not in ("success", "partial"):
+        return False
+    a, b = side_id(d.get("pre_update")), side_id(d.get("post_update"))
+    if a is None or b is None:
+        return False
+    k = min(len(a), len(b))
+    return k >= 7 and a[:k] != b[:k]
+
+def receipt_time(d, path):
+    try:
+        return int(datetime.fromisoformat(str(d.get("finished_at"))).timestamp())
+    except Exception:
+        try:
+            return int(os.stat(path).st_mtime)
+        except OSError:
+            return 0
+
 # Same sanitizing as the other alert summaries: escapes and control characters removed, whitespace
 # collapsed to one line, every field bounded. 600 > upstream's own 500-char reason cap, so a real
 # reason (the stash ref and its re-apply command) arrives whole.
@@ -963,6 +1035,7 @@ def clean(v, lim):
     v = ESC.sub("", v[:8000])
     v = " ".join("".join(c if c.isprintable() else " " for c in v).split())
     return v if len(v) <= lim else v[:lim - 1] + "…"
+
 def item(kind, x):
     step = reason = None
     if isinstance(x, dict):
@@ -974,12 +1047,10 @@ def item(kind, x):
         reason = x
     s, r = clean(step, 80), clean(reason, 600)
     return "• %s%s: %s" % (kind, " [%s]" % s if s else "", r or "(no details in the receipt)")
-try:
+
+def render(d, version, upd):
+    ua, fu = d.get("user_action"), d.get("followups")
     uid = d.get("update_id")
-    if isinstance(uid, str) and re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z_-]{0,127}", uid):
-        key = "id-" + uid
-    else:
-        key = "sha-" + hashlib.sha256(raw).hexdigest()
     entries, extra = [], 0
     if ua:
         entries.append(item("user action", ua))
@@ -995,9 +1066,9 @@ try:
             " owed (outcome=%s, update_id=%s). The install itself stands; this is a one-time reminder"
             " (updater v%s)" % (" to " + ver if ver else "", clean(d.get("outcome"), 20) or "?",
                                 clean(uid, 40) or "none", clean(upd, 10)))
-    # Bounded in BYTES (the flush reads at most 4000 bytes; a cut inside a UTF-8 sequence would be
-    # rejected by the API on every retry). The user action comes first and always fits (header
-    # < 400 bytes, one entry <= 4 * 690); follow-ups are added while they fit, the rest counted.
+    # Bounded in BYTES (a cut inside a UTF-8 sequence would be rejected by the API on every retry).
+    # The user action comes first and always fits (header < 400 bytes, one entry <= 4 * 690);
+    # follow-ups are added while they fit, the rest counted.
     msg, shown = head, 0
     for e in entries:
         if shown and len((msg + "\n" + e).encode("utf-8")) > 3300:
@@ -1010,330 +1081,197 @@ try:
     b = msg.encode("utf-8")
     if len(b) > 3500:
         msg = b[:3496].decode("utf-8", "ignore") + "…"
-    sys.stdout.write(key + "\n" + msg + "\n")
-except Exception:
-    # Something is owed but the text could not be built: the caller sends a generic notice.
-    sys.stdout.write("ERR\n")
+    return msg
+
+def keyfile(path, what):
+    if not os.path.lexists(path):
+        return set(), ""
+    try:
+        if os.path.islink(path) or not os.path.isfile(path):
+            return set(), "the %s %s is not a regular file" % (what, path)
+        with open(path, "rb") as f:
+            data = f.read(1 << 20)
+    except OSError as e:
+        return set(), "the %s %s cannot be read (%s)" % (what, path, e.strerror or e)
+    return {l for l in data.decode("ascii", "replace").split("\n") if KEY.fullmatch(l)}, ""
+
+def scan(snap, snap_ver, rdir, ledger, claims, now, lookback, maxfiles, upd):
+    now, lookback, maxfiles = int(now or 0), int(lookback), int(maxfiles)
+    sent, sent_problem = keyfile(ledger, "dedupe ledger")
+    claimed, claim_problem = keyfile(claims, "install claim list")
+    sources = [(snap, True)] if snap else []
+    try:
+        names = os.listdir(rdir)
+    except FileNotFoundError:
+        names = []
+    except OSError as e:
+        emit("LOG", "⚠ owed-action: the receipt directory %s cannot be read (%s) — owed reminders cannot be"
+             " derived from it this tick; it is read again at the next tick" % (rdir, e.strerror or e))
+        names = []
+    files = []
+    for n in names:
+        if n == "latest.json" or (n.startswith("update_") and n.endswith(".json")):
+            p = os.path.join(rdir, n)
+            try:
+                st = os.stat(p)
+            except OSError as e:
+                emit("LOG", "⚠ owed-action: receipt %s cannot be read (%s) — read again at the next tick" % (p, e.strerror or e))
+                continue
+            if stat.S_ISREG(st.st_mode):
+                files.append((st.st_mtime, n, p))
+    files.sort(reverse=True)
+    sources += [(p, False) for _, _, p in files[:maxfiles]]
+    seen, pending, unclaimed = set(), [], 0
+    for path, is_snap in sources:
+        try:
+            raw, d = read_receipt(path)
+        except Exception as e:
+            emit("LOG", "⚠ owed-action: receipt %s could not be read as JSON (%s) — skipped this tick, read again"
+                 " at the next tick" % (path, clean(str(e) or type(e).__name__, 200)))
+            continue
+        if not owes(d):
+            continue
+        key = key_of(raw, d)
+        if key in seen:
+            continue
+        if is_snap:
+            t = now                                   # this run's own proven install
+        elif key in claimed:
+            t = receipt_time(d, path)
+        else:
+            c = d.get("correlation_id")
+            m = AU.match(c) if isinstance(c, str) else None
+            if not m or not records_install(d):
+                unclaimed += 1
+                continue
+            t = int(m.group(1))
+        seen.add(key)
+        if key in sent:
+            if is_snap:
+                emit("DONE", key)
+            continue
+        if now - t > lookback:
+            emit("LOG", "⚠ owed-action: receipt %s (%s) still owes a user_action / followups but is older than"
+                 " %d days — no longer reminded, read it by hand" % (path, key, lookback // 86400))
+            continue
+        pending.append((t, key, path, d, is_snap))
+    if pending and sent_problem:
+        emit("LOG", "⚠ owed-action: %s — read as empty, so a reminder already delivered may be sent again" % sent_problem)
+    if unclaimed and claim_problem:
+        emit("LOG", "⚠ owed-action: %s — installs proven without the receipt's own SHAs cannot be matched" % claim_problem)
+    pending.sort(key=lambda x: x[0])
+    for i, (t, key, path, d, is_snap) in enumerate(pending):
+        if i == 10:
+            emit("LOG", "owed-action: %d more owed reminder(s) — continued at the next tick" % (len(pending) - 10))
+            break
+        if is_snap:
+            ver = snap_ver
+        else:
+            v = (d.get("post_update") or {}).get("version") if isinstance(d.get("post_update"), dict) else None
+            ver = ("v" + v) if isinstance(v, str) and v else ""
+        try:
+            body = render(d, ver, upd)
+        except Exception as e:
+            # B1801: the obligation is still known even if its text is not -- remind with the receipt's name.
+            body = ("⚠ hermes auto-update: Hermes was updated, but the updater's receipt says something is still"
+                    " owed (receipt key %s, %s); its text could not be formatted — read the receipt for"
+                    " user_action / followups (updater v%s)" % (key, os.path.basename(path), clean(upd, 10)))
+            emit("LOG", "⚠ owed-action: receipt %s could not be formatted (%s) — a reminder naming it is sent"
+                 % (path, clean(type(e).__name__, 60)))
+        emit("SEND", key, body)
+
+mode = sys.argv[1]
+if mode == "key":
+    try:
+        raw, d = read_receipt(sys.argv[2])
+        if owes(d):
+            sys.stdout.write(key_of(raw, d) + "\n")
+    except Exception:
+        pass
+    raise SystemExit(0)
+try:
+    scan(*sys.argv[2:11])
+except Exception as e:
+    emit("LOG", "⚠ owed-action: the receipt scan failed (%s: %s) — retried at the next tick"
+         % (type(e).__name__, str(e)[:200]))
+emit("END")
 PYEOF
 }
-OWED_DIR="$STATE_DIR/owed_action_pending"
-OWED_SENT="$STATE_DIR/owed_action_notified"
-# B1500 fallback: one regular file per key in the state dir ROOT ($OWED_FB.<key>), used when the
-# queue dir cannot hold the reminder (not a directory, unwritable, mktemp / mv failed).
-OWED_FB="$STATE_DIR/owed_action_fallback"
-OWED_HEAD="⚠ hermes auto-update:"
-MARKED_AT=""
-# ==== THE INVARIANT (fix round 2: verdict-r9A B1700 / B1701 / B1702) ==============================
-# A reminder BODY is a file at $OWED_DIR/<key> or $OWED_FB.<key> (key id-* | sha-* | gen-*). A body is
-# deleted ONLY in the flush where Telegram answered an explicit "ok":true for it AND the delivered
-# record was then written and read back (owed_record_delivery); the same flush may then also drop
-# spare copies of that key (a gen- stand-in of a real reminder just delivered). In EVERY other case
-# -- a delivered marker that exists but is not valid, a rebuild that failed, a rename that failed, a
-# read-back that failed, a key recorded by an earlier tick -- the body stays where it is: not moved,
-# not deleted. How the rest of this block keeps to it:
-#   - "delivered" is a CONTENT check everywhere (owed_delivered): the ledger or a .owed_sent.<key>
-#     marker counts only as a regular, non-symlink, readable, non-empty file holding the key as a
-#     whole line. A directory / empty / garbage marker is treated as absent and logged (B1700).
-#   - a BAD entry (a slot that is not a readable reminder) is moved aside only once something else
-#     carries its key: the key is recorded, a valid body for it exists, or a reminder rebuilt from the
-#     key was written into a free slot and read back FIRST (owed_retire_bad). Otherwise it stays put
-#     and the next tick's flush scans the same key again (B1701).
-#   - queueing never displaces anything: a new body goes only into a FREE slot (queue dir, then the
-#     fallback) and must read back; the dedupe check comes before every queue / direct-send branch
-#     (B1702).
-#   Out of scope: a state dir that cannot be written at all (disk full, read-only mount). Then only
-#   the log / stderr say so: a body already on disk stays and a later tick delivers it once writes
-#   work again; a reminder that could not be written anywhere gets one direct attempt, its full text
-#   goes to the log and stderr, and nothing is left to retry it from.
-# B1500: "queued" is a checkable state. Only a regular, non-symlink, readable, non-empty file whose
-# first line is one of ours counts; a same-name directory / foreign / empty file does not.
-owed_msg_ok() {
-    local first=""
-    [ -f "$1" ] && [ ! -L "$1" ] && [ -r "$1" ] && [ -s "$1" ] || return 1
-    IFS= read -r first < "$1" 2>/dev/null || [ -n "$first" ] || return 1
-    case "$first" in "$OWED_HEAD"*) return 0 ;; esac
-    return 1
+# A delivered key in the ledger counts by CONTENT only: a regular, non-symlink, readable file holding the
+# key as a whole line.
+owed_keyfile_has() { # $1 = file, $2 = key
+    [ -f "$1" ] && [ ! -L "$1" ] && [ -r "$1" ] && grep -aqxF -- "$2" "$1" 2>/dev/null
 }
-# Keys: id-<update_id> | sha-<digest>; gen-<key> = a reminder rebuilt from the key alone (its text was
-# unreadable). A gen- key is recorded on its own, so it never stands in for the real reminder's record.
-owed_key_ok() {
-    local k=${1#gen-}
-    case "$k" in
-        id-?*|sha-?*) case "$k" in *[!0-9A-Za-z_-]*) return 1 ;; esac; return 0 ;;
-    esac
-    return 1
-}
-owed_slot_free() { [ ! -e "$1" ] && [ ! -L "$1" ]; }
-# A delivered record counts by CONTENT only: regular, non-symlink, readable, non-empty, key as a line.
-owed_marker_ok() { # $1 = path, $2 = key
-    [ -f "$1" ] && [ ! -L "$1" ] && [ -r "$1" ] && [ -s "$1" ] && grep -aqxF -- "$2" "$1" 2>/dev/null
-}
-owed_in_ledger() { owed_marker_ok "$OWED_SENT" "$1"; }
-# Delivered = the key is in the ledger, or in a .owed_sent.<key> marker (written when the ledger could
-# not take it). Never the mere existence of a path (B1700).
-owed_delivered() {
-    owed_in_ledger "$1" \
-        || owed_marker_ok "$OWED_DIR/.owed_sent.$1" "$1" || owed_marker_ok "$STATE_DIR/.owed_sent.$1" "$1"
-}
-# A marker path that exists but is not a valid record: ignored as evidence, said in the log.
-owed_note_bad_markers() { # $1 = key
-    local m
-    for m in "$OWED_DIR/.owed_sent.$1" "$STATE_DIR/.owed_sent.$1"; do
-        if { [ -e "$m" ] || [ -L "$m" ]; } && ! owed_marker_ok "$m" "$1"; then
-            log "⚠ owed-action: $m is not a valid delivered record (not a non-empty regular file naming $1) — ignored, the reminder is still owed"
-        fi
-    done
-}
-# Move an entry out of the way (never deleted: it may not be ours). Callers only do this to a BAD entry
-# whose key is carried elsewhere, to a broken ledger or to an invalid marker -- never to a valid body.
-owed_quarantine() { # $1 = path [$2 = what it should have been] -> 0 when moved aside
-    local q what=${2:-a readable reminder file}
-    q="${1%/*}/.owed_bad.${1##*/}.$(date +%s).$$.$RANDOM"
-    if mv -fT -- "$1" "$q" 2>/dev/null; then
-        log "⚠ owed-action: $1 was not $what — moved aside to $q"
-        return 0
-    fi
-    log "⚠ owed-action: $1 is not $what and could not be moved aside"
-    return 1
-}
-# Write message $4 for key $2 into the FREE path $3 via a temp .owed_q.<key>.XXXXXX in dir $1 (the key in
-# the temp name lets a later flush recover an interrupted write, B1604); 0 only when $3 reads back as a
-# valid reminder. Never replaces anything: $3 must be free, and mv -T never moves INTO a directory.
-owed_write() {
-    local tmp
-    owed_slot_free "$3" || return 1
-    tmp=$(mktemp "$1/.owed_q.$2.XXXXXX" 2>/dev/null) || return 1
-    if printf '%s\n' "$4" > "$tmp" 2>/dev/null && owed_msg_ok "$tmp" && owed_slot_free "$3" \
-        && mv -fT -- "$tmp" "$3" 2>/dev/null && owed_msg_ok "$3"; then
-        return 0
-    fi
-    rm -f -- "$tmp" 2>/dev/null
-    return 1
-}
-# The text is gone but the obligation is not: a reminder rebuilt from the key alone.
-owed_generic() {
-    printf '%s' "$OWED_HEAD Hermes was updated, but the updater's receipt says something is still owed (receipt key $1); the queued reminder text could not be read back — check ~/.hermes/logs/update_receipts for user_action / followups (updater v${UPDATER_VERSION})"
-}
-# B1501: record a delivered key in the ledger; 0 ONLY when the key reads back. The ledger is rewritten
-# whole (its valid key lines + this key, last 500) through a temp and mv, so an empty / garbage /
-# read-only ledger, or one without a final newline, cannot swallow the key; a directory or a symlink
-# in its place is moved aside first.
-owed_ledger_add() {
-    local tmp
-    if [ -L "$OWED_SENT" ] || { [ -e "$OWED_SENT" ] && [ ! -f "$OWED_SENT" ]; }; then
-        owed_quarantine "$OWED_SENT" "a regular dedupe ledger file" || return 1
-    fi
-    tmp=$(mktemp "$STATE_DIR/.owed_led.XXXXXX" 2>/dev/null) || return 1
-    if { if [ -f "$OWED_SENT" ] && [ -r "$OWED_SENT" ]; then
-             grep -aE '^(gen-)?(id|sha)-[0-9A-Za-z_-]+$' -- "$OWED_SENT" 2>/dev/null | grep -vxF -- "$1" | tail -n 499
-         fi
-         printf '%s\n' "$1"; } > "$tmp" 2>/dev/null \
-        && mv -fT -- "$tmp" "$OWED_SENT" 2>/dev/null && owed_in_ledger "$1"; then
-        return 0
-    fi
-    rm -f -- "$tmp" 2>/dev/null
-    return 1
-}
-# The ledger could not take key $1: a marker file holding the key, in dir $2 (where the body was) first,
-# then the other location. An invalid marker in the way is moved aside first (a marker, never a body).
-owed_mark_delivered() { # $1 = key, $2 = dir of the delivered body
-    local d m tmp
-    for d in "$2" "$STATE_DIR" "$OWED_DIR"; do
-        [ -d "$d" ] || continue
-        m="$d/.owed_sent.$1"
-        if owed_marker_ok "$m" "$1"; then MARKED_AT=$m; return 0; fi
-        if ! owed_slot_free "$m"; then owed_quarantine "$m" "a valid delivered marker" || continue; fi
-        tmp=$(mktemp "$d/.owed_m.$1.XXXXXX" 2>/dev/null) || continue
-        if printf '%s\n' "$1" > "$tmp" 2>/dev/null && mv -fT -- "$tmp" "$m" 2>/dev/null \
-            && owed_marker_ok "$m" "$1"; then
-            MARKED_AT=$m
-            return 0
-        fi
-        rm -f -- "$tmp" 2>/dev/null
-    done
-    return 1
-}
-# The delivered record of key $1 (body dir $2): the ledger, else a marker; 0 only when one reads back.
-owed_record_delivery() {
-    if owed_ledger_add "$1"; then return 0; fi
-    if owed_mark_delivered "$1" "$2"; then
-        log "⚠ owed-action reminder delivered ($1), but the dedupe ledger $OWED_SENT could not be written — kept as the delivered marker $MARKED_AT"
-        return 0
-    fi
-    return 1
-}
-# Something already carries key $1 (gen- stripped): it is recorded, or a valid body for it (the real
-# one or a rebuilt one) sits in a slot.
-owed_carried() {
-    local k=${1#gen-}
-    owed_delivered "$k" || owed_delivered "gen-$k" \
-        || owed_msg_ok "$OWED_DIR/$k" || owed_msg_ok "$OWED_FB.$k" \
-        || owed_msg_ok "$OWED_DIR/gen-$k" || owed_msg_ok "$OWED_FB.gen-$k"
-}
-# Write a reminder rebuilt from key $1 into a FREE slot: the queue dir, else the fallback in the state
-# dir root. 0 only when it reads back.
-owed_rebuild() {
-    local k=${1#gen-}
-    if mkdir -p "$OWED_DIR" 2>/dev/null && [ -d "$OWED_DIR" ] \
-        && owed_write "$OWED_DIR" "gen-$k" "$OWED_DIR/gen-$k" "$(owed_generic "$k")"; then
-        log "⚠ owed-action: the reminder for $k was unreadable — one rebuilt from the key is queued ($OWED_DIR/gen-$k)"
-        return 0
-    fi
-    if owed_write "$STATE_DIR" "gen-$k" "$OWED_FB.gen-$k" "$(owed_generic "$k")"; then
-        log "⚠ owed-action: the reminder for $k was unreadable — one rebuilt from the key is queued ($OWED_FB.gen-$k)"
-        return 0
-    fi
-    return 1
-}
-# A BAD entry $1 standing for key $2: moved aside ONLY once something else carries the key -- recorded,
-# a valid body, or a rebuilt one written and read back FIRST. Otherwise it is left exactly where it is,
-# so the same key is scanned and retried at the next tick (B1701).
-owed_retire_bad() {
-    if owed_carried "$2" || owed_rebuild "$2"; then
-        owed_quarantine "$1"
-    else
-        log "⚠ owed-action: $1 is not a readable reminder and no replacement could be written — left in place, retried next tick"
-    fi
-}
-# Queue the reminder for receipt snapshot $1 (call right after mark_installed). Never fails the run.
-owed_action_queue() {
-    local out key body qf fb
-    out=$(receipt_owed_text "${1:-}" "${VERSION:-}" "$UPDATER_VERSION")
-    [ -n "$out" ] || return 0
-    key=${out%%$'\n'*}
-    body=${out#*$'\n'}
-    owed_key_ok "$key" || key=""
-    if [ -z "$key" ] || [ -z "$body" ] || [ "$body" = "$out" ]; then
-        log "⚠ owed action in the receipt, but the reminder text could not be built — read the receipt"
-        notify "⚠ hermes auto-update: Hermes was updated, but the receipt lists user_action / followups that could not be read — check ~/.hermes/logs/update_receipts (updater v${UPDATER_VERSION})" || true
-        return 0
-    fi
-    # B1702: the dedupe check comes before EVERY branch below (queue, fallback, direct send).
-    if owed_delivered "$key"; then
-        log "owed-action reminder $key already delivered — not repeated"
-        return 0
-    fi
-    owed_note_bad_markers "$key"
-    qf="$OWED_DIR/$key"
-    fb="$OWED_FB.$key"
-    if owed_msg_ok "$qf" || owed_msg_ok "$fb"; then
-        log "owed action ($key) already queued"
-        return 0
-    fi
-    # FREE slots only: whatever occupies a slot stays there for the flush (owed_retire_bad).
-    if mkdir -p "$OWED_DIR" 2>/dev/null && [ -d "$OWED_DIR" ] \
-        && owed_write "$OWED_DIR" "$key" "$qf" "$body"; then
-        log "owed action recorded by the receipt ($key) — reminder queued: $(printf '%s' "$body" | sed -n 2p | head -c 200)"
-        return 0
-    fi
-    # B1500: the queue dir cannot hold it -> the fallback file in the state dir root, same retry.
-    if owed_write "$STATE_DIR" "$key" "$fb" "$body"; then
-        log "⚠ owed action ($key): could not queue under $OWED_DIR — reminder kept in the fallback file $fb (retried every tick until delivered)"
-        return 0
-    fi
-    # Nothing persistent could be written: say so in the log AND on stderr (the cron line keeps the
-    # script's stderr in auto_update_cron.log), and try once now. Verdict / counters / exit code untouched.
-    log "⚠ owed action ($key): the reminder could NOT be persisted ($OWED_DIR and $fb both unwritable) — sending once now, NOT retried"
-    if notify "$body"; then
-        owed_record_delivery "$key" "$STATE_DIR" || log "⚠ owed-action reminder $key delivered, but the dedupe ledger $OWED_SENT could not be written"
-        log "owed-action reminder delivered ($key, unpersisted)"
-    else
-        log "⚠ owed-action reminder NOT delivered and NOT persisted ($key) — full text: $body"
-        printf '%s\n' "[$(date '+%F %T')] hermes auto-update: OWED-ACTION REMINDER LOST ($key): not delivered and no state file writable — $body" >&2
-    fi
-    return 0
-}
-# B1604: a leftover temp .owed_q.<key>.XXXXXX (the run killed between write and mv). A valid one goes
-# into a FREE slot (its own location, else the other); an unreadable one is a bad entry like any other.
-owed_recover_tmp() {
-    local f="$1" key
-    key=${f##*/}; key=${key#.owed_q.}; key=${key%.*}
-    if ! owed_key_ok "$key" || [ ! -f "$f" ] || [ -L "$f" ]; then owed_quarantine "$f"; return 0; fi
-    if ! owed_msg_ok "$f"; then
-        owed_retire_bad "$f" "$key"
-        return 0
-    fi
-    if owed_msg_ok "$OWED_DIR/$key" || owed_msg_ok "$OWED_FB.$key"; then
-        rm -f -- "$f"   # a spare copy: the same key's body is queued and stays
-        log "owed-action: leftover temp $f removed ($key is queued)"
-        return 0
-    fi
-    if owed_delivered "$key"; then
-        log "owed-action: leftover temp $f left in place ($key already delivered — not repeated)"
-        return 0
-    fi
-    local dst
-    local -a order=("$OWED_FB.$key" "$OWED_DIR/$key")
-    [ "${f%/*}" = "$OWED_DIR" ] && order=("$OWED_DIR/$key" "$OWED_FB.$key")
-    for dst in "${order[@]}"; do
-        if owed_slot_free "$dst" && [ -d "${dst%/*}" ] && mv -fT -- "$f" "$dst" 2>/dev/null; then
-            log "⚠ owed-action: recovered the interrupted queue write $f as $dst"
-            return 0
-        fi
-    done
-    log "⚠ owed-action: interrupted queue write $f could not be moved into place — kept for the next tick"
-    return 0
-}
-# Deliver queued reminders (after the ✓ notice, and at the start of every tick): the queue dir and the
-# fallback files, real reminders first, then rebuilt stand-ins. See THE INVARIANT above.
-owed_action_flush() {
-    local f key k n=0 sent=" "
-    local -a real=() gens=()
-    rm -f -- "$STATE_DIR"/.owed_led.* "$STATE_DIR"/.owed_m.* "$OWED_DIR"/.owed_m.* 2>/dev/null  # interrupted record writes (no body)
-    for f in "$OWED_DIR"/.owed_q.* "$STATE_DIR"/.owed_q.*; do
-        [ -e "$f" ] || [ -L "$f" ] || continue
-        owed_recover_tmp "$f"
-    done
-    # Listed BEFORE anything is sent: a reminder rebuilt during this flush waits for the next flush, so
-    # a real reminder queued by this tick's install supersedes it.
-    for f in "$OWED_DIR"/* "$OWED_FB".*; do
-        [ -e "$f" ] || [ -L "$f" ] || continue
-        key=${f##*/}
-        key=${key#"${OWED_FB##*/}".}
-        case "$key" in gen-*) gens+=("$f") ;; *) real+=("$f") ;; esac
-    done
-    for f in "${real[@]}" "${gens[@]}"; do
-        key=${f##*/}
-        key=${key#"${OWED_FB##*/}".}
-        if ! owed_key_ok "$key"; then owed_quarantine "$f"; continue; fi
-        k=${key#gen-}
-        case "$sent" in
-            *" $key "*|*" $k "*)
-                # delivered in THIS flush (ok:true, record read back): a spare copy / its stand-in
-                if [ -f "$f" ] && [ ! -L "$f" ]; then rm -f -- "$f"; else owed_quarantine "$f"; fi
-                log "owed-action: $f dropped — $k was delivered just now"
-                continue ;;
-        esac
-        if ! owed_msg_ok "$f"; then
-            # B1500 / B1701: never skipped silently; moved aside only once its key is carried elsewhere.
-            owed_retire_bad "$f" "$key"
-            continue
-        fi
-        if owed_delivered "$key" || { [ "$key" != "$k" ] && owed_delivered "$k"; }; then
-            # recorded by an EARLIER tick (that run stopped before deleting it): never re-sent, and not
-            # deleted either -- only a delivery of this flush may delete a body.
-            log "owed-action reminder $key already delivered — not repeated ($f left in place)"
-            continue
-        fi
-        if [ "$key" != "$k" ] && { owed_msg_ok "$OWED_DIR/$k" || owed_msg_ok "$OWED_FB.$k"; }; then
-            continue   # the real reminder is queued and goes instead of this stand-in
-        fi
-        owed_note_bad_markers "$key"
-        n=$((n + 1))
-        if [ "$n" -gt 10 ]; then log "owed-action reminders: more queued, continuing next tick"; break; fi
-        if notify "$(head -c 4000 -- "$f")"; then
-            # THE INVARIANT: the body goes only after this ok:true AND a record that reads back.
-            if owed_record_delivery "$key" "${f%/*}"; then
-                rm -f -- "$f"
-                sent="$sent$key "
-                log "owed-action reminder delivered ($key)"
-            else
-                log "⚠ owed-action reminder delivered ($key), but neither the ledger nor a delivered marker could be written — the reminder is kept and may be sent again next tick"
-            fi
+# Add key $2 to the key list $1 (the ledger or the claim list), keeping its valid key lines (last $3).
+# Rewritten whole through a temp + mv, so an empty / garbage / read-only file, or one without a final
+# newline, cannot swallow the key; a directory or symlink in its place is moved aside first (never
+# deleted). 0 ONLY when the key reads back.
+owed_keyfile_add() { # $1 = file, $2 = key, $3 = lines kept, $4 = what it is (for the log)
+    local tmp q
+    if [ -L "$1" ] || { [ -e "$1" ] && [ ! -f "$1" ]; }; then
+        q="${1%/*}/.owed_bad.${1##*/}.$(date +%s).$$.$RANDOM"
+        if mv -fT -- "$1" "$q" 2>/dev/null; then
+            log "⚠ owed-action: the $4 $1 was not a regular file — moved aside to $q and rebuilt"
         else
-            log "⚠ owed-action reminder NOT delivered ($key) — kept in ${f%/*}, retried at the next tick"
+            log "⚠ owed-action: the $4 $1 is not a regular file and could not be moved aside"
+            return 1
         fi
-    done
+    fi
+    if [ -e "$1" ] && [ ! -r "$1" ]; then
+        log "⚠ owed-action: the $4 $1 cannot be read — rebuilt with $2 only"
+    fi
+    tmp=$(mktemp "$STATE_DIR/.owed_tmp.XXXXXX" 2>/dev/null) || return 1
+    if { if [ -f "$1" ] && [ -r "$1" ]; then
+             grep -aE '^(gen-)?(id|sha)-[0-9A-Za-z_-]+$' -- "$1" 2>/dev/null | grep -vxF -- "$2" | tail -n "$(($3 - 1))"
+         fi
+         printf '%s\n' "$2"; } > "$tmp" 2>/dev/null \
+        && mv -fT -- "$tmp" "$1" 2>/dev/null && owed_keyfile_has "$1" "$2"; then
+        return 0
+    fi
+    rm -f -- "$tmp" 2>/dev/null
+    return 1
+}
+# Call BEFORE mark_installed with this run's receipt snapshot: when it owes something, record its key as
+# an install this run proved, so a later tick can derive the reminder even for a receipt that does not
+# prove the install by itself. Never fails the run; the reminder of a receipt that carries our
+# correlation id and its SHAs does not depend on this write.
+owed_claim() {
+    local key
+    key=$(owed_scan key "${1:-}" 2>/dev/null)
+    [ -n "$key" ] || return 0
+    if owed_keyfile_add "$OWED_CLAIMS" "$key" 200 "install claim list"; then
+        log "owed action in this install's receipt ($key) — the reminder follows the install notice"
+    else
+        log "⚠ owed action in this install's receipt ($key), but the install claim could not be written to $OWED_CLAIMS — a later tick still finds it if the receipt carries this updater's correlation id and its SHAs"
+    fi
+}
+# Derive the owed reminders from the receipts and send each one not yet in the ledger (see THE
+# INVARIANT). $1 = this run's receipt snapshot (proven install, after the ✓ notice), or nothing (tick
+# start). Never fails the run; verdict, counters and exit code are untouched.
+owed_deliver() {
+    local kind key body fin=0
+    while IFS= read -r -d '' -u 3 kind; do
+        case "$kind" in
+            LOG)  IFS= read -r -d '' -u 3 body; log "$body" ;;
+            DONE) IFS= read -r -d '' -u 3 key; log "owed-action reminder $key already delivered — not repeated" ;;
+            SEND)
+                IFS= read -r -d '' -u 3 key
+                IFS= read -r -d '' -u 3 body
+                case "$OWED_TICK_SEEN" in *" $key "*) continue ;; esac
+                OWED_TICK_SEEN="$OWED_TICK_SEEN$key "
+                if notify "$body"; then
+                    if owed_keyfile_add "$OWED_SENT" "$key" 500 "dedupe ledger"; then
+                        log "owed-action reminder delivered ($key)"
+                    else
+                        log "⚠ owed-action reminder delivered ($key), but the dedupe ledger $OWED_SENT could not be written and read back — it will be sent again at the next tick"
+                    fi
+                else
+                    log "⚠ owed-action reminder NOT delivered ($key) — derived again from the receipt and retried at the next tick"
+                fi ;;
+            END) fin=1 ;;
+        esac
+    done 3< <(owed_scan scan "${1:-}" "${VERSION:-}" 2>/dev/null)
+    [ "$fin" = 1 ] || log "⚠ owed-action: the receipt scan did not complete (python3 failed?) — owed reminders are derived again at the next tick"
     return 0
 }
 
@@ -1379,9 +1317,12 @@ fi
 # Orphaned receipt snapshots (SIGKILL skips the EXIT trap). Safe here: only the lock holder
 # ever creates them, and we now hold the lock.
 find "$STATE_DIR" -maxdepth 1 -type f -name 'receipt_snap.*' -delete 2>/dev/null || true
-# v5.16: an owed-action reminder queued by an earlier install but not delivered yet (dead channel,
-# the run killed mid-poll) is retried first, on every tick, until it is delivered.
-owed_action_flush
+# Interrupted ledger / claim rewrites (keys only, never a reminder): the files they were for are intact.
+rm -f -- "$STATE_DIR"/.owed_tmp.* 2>/dev/null
+# v5.16 (fix round 3): what is owed is derived from the receipts at the start of EVERY tick, so a
+# reminder that an earlier tick could not deliver or record (dead channel, the run killed after
+# mark_installed or mid-poll, nothing writable) goes out now, whatever that tick managed to write.
+owed_deliver
 
 # Bounded check: it fetches from origin while already holding the lock. A hung fetch would
 # hold the flock forever and every later tick would skip with no alert.
@@ -1470,8 +1411,11 @@ receipt_digest() {  # $1 = file path; empty output = read error (callers fail cl
 PRE_RECEIPT_DIGEST=$(receipt_digest "$RECEIPT")
 # Upstream records HERMES_UPDATE_CORRELATION_ID as the receipt's correlation_id. When a
 # receipt carries one, it must be ours.
-AU_CORR_ID="au-$(date +%s%N)-$$-$RANDOM"
+# v5.16 fix round 3: "au-r1-<launch epoch>-..." -- the r1 marks a receipt that this version's
+# derivation of owed reminders may act on (owed_scan); receipts launched by older versions carry
+# au-<digits>-... and are never reminded about (first enable treats them as handled).
 RUN_STARTED=$(date +%s)
+AU_CORR_ID="au-r1-${RUN_STARTED}-$(date +%N 2>/dev/null)-$$-$RANDOM"
 # Observed checkout identity BEFORE this command (read-only). Paired with POST_HEAD after
 # --yes, it is this run's own install evidence for receipts that carry no correlation_id.
 PRE_HEAD=$(read_head)
@@ -1672,8 +1616,8 @@ if [ "$STATUS" -eq 0 ]; then
     if [ "$OUTCOME" = "success" ]; then
         log "success $VERSION (receipt: success)"
         reset_real_fails
+        owed_claim "$SNAP"   # v5.16: BEFORE mark_installed, so no kill window between the two
         mark_installed   # fresh, kind-checked success receipt owned by THIS run (correlated, or legacy + this run's own evidence) = proven install
-        owed_action_queue "$SNAP"   # v5.16: the receipt's user_action / followups -> one ⚠ reminder
         # receipt=success means the restart was ISSUED (upstream: restart.incomplete only
         # covers a failed signal) — NOT that the new gateway process actually came up on
         # the new code. Clearing the marker here (C2) erased the re-verify hook precisely
@@ -1681,7 +1625,7 @@ if [ "$STATUS" -eq 0 ]; then
         # marker; the in-line recheck below (and any later tick) verifies and clears it.
         touch "$STATE_DIR/drain_pending"
         notify "✓ hermes agent updated to ${VERSION:-unknown} — gateway restarting (updater v${UPDATER_VERSION})"
-        owed_action_flush
+        owed_deliver "$SNAP"   # v5.16: the receipt's user_action / followups -> one ⚠ reminder
         # Consume the marker now when possible (C7: hot streaks starve no-update ticks):
         # after a short settle wait, verify and clear on health.
         sleep "${AU_SETTLE_SECONDS:-45}"   # env knob: matrix sets 0 to keep runs fast
@@ -1710,8 +1654,8 @@ if [ "$STATUS" -eq 0 ]; then
     touch "$STATE_DIR/drain_pending"
     # Install is proven here (accepted partial receipt + SHA/completion evidence gate above);
     # gateway health is separate, so record the install once now, before polling can time out.
+    owed_claim "$SNAP"   # v5.16: before mark_installed; a kill mid-poll loses nothing (next tick derives it)
     mark_installed
-    owed_action_queue "$SNAP"   # v5.16: queued before the poll, so a kill mid-poll cannot lose it
     GW_OK=0
     # Env knobs so the drain-timeout branch is testable in seconds, not minutes
     # (AU_POLL_EVERY seconds x AU_POLL_TRIES tries; defaults keep the 6x30s behavior).
@@ -1731,7 +1675,7 @@ if [ "$STATUS" -eq 0 ]; then
         reset_real_fails
         clear_drain_marker
         notify "✓ hermes agent updated to ${VERSION:-unknown} — gateway restarted (updater v${UPDATER_VERSION})"
-        owed_action_flush
+        owed_deliver "$SNAP"
         exit 0
     fi
     # Drain can legitimately take up to 30 min (restart_after_turn_timeout) — our 3 min
@@ -1741,7 +1685,7 @@ if [ "$STATUS" -eq 0 ]; then
     touch "$STATE_DIR/drain_pending"
     log "⚠ install ok, gateway not confirmed within 3 min (still draining?) — drain_pending set, next tick re-verifies"
     notify "⚠ hermes auto-update: installed $VERSION, gateway restart still draining (no failure) — re-check next tick"
-    owed_action_flush
+    owed_deliver "$SNAP"
     exit 0
     fi
     # Reaching here means exit 0 with outcome failed/running/refused/unknown. The success/partial
@@ -1761,15 +1705,15 @@ if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "partial" ]; then
     if [ "$SHA_ADVANCED" = "1" ] || [ "$HAS_COMPLETE" = "1" ]; then
         log "success $VERSION (exit=$STATUS but receipt=$OUTCOME, code landed per SHA advance/text — restart race, not failure)"
         reset_real_fails
+        owed_claim "$SNAP"   # v5.16: e.g. user_action local_changes (stash parked); before mark_installed
         if [ "$SHA_ADVANCED" = "1" ] || [ "$HAS_COMPLETE" = "1" ]; then mark_installed; fi
-        owed_action_queue "$SNAP"   # v5.16: e.g. user_action local_changes (stash parked) -> ⚠ reminder
         # DO NOT clear the drain marker here: the race means the gateway was NOT
         # confirmed current — the receipt froze stale. Keep/refresh the marker so the
         # next no-update tick re-verifies (recheck_drain_marker); erasing it here
         # reproduced Nova's Defect-2 class in this branch (gateway dies → silence).
         touch "$STATE_DIR/drain_pending"
         notify "✓ hermes agent updated to ${VERSION:-unknown} (exit=$STATUS race; fleet catches up on next restart) (updater v${UPDATER_VERSION})"
-        owed_action_flush
+        owed_deliver "$SNAP"
         exit 0
     fi
 fi
