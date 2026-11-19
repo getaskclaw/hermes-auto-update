@@ -1992,6 +1992,302 @@ class OptionD(T):
         self.assertIn("state.db is corrupted after update", b.reminders()[0])
 
 
+
+# ===================== v5.16: owed actions after a proven install + B1300 =====================
+# The 2026-11-18 install (v0.23.1 -> v0.23.2): `hermes update --yes` exit 1, receipt outcome=partial,
+# SHA advanced, user_action {"step": "local_changes", ...} with the stash ref. verify/fixtures/
+# receipt_partial_user_action_v0.23.2.json is that receipt with its field structure kept and host
+# paths / profile names / the launcher's correlation id replaced. Its --yes tail as logged (profile
+# rows trimmed): no completion line, so the SHA advance is the only install evidence.
+GEN3_USER_ACTION = "receipt_partial_user_action_v0.23.2.json"
+STASH_REF = "db17cef519b64af49b09d3741e9e4df709a23acc"
+INCIDENT_YES = (
+    "→ Checking configuration for new options...\n  ✓ Configuration is up to date\n\n"
+    "⚠ hermes update stashed 1 local modification(s) and did NOT restore them.\n"
+    "  Stash ref: %s\n  Review with: git stash show --stat %s\n"
+    "  Re-apply with: git stash show -p %s | git apply --3way [detached @ ae2a81ccc0]\n\n"
+    "Fleet version check:\n  ✓ default (pid 4242) @ ae2a81cc — up to date\n" % (STASH_REF, STASH_REF, STASH_REF))
+OWED = "receipt says something is still owed"
+
+
+class OwedActionNotice(T):
+    """v5.16: every path that reaches mark_installed relays the receipt's user_action / followups as
+    ONE ⚠ reminder per update_id (delivered after the ✓ notice, retried until delivered), and changes
+    nothing else: same install verdict, counters, exit code and ✓ text as without the fields."""
+
+    def owed(self, b):
+        return [t for t in b.texts() if OWED in t]
+
+    def ok_install(self, b, p, rc=0):
+        self.assertEqual(p.returncode, rc, b.log())
+        self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$", b.log())
+        self.assertEqual(b.st("consec_real_fails"), "0", b.log())
+        self.assertEqual(b.st("consec_available_noop"), "0", b.log())
+        self.assertTrue(any(t.startswith("✓ hermes agent updated") for t in b.texts()), b.texts())
+        self.assertNotIn("Traceback", p.stderr)
+
+    def incident(self, b, yes_rc=1, **over):
+        b.scenario(UP_AVAIL, yes=INCIDENT_YES, yes_rc=yes_rc, correlate=True,
+                   receipt=real_receipt(GEN3_USER_ACTION, **over))
+
+    def test_incident_partial_sha_advance_user_action_reminds_once(self):
+        # The real sequence: exit 1 + partial + SHA advance (race path), then the same update_id again.
+        b = self.box()
+        b.seed("consec_real_fails", "2")
+        b.seed("consec_available_noop", "2")
+        self.incident(b)
+        p = b.run(apply="1")
+        self.ok_install(b, p)
+        self.assertIn("exit=1 but receipt=partial", b.log())
+        o = self.owed(b)
+        self.assertEqual(len(o), 1, b.texts())
+        self.assertEqual(len(b.texts()), 2, b.texts())                       # ✓ + ⚠, nothing else
+        self.assertTrue(b.texts()[0].startswith("✓ hermes agent updated"), b.texts())
+        for want in ("user action [local_changes]", "Stash ref: " + STASH_REF,
+                     "Re-apply with: git stash show -p " + STASH_REF + " | git apply --3way",
+                     "outcome=partial", "update_id=a1873614d1af42e9a639deff0f4f861c", "updater v5.16"):
+            self.assertIn(want, o[0])
+        self.assertNotIn("✗", o[0])
+        self.assertEqual(b.st("owed_action_notified"), "id-a1873614d1af42e9a639deff0f4f861c", b.log())
+        self.assertEqual(os.listdir(os.path.join(b.state, "owed_action_pending")), [])
+        # same receipt (update_id) again: still an install, no second reminder
+        self.incident(b)
+        p = b.run(apply="1")
+        self.ok_install(b, p)
+        self.assertEqual(len(self.owed(b)), 1, b.texts())
+        self.assertEqual(len(b.texts()), 3, b.texts())                       # only the second ✓
+        self.assertIn("already delivered — not repeated", b.log())
+
+    def test_partial_exit0_paths_remind(self):
+        # partial + exit 0: gateway confirmed (healthy), and the drain-timeout branch (unhealthy).
+        for healthy in (True, False):
+            with self.subTest(healthy=healthy):
+                b = self.box()
+                if not healthy:
+                    with open(b.gw, "w") as f:
+                        f.write('{"code_sha": "0000000000000000000000000000000000000000"}')
+                self.incident(b, yes_rc=0)
+                p = b.run(apply="1")
+                self.assertEqual(p.returncode, 0, b.log())
+                self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$")
+                self.assertEqual(len(self.owed(b)), 1, b.texts())
+                self.assertIn("Stash ref: " + STASH_REF, self.owed(b)[0])
+                self.assertEqual(len(b.texts()), 2, b.texts())
+                if healthy:
+                    self.assertTrue(b.texts()[0].startswith("✓ hermes agent updated"), b.texts())
+                else:
+                    self.assertIn("still draining", b.texts()[0])
+
+    def test_correlated_success_with_followups_reminds(self):
+        fu = [{"step": "dependencies", "reason": "No module named 'fastapi'", "at": "2026-11-18T21:24:38+00:00"},
+              {"step": "build", "reason": "web UI build exited 1", "at": "2026-11-18T21:27:40+00:00"}]
+        for out, rc in ((REAL_YES_INSTALL, 0), (INCIDENT_YES, 0), (REAL_YES_INSTALL, 1)):
+            with self.subTest(out=out[:20], rc=rc):
+                b = self.box()
+                b.scenario(UP_AVAIL, yes=out, yes_rc=rc, correlate=True,
+                           receipt=real_receipt(GEN3_USER_ACTION, outcome="success", user_action=None, followups=fu))
+                p = b.run(apply="1")
+                self.ok_install(b, p)
+                o = self.owed(b)
+                self.assertEqual(len(o), 1, b.texts())
+                self.assertEqual(len(b.texts()), 2, b.texts())
+                self.assertIn("follow-up [dependencies]: No module named 'fastapi'", o[0])
+                self.assertIn("follow-up [build]: web UI build exited 1", o[0])
+                self.assertIn("outcome=success", o[0])
+                self.assertNotIn("user action", o[0])
+
+    def test_legacy_install_with_user_action_reminds(self):
+        # A legacy receipt (no correlation_id) accepted on this run's own completion line.
+        b = self.box()
+        b.scenario(LEGACY_AVAIL, yes=DONE_OLD, receipt={"outcome": "success",
+                   "user_action": {"step": "local_changes", "reason": "Stash ref: " + STASH_REF}})
+        p = b.run(apply="1")
+        self.ok_install(b, p)
+        self.assertEqual(len(self.owed(b)), 1, b.texts())
+        self.assertIn(STASH_REF, self.owed(b)[0])
+        self.assertTrue(self.owed(b)[0].startswith("⚠ hermes auto-update: Hermes was updated to (v9.9.9)"), self.owed(b)[0])
+        self.assertTrue(b.st("owed_action_notified", ).startswith("sha-"), b.log())   # no update_id: digest key
+
+    def test_nothing_owed_is_exactly_as_before(self):
+        # No / empty user_action and followups: the same single ✓ notice, exit code and state as v5.15,
+        # and no owed-action state is created at all.
+        empties = ({}, {"user_action": None, "followups": None}, {"user_action": {}, "followups": []},
+                   {"user_action": "", "followups": ""}, {"user_action": False, "followups": False},
+                   {"user_action": 0, "followups": 0})
+        paths = (("success-exit0", REAL_YES_INSTALL, 0, "success"), ("partial-exit0", INCIDENT_YES, 0, "partial"),
+                 ("race-exit1", INCIDENT_YES, 1, "partial"))
+        for name, out, rc, outcome in paths:
+            for i, e in enumerate(empties):
+                with self.subTest(path=name, empty=i):
+                    b = self.box()
+                    rec = real_receipt(GEN3_USER_ACTION, outcome=outcome)
+                    rec.pop("user_action")
+                    rec.update(e)
+                    b.scenario(UP_AVAIL, yes=out, yes_rc=rc, correlate=True, receipt=rec)
+                    p = b.run(apply="1")
+                    self.ok_install(b, p)
+                    self.assertEqual(len(b.texts()), 1, b.texts())
+                    self.assertEqual(self.owed(b), [])
+                    self.assertIsNone(b.st("owed_action_notified"))
+                    self.assertFalse(os.path.exists(os.path.join(b.state, "owed_action_pending")), b.log())
+                    self.assertNotIn("owed action", b.log())
+
+    def test_malformed_fields_never_crash_never_silent(self):
+        long = "Stash ref: " + STASH_REF + " " + "x" * 100000
+        cases = (
+            ("ua-string", {"user_action": "re-apply stash " + STASH_REF}, STASH_REF),
+            ("ua-list", {"user_action": ["local_changes", STASH_REF]}, STASH_REF),
+            ("ua-true", {"user_action": True}, "user action: true"),
+            ("ua-number", {"user_action": 7}, "user action: 7"),
+            ("ua-dict-no-fields", {"user_action": {"foo": "bar"}}, '"foo": "bar"'),
+            ("ua-dict-empty-fields", {"user_action": {"step": "", "reason": None}}, "user action"),
+            ("ua-reason-nested", {"user_action": {"step": ["a"], "reason": {"ref": STASH_REF}}}, STASH_REF),
+            ("ua-overlong", {"user_action": {"step": "s" * 5000, "reason": long}}, "Stash ref: " + STASH_REF),
+            ("ua-control-chars", {"user_action": {"step": "local\x1b[31m_changes\x07",
+                                                  "reason": "line1\nline2\r\x00\x1b]0;title\x07 " + STASH_REF}}, STASH_REF),
+            ("fu-dict", {"followups": {"step": "build", "reason": "owed"}}, "follow-up [build]: owed"),
+            ("fu-string", {"followups": "dependencies still owed"}, "follow-up: dependencies still owed"),
+            ("fu-mixed-items", {"followups": [None, 5, "text", {"step": None}, [], {"name": "n", "detail": "d"}]},
+             "follow-up [n]: d"),
+            ("fu-only-empty-items", {"followups": [None, "", {}]}, "follow-up: (no details in the receipt)"),
+            ("fu-huge", {"followups": [{"step": "s%d" % i, "reason": "r" * 400} for i in range(1000)]}, "more follow-up entries"),
+            ("uid-traversal", {"user_action": {"step": "x", "reason": "y"}, "update_id": "../../../etc/x"}, "update_id=../../../etc/x"),
+            ("uid-number", {"user_action": {"step": "x", "reason": "y"}, "update_id": 12345}, "update_id=12345"),
+            ("uid-overlong", {"user_action": {"step": "x", "reason": "y"}, "update_id": "a" * 5000}, "user action [x]: y"),
+            ("uid-missing", {"user_action": {"step": "x", "reason": "y"}, "update_id": None}, "update_id=none"),
+        )
+        for name, over, want in cases:
+            with self.subTest(case=name):
+                b = self.box()
+                self.incident(b, **over)
+                p = b.run(apply="1")
+                self.ok_install(b, p)
+                o = self.owed(b)
+                self.assertEqual(len(o), 1, (b.texts(), b.log()[-2000:]))
+                self.assertIn(want, o[0])
+                self.assertLessEqual(len(o[0].encode("utf-8")), 3500)
+                self.assertNotIn("\x1b", o[0])
+                self.assertNotIn("\x00", o[0])
+                key = b.st("owed_action_notified")
+                self.assertRegex(key or "", r"^(id-[0-9A-Za-z_-]{1,128}|sha-[0-9a-f]{64})$")
+                self.assertEqual(os.listdir(os.path.join(b.state, "owed_action_pending")), [])
+                self.assertFalse(os.path.exists(os.path.join(b.root, "etc")), b.root)
+
+    def test_undelivered_reminder_keeps_install_and_retries_until_delivered(self):
+        b = self.box()
+        b.notify_fails(True)
+        self.incident(b)
+        p = b.run(apply="1")
+        self.assertEqual(p.returncode, 0, b.log())                            # install verdict unchanged
+        self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$")
+        self.assertEqual(b.st("consec_real_fails"), "0", b.log())
+        self.assertIn("owed-action reminder NOT delivered", b.log())
+        self.assertIsNone(b.st("owed_action_notified"))                       # stamped only on delivery
+        pend = os.path.join(b.state, "owed_action_pending")
+        self.assertEqual(os.listdir(pend), ["id-a1873614d1af42e9a639deff0f4f861c"])
+        self.assertGreaterEqual(int(b.st("consec_notify_fails")), 2, b.log())   # notify()'s own failure path
+        # next tick: nothing to install (check up to date), channel still dead -> still pending
+        b.scenario(NOOP)
+        p = b.run(apply="1")
+        self.assertEqual(p.returncode, 0, b.log())
+        self.assertEqual(os.listdir(pend), ["id-a1873614d1af42e9a639deff0f4f861c"])
+        # channel back: delivered at the start of the next tick, exactly once
+        b.notify_fails(False)
+        b.scenario(NOOP)
+        p = b.run(apply="1")
+        self.assertEqual(p.returncode, 0, b.log())
+        delivered = [t for t in self.owed(b) if "Stash ref: " + STASH_REF in t]
+        self.assertGreaterEqual(len(delivered), 1, b.texts())
+        self.assertEqual(os.listdir(pend), [])
+        self.assertEqual(b.st("owed_action_notified"), "id-a1873614d1af42e9a639deff0f4f861c")
+        n = len(self.owed(b))
+        b.scenario(NOOP)
+        b.run(apply="1")
+        self.assertEqual(len(self.owed(b)), n, b.texts())                     # never again
+
+    def test_noop_and_failure_paths_do_not_use_the_install_reminder(self):
+        # The reminder belongs to proven installs only: a receipt owing an action on a no-op / unproven /
+        # failed run keeps its existing handling (PATCH5 reminder or real failure), no owed-action text.
+        for name, setup, rc in (
+            ("proven-shape-noop-owing", lambda b: b.proven(UP_AVAIL, REAL_YES_NOOP, now=T0,
+                                                         user_action={"step": "stash", "reason": "parked"}), 1),
+            ("failed-outcome", lambda b: b.scenario(UP_AVAIL, yes=YES_FAIL, yes_rc=1, correlate=True,
+                                                    receipt=real_receipt(GEN3_USER_ACTION, T0, outcome="failed")), 1)):
+            with self.subTest(case=name):
+                b = self.box()
+                setup(b)
+                p = b.run(apply="1", now=T0)
+                self.assertEqual(p.returncode, rc, b.log())
+                self.assertIsNone(b.st("last_install_ts"))
+                self.assertEqual(self.owed(b), [], b.texts())
+
+
+class ShaAdvanceB1300(T):
+    """B1300 (verdict-r7A): receipt_sha_advanced compares full SHAs when both sides carry one, else the
+    common prefix; a short_sha length change (7 vs 8) of the SAME commit is not an advance. Entry
+    sequence of evidence-r7A/entry_probes.py forged-short-length-change, plus the short-only variant."""
+
+    def forged(self, sides, out=YES_NOOP):
+        b = self.box()
+        b.seed("consec_real_fails", "8")
+        h = subprocess.run([shutil.which("git"), "-C", b.repo, "rev-parse", "HEAD"], capture_output=True,
+                           text=True, check=True).stdout.strip()
+        rec = real_receipt(GEN3_NOOP, T0)
+        pre, post = sides(h)
+        rec["pre_update"], rec["post_update"] = pre, post
+        b.scenario(REAL_CHECK, yes=out, receipt=rec, correlate=True)
+        return b, b.run(apply="1", now=T0), h
+
+    def test_forged_short_length_change_is_not_an_install(self):
+        cases = (
+            ("r7A-full-equal-short-7-8", lambda h: ({"sha": h, "short_sha": h[:7]}, {"sha": h, "short_sha": h[:8]})),
+            ("short-only-7-8", lambda h: ({"short_sha": h[:7]}, {"short_sha": h[:8]})),
+            ("short-only-8-12", lambda h: ({"short_sha": h[:12]}, {"short_sha": h[:8]})),
+            ("short-vs-full", lambda h: ({"short_sha": h[:8]}, {"sha": h})),
+            ("case-only", lambda h: ({"short_sha": h[:8].upper()}, {"short_sha": h[:8]})),
+            ("full-equal-short-garbage", lambda h: ({"sha": h, "short_sha": "0000000"}, {"sha": h, "short_sha": h[:8]})),
+            ("non-hex-shorts", lambda h: ({"short_sha": "pre-sha"}, {"short_sha": "post-sha"})),
+            ("six-hex-shorts", lambda h: ({"short_sha": "abcdef"}, {"short_sha": "123456"})),
+            ("non-string-shas", lambda h: ({"sha": 1, "short_sha": ["a" * 8]}, {"sha": None, "short_sha": 12345678})),
+        )
+        for out in (YES_NOOP, "→ Fetching updates...\n"):
+            for name, sides in cases:
+                with self.subTest(case=name, out=out.strip()):
+                    b, p, _h = self.forged(sides, out)
+                    self.assertIsNone(b.st("last_install_ts"), b.log())
+                    self.assertFalse(any("updated to" in t for t in b.texts()), b.texts())
+                    self.assertNotIn("success $", b.log())
+                    if name == "case-only":
+                        # same commit in both cases: a genuine no-op receipt (PROVEN, silent) — or, with no
+                        # no-op line, still never an install
+                        continue
+                    self.assertEqual(p.returncode, 1, b.log())
+                    self.assertTrue(b.texts(), b.log())                       # never silent either
+                    self.assertNotIn("PROVEN by this run's receipt", b.log())
+
+    def test_real_advance_still_installs(self):
+        # Positive controls on the discriminating output (no completion line): only the SHAs decide.
+        other = "1234567890abcdef1234567890abcdef12345678"
+        for name, sides in (
+            ("full-differ", lambda h: ({"sha": h, "short_sha": h[:8]}, {"sha": other, "short_sha": other[:8]})),
+            ("short-only-differ", lambda h: ({"short_sha": h[:8]}, {"short_sha": other[:8]})),
+            ("full-differ-same-short-prefix", lambda h: ({"sha": h}, {"sha": h[:8] + other[8:]})),
+            ("mixed-full-short", lambda h: ({"sha": h}, {"short_sha": other[:8]}))):
+            with self.subTest(case=name):
+                b, p, _h = self.forged(sides, "→ Fetching updates...\n")
+                self.assertEqual(p.returncode, 0, b.log())
+                self.assertRegex(b.st("last_install_ts") or "", r"^[0-9]{9,}$", b.log())
+                self.assertTrue(any("updated to" in t for t in b.texts()), b.texts())
+
+    def test_malformed_side_is_not_an_advance(self):
+        # A short_sha that is not a prefix of its own side's full sha: malformed receipt, no evidence.
+        other = "1234567890abcdef1234567890abcdef12345678"
+        b, p, _h = self.forged(lambda h: ({"sha": h, "short_sha": h[:8]}, {"sha": other, "short_sha": "deadbeef"}),
+                               "→ Fetching updates...\n")
+        self.assertEqual(p.returncode, 1, b.log())
+        self.assertIsNone(b.st("last_install_ts"), b.log())
+
+
 class CorpusToolFailsClosed(T):
     """PATCH5 B1102: scripts/upstream_print_corpus.py must fail (non-zero) on a source it cannot
     parse, on a tag with 0 print() templates, and on an empty (a)/(b) corpus, in the scan mode and in

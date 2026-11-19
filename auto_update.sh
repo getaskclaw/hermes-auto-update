@@ -73,6 +73,20 @@
 #   - behaviour change: exit 0 with no receipt for THIS run is no longer a success (completion
 #     text -> "install unproven", exit 1; otherwise the PATCH4 state rules). Hermes builds that write no
 #     update receipt therefore alert on every install.
+# v5.16 (2026-11-19): relay what the receipt says is still OWED after a proven install, and B1300.
+#   Incident 2026-11-18 (v0.23.1 -> v0.23.2): exit 1, receipt partial, SHA advanced, user_action
+#   {"step":"local_changes", reason: stash parked + stash ref + re-apply command}. The install was
+#   judged right (race branch) but user_action / followups were read ONLY by the PROVEN_NOOP proof, so
+#   nobody learned that a local change had been shelved.
+#   - every path that reaches mark_installed (correlated success, partial + evidence exit 0, the
+#     non-zero race branch, a legacy receipt on this run's evidence) calls owed_action_queue on the
+#     same snapshot: any truthy user_action / followups -> ONE ⚠ reminder after the ✓ (step + reason
+#     verbatim, sanitized, bounded). Verdict, counters and exit codes unchanged.
+#   - queued in $STATE_DIR/owed_action_pending/<key> before delivery and retried at every tick start
+#     until delivered; key (update_id, else the snapshot sha256) appended to owed_action_notified only
+#     on delivery = one reminder per receipt. Malformed fields: no crash, no permanent silence.
+#   - B1300: receipt_sha_advanced compares full SHAs when both sides have one, else the common prefix;
+#     a short_sha length change of the same commit (r7A forged 7 vs 8) is NOT an advance.
 # v5.12 (2026-09-17): notify proxy→direct fallback (to6429 incident). The updater kept
 #   "succeeding" for 14 ticks while its ONLY alert channel was dead: hardcoded default
 #   TG_PROXY=127.0.0.1:18089 was a Kimi-sandbox leftover; that host isn't walled, xray
@@ -383,7 +397,7 @@ clear_drain_marker() {
 # real-machine defaults, but AU_REPO_DIR / AU_GATEWAY_STATE let stub tests point at
 # throwaway fixtures instead of this machine's live state (C1: hardcoded paths made
 # S10/S11 pass by borrowing the real machine's health).
-UPDATER_VERSION="5.15"   # this script's own version (changelog in header) — distinct from the Hermes version it installs
+UPDATER_VERSION="5.16"   # this script's own version (changelog in header) — distinct from the Hermes version it installs
 REPO_DIR="${AU_REPO_DIR:-/usr/local/lib/hermes-agent}"
 REPO="${AU_REPO_DIR:-$REPO_DIR}"   # harness compatibility: stub_setup rewrites REPO=
 GATEWAY_STATE="${AU_GATEWAY_STATE:-$HOME/.hermes/gateway_state.json}"
@@ -773,19 +787,38 @@ parse_version() {
 }
 
 # 1 only when the receipt is a Hermes install receipt (kind absent = upstream shape, or kind "update")
-# AND post_update.short_sha differs from pre_update.short_sha. $1 = receipt snapshot path.
+# AND its own SHAs say the code moved. $1 = receipt snapshot path.
+# v5.16 (B1300): a short_sha string difference alone is NOT an advance. Per side, the identity is the
+# full `sha` (40/64 hex) when present, else `short_sha` (>= 7 hex); case-insensitive; a short_sha
+# that is not a prefix of its own side's full sha makes the receipt malformed (0). Both sides full:
+# compare the full SHAs. Otherwise compare the common prefix (the shorter length): two identifiers
+# of different length where one is a prefix of the other name the same commit = NOT advanced
+# (r7A forged receipt: sha == sha, short_sha 7 vs 8 chars). Anything else unusable -> 0.
 receipt_sha_advanced() {
     [ -n "${1:-}" ] && [ -f "$1" ] || { echo 0; return 0; }
     python3 - "$1" <<'PYEOF' 2>/dev/null || echo 0
-import json, sys
+import json, re, sys
+HEX = re.compile(r"[0-9a-f]+")
+def ident(side):
+    # -> (identifier, ok). ok=False = malformed side (short not a prefix of its own full sha).
+    if not isinstance(side, dict):
+        return "", True
+    full = side.get("sha"); short = side.get("short_sha")
+    full = full.strip().lower() if isinstance(full, str) else ""
+    short = short.strip().lower() if isinstance(short, str) else ""
+    full = full if len(full) in (40, 64) and HEX.fullmatch(full) else ""
+    short = short if len(short) >= 7 and HEX.fullmatch(short) else ""
+    if full and short and not full.startswith(short):
+        return "", False
+    return (full or short), True
 try:
     d = json.load(open(sys.argv[1]))
     kind = d.get("kind")
     if kind is not None and str(kind).strip().lower() != "update":
         print(0); raise SystemExit(0)
-    pre = ((d.get("pre_update") or {}).get("short_sha") or "").strip()
-    post = ((d.get("post_update") or {}).get("short_sha") or "").strip()
-    print(1 if (pre and post and pre != post) else 0)
+    (pre, ok1), (post, ok2) = ident(d.get("pre_update")), ident(d.get("post_update"))
+    n = min(len(pre), len(post))
+    print(1 if (ok1 and ok2 and n >= 7 and pre[:n] != post[:n]) else 0)
 except Exception:
     print(0)
 PYEOF
@@ -873,6 +906,160 @@ except Exception:
 PYEOF
 }
 
+# --- v5.16: relay what the upstream receipt says is still OWED after a proven install ------------
+# Upstream keeps an install whose post-commit step failed a "success" and lists the step in
+# `followups` (update_receipt.record_followup, v0.23.2 :416-432: [{"step","reason","at"}]); a step
+# only the user can finish (an autostash whose restore conflicted) goes to `user_action`
+# (record_user_action :436-443: {"step","reason"}, reason <= 500 chars) and makes the run "partial",
+# exit 1. Before v5.16 the install paths below read neither: the 2026-11-18 install parked a local
+# change (stash ref in user_action.reason) and nobody was told. Now every path that reaches
+# mark_installed queues ONE ⚠ reminder per receipt and delivers it after the ✓ notice:
+#   - the install verdict, the counters and the exit code are untouched (nothing here exits);
+#   - queued as a file in $STATE_DIR/owed_action_pending/<key> BEFORE delivery is attempted, so an
+#     undelivered reminder (dead channel, a kill during the gateway poll) is retried at the start of
+#     every later tick until delivered; delivery failures go through notify()'s own failure path;
+#   - dedupe: <key> = the receipt's update_id (else the snapshot's sha256), appended to
+#     $STATE_DIR/owed_action_notified ONLY after delivery; a delivered key is never sent again;
+#   - malformed fields (string / list / number / bool / null / overlong / non-dict items) never
+#     crash and never go silent: any truthy user_action / followups yields a reminder.
+# Prints "<key>\n<message>" for a receipt snapshot that owes something, nothing otherwise.
+# $1 = receipt snapshot, $2 = installed version (may be empty), $3 = updater version.
+receipt_owed_text() {
+    [ -n "${1:-}" ] && [ -f "$1" ] || return 0
+    python3 - "$1" "${2:-}" "${3:-}" <<'PYEOF' 2>/dev/null
+import hashlib, json, re, sys
+path, version, upd = sys.argv[1], sys.argv[2], sys.argv[3]
+raw = open(path, "rb").read()
+d = json.loads(raw.decode("utf-8", "replace"))
+if not isinstance(d, dict):
+    raise SystemExit(0)
+ua, fu = d.get("user_action"), d.get("followups")
+if not ua and not fu:
+    raise SystemExit(0)
+# Same sanitizing as the other alert summaries: escapes and control characters removed, whitespace
+# collapsed to one line, every field bounded. 600 > upstream's own 500-char reason cap, so a real
+# reason (the stash ref and its re-apply command) arrives whole.
+ESC = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)?|\x1b.?")
+def clean(v, lim):
+    if v is None or v == "":
+        return ""
+    if not isinstance(v, str):
+        try:
+            v = json.dumps(v, ensure_ascii=False, default=str)
+        except Exception:
+            v = repr(v)
+    v = ESC.sub("", v[:8000])
+    v = " ".join("".join(c if c.isprintable() else " " for c in v).split())
+    return v if len(v) <= lim else v[:lim - 1] + "…"
+def item(kind, x):
+    step = reason = None
+    if isinstance(x, dict):
+        step = x.get("step", x.get("name"))
+        reason = x.get("reason", x.get("detail"))
+        if not clean(step, 80) and not clean(reason, 600):
+            reason = x or None
+    else:
+        reason = x
+    s, r = clean(step, 80), clean(reason, 600)
+    return "• %s%s: %s" % (kind, " [%s]" % s if s else "", r or "(no details in the receipt)")
+try:
+    uid = d.get("update_id")
+    if isinstance(uid, str) and re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z_-]{0,127}", uid):
+        key = "id-" + uid
+    else:
+        key = "sha-" + hashlib.sha256(raw).hexdigest()
+    entries, extra = [], 0
+    if ua:
+        entries.append(item("user action", ua))
+    if fu:
+        seq = fu if isinstance(fu, list) else [fu]
+        real = [x for x in seq[:10000] if x not in (None, "", {}, [])]
+        if not real:
+            entries.append(item("follow-up", None))
+        entries += [item("follow-up", x) for x in real[:50]]
+        extra = max(len(real) - 50, 0) + max(len(seq) - 10000, 0)   # never formatted, only counted
+    ver = clean(version, 40)
+    head = ("⚠ hermes auto-update: Hermes was updated%s, but the updater's receipt says something is still"
+            " owed (outcome=%s, update_id=%s). The install itself stands; this is a one-time reminder"
+            " (updater v%s)" % (" to " + ver if ver else "", clean(d.get("outcome"), 20) or "?",
+                                clean(uid, 40) or "none", clean(upd, 10)))
+    # Bounded in BYTES (the flush reads at most 4000 bytes; a cut inside a UTF-8 sequence would be
+    # rejected by the API on every retry). The user action comes first and always fits (header
+    # < 400 bytes, one entry <= 4 * 690); follow-ups are added while they fit, the rest counted.
+    msg, shown = head, 0
+    for e in entries:
+        if shown and len((msg + "\n" + e).encode("utf-8")) > 3300:
+            break
+        msg += "\n" + e
+        shown += 1
+    omitted = len(entries) - shown + max(extra, 0)
+    if omitted > 0:
+        msg += "\n• … %d more follow-up entr%s not shown — see the receipt" % (omitted, "y" if omitted == 1 else "ies")
+    b = msg.encode("utf-8")
+    if len(b) > 3500:
+        msg = b[:3496].decode("utf-8", "ignore") + "…"
+    sys.stdout.write(key + "\n" + msg + "\n")
+except Exception:
+    # Something is owed but the text could not be built: the caller sends a generic notice.
+    sys.stdout.write("ERR\n")
+PYEOF
+}
+OWED_DIR="$STATE_DIR/owed_action_pending"
+OWED_SENT="$STATE_DIR/owed_action_notified"
+# Queue the reminder for receipt snapshot $1 (call right after mark_installed). Never fails the run.
+owed_action_queue() {
+    local out key body tmp
+    out=$(receipt_owed_text "${1:-}" "${VERSION:-}" "$UPDATER_VERSION")
+    [ -n "$out" ] || return 0
+    key=${out%%$'\n'*}
+    body=${out#*$'\n'}
+    case "$key" in
+        id-?*|sha-?*) case "$key" in *[!0-9A-Za-z_-]*) key="" ;; esac ;;
+        *) key="" ;;
+    esac
+    if [ -z "$key" ] || [ -z "$body" ] || [ "$body" = "$out" ]; then
+        log "⚠ owed action in the receipt, but the reminder text could not be built — read the receipt"
+        notify "⚠ hermes auto-update: Hermes was updated, but the receipt lists user_action / followups that could not be read — check ~/.hermes/logs/update_receipts (updater v${UPDATER_VERSION})" || true
+        return 0
+    fi
+    if [ -e "$OWED_DIR/$key" ]; then
+        log "owed action ($key) already queued"
+        return 0
+    fi
+    if mkdir -p "$OWED_DIR" 2>/dev/null && tmp=$(mktemp "$OWED_DIR/.q.XXXXXX" 2>/dev/null) \
+        && printf '%s\n' "$body" > "$tmp" && mv -f -- "$tmp" "$OWED_DIR/$key"; then
+        log "owed action recorded by the receipt ($key) — reminder queued: $(printf '%s' "$body" | sed -n 2p | head -c 200)"
+    else
+        [ -n "${tmp:-}" ] && rm -f -- "$tmp"
+        log "⚠ owed action ($key): could not queue under $OWED_DIR — sending once now without retry"
+        if notify "$body"; then log "owed-action reminder delivered ($key, unqueued)"; else log "⚠ owed-action reminder NOT delivered ($key, unqueued): $(printf '%s' "$body" | head -c 300)"; fi
+    fi
+}
+# Deliver queued reminders (after the ✓ notice, and at the start of every tick). A key that was
+# already delivered is dropped, never re-sent; an undelivered one stays queued for the next tick.
+owed_action_flush() {
+    [ -d "$OWED_DIR" ] || return 0
+    local f key n=0
+    for f in "$OWED_DIR"/*; do
+        [ -f "$f" ] || continue
+        key=${f##*/}
+        n=$((n + 1))
+        if [ "$n" -gt 10 ]; then log "owed-action reminders: more queued, continuing next tick"; break; fi
+        if [ -f "$OWED_SENT" ] && grep -qxF -- "$key" "$OWED_SENT" 2>/dev/null; then rm -f -- "$f"; log "owed-action reminder $key already delivered — not repeated"; continue; fi
+        if notify "$(head -c 4000 -- "$f")"; then
+            printf '%s\n' "$key" >> "$OWED_SENT"
+            if [ "$(wc -l < "$OWED_SENT" 2>/dev/null || echo 0)" -gt 500 ]; then
+                tail -n 200 -- "$OWED_SENT" > "$OWED_SENT.tmp" 2>/dev/null && mv -f -- "$OWED_SENT.tmp" "$OWED_SENT"
+            fi
+            rm -f -- "$f"
+            log "owed-action reminder delivered ($key)"
+        else
+            log "⚠ owed-action reminder NOT delivered ($key) — kept in $OWED_DIR, retried at the next tick"
+        fi
+    done
+    return 0
+}
+
 # Resolve hermes by absolute path — cron PATH is minimal.
 HERMES_BIN=""
 for cand in "$HOME/.hermes/venvs/hermes-dev/bin/hermes" /usr/local/lib/hermes-agent/venv/bin/hermes ${AU_HERMES_BIN:+"$AU_HERMES_BIN"}; do
@@ -915,6 +1102,9 @@ fi
 # Orphaned receipt snapshots (SIGKILL skips the EXIT trap). Safe here: only the lock holder
 # ever creates them, and we now hold the lock.
 find "$STATE_DIR" -maxdepth 1 -type f -name 'receipt_snap.*' -delete 2>/dev/null || true
+# v5.16: an owed-action reminder queued by an earlier install but not delivered yet (dead channel,
+# the run killed mid-poll) is retried first, on every tick, until it is delivered.
+owed_action_flush
 
 # Bounded check: it fetches from origin while already holding the lock. A hung fetch would
 # hold the flock forever and every later tick would skip with no alert.
@@ -1206,6 +1396,7 @@ if [ "$STATUS" -eq 0 ]; then
         log "success $VERSION (receipt: success)"
         reset_real_fails
         mark_installed   # fresh, kind-checked success receipt owned by THIS run (correlated, or legacy + this run's own evidence) = proven install
+        owed_action_queue "$SNAP"   # v5.16: the receipt's user_action / followups -> one ⚠ reminder
         # receipt=success means the restart was ISSUED (upstream: restart.incomplete only
         # covers a failed signal) — NOT that the new gateway process actually came up on
         # the new code. Clearing the marker here (C2) erased the re-verify hook precisely
@@ -1213,6 +1404,7 @@ if [ "$STATUS" -eq 0 ]; then
         # marker; the in-line recheck below (and any later tick) verifies and clears it.
         touch "$STATE_DIR/drain_pending"
         notify "✓ hermes agent updated to ${VERSION:-unknown} — gateway restarting (updater v${UPDATER_VERSION})"
+        owed_action_flush
         # Consume the marker now when possible (C7: hot streaks starve no-update ticks):
         # after a short settle wait, verify and clear on health.
         sleep "${AU_SETTLE_SECONDS:-45}"   # env knob: matrix sets 0 to keep runs fast
@@ -1242,6 +1434,7 @@ if [ "$STATUS" -eq 0 ]; then
     # Install is proven here (accepted partial receipt + SHA/completion evidence gate above);
     # gateway health is separate, so record the install once now, before polling can time out.
     mark_installed
+    owed_action_queue "$SNAP"   # v5.16: queued before the poll, so a kill mid-poll cannot lose it
     GW_OK=0
     # Env knobs so the drain-timeout branch is testable in seconds, not minutes
     # (AU_POLL_EVERY seconds x AU_POLL_TRIES tries; defaults keep the 6x30s behavior).
@@ -1261,6 +1454,7 @@ if [ "$STATUS" -eq 0 ]; then
         reset_real_fails
         clear_drain_marker
         notify "✓ hermes agent updated to ${VERSION:-unknown} — gateway restarted (updater v${UPDATER_VERSION})"
+        owed_action_flush
         exit 0
     fi
     # Drain can legitimately take up to 30 min (restart_after_turn_timeout) — our 3 min
@@ -1270,6 +1464,7 @@ if [ "$STATUS" -eq 0 ]; then
     touch "$STATE_DIR/drain_pending"
     log "⚠ install ok, gateway not confirmed within 3 min (still draining?) — drain_pending set, next tick re-verifies"
     notify "⚠ hermes auto-update: installed $VERSION, gateway restart still draining (no failure) — re-check next tick"
+    owed_action_flush
     exit 0
     fi
     # Reaching here means exit 0 with outcome failed/running/refused/unknown. The success/partial
@@ -1290,12 +1485,14 @@ if [ "$OUTCOME" = "success" ] || [ "$OUTCOME" = "partial" ]; then
         log "success $VERSION (exit=$STATUS but receipt=$OUTCOME, code landed per SHA advance/text — restart race, not failure)"
         reset_real_fails
         if [ "$SHA_ADVANCED" = "1" ] || [ "$HAS_COMPLETE" = "1" ]; then mark_installed; fi
+        owed_action_queue "$SNAP"   # v5.16: e.g. user_action local_changes (stash parked) -> ⚠ reminder
         # DO NOT clear the drain marker here: the race means the gateway was NOT
         # confirmed current — the receipt froze stale. Keep/refresh the marker so the
         # next no-update tick re-verifies (recheck_drain_marker); erasing it here
         # reproduced Nova's Defect-2 class in this branch (gateway dies → silence).
         touch "$STATE_DIR/drain_pending"
         notify "✓ hermes agent updated to ${VERSION:-unknown} (exit=$STATUS race; fleet catches up on next restart) (updater v${UPDATER_VERSION})"
+        owed_action_flush
         exit 0
     fi
 fi

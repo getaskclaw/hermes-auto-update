@@ -4,7 +4,7 @@
 
 Hands-off [Hermes Agent](https://github.com/NousResearch/hermes-agent) updates via a system-cron job outside the gateway process tree; notifies Telegram only for real outcomes.
 
-Current version: **updater v5.15** (this is the updater's own version — distinct from the Hermes version it installs; see "v5.15 release notes" below).
+Current version: **updater v5.16** (this is the updater's own version — distinct from the Hermes version it installs; see "v5.16 release notes" and "v5.15 release notes" below).
 
 ## Support boundary / disclaimer
 
@@ -50,7 +50,7 @@ See SKILL.md + references/wsl-deployment.md for the full checklist.
 
 ## Notification design
 
-Silence when up to date. `✓` on install (headline the Hermes version, name the updater version), `✗` on failure.
+Silence when up to date. `✓` on install (headline the Hermes version, name the updater version), `✗` on failure. When an install's receipt still owes a `user_action` / `followups`, one `⚠` owed-action reminder follows the `✓` (v5.16, once per `update_id`, see "v5.16 release notes").
 
 ### How `update --check` is classified
 
@@ -119,6 +119,7 @@ This is also the new verdict on the two B500 rows without an error word (`✓ Al
 | checkout newer than the selected release (`→`) | on entering the state | every `AU_ROLLBACK_REMIND_SECS` | `AU_ROLLBACK_REMIND_SECS` | `604800 − 3600` (7 days − 1h): a human decision, not an emergency — a weekly nudge |
 | available but nothing to do, again and again, proven by the receipt (stuck guard, `⚠`) | 3rd in a row | every `AU_CHECK_ALERT_INTERVAL` | same as check alerts | `82800`: the same "pipeline stalled" kind as the check alert, the same daily reminder |
 | available but not installed, and no receipt of this run (5b, `⚠`) | 1st | every `AU_CHECK_ALERT_INTERVAL` | same as check alerts | `82800`: no evidence, no silence; not a failure, so the check-alert cadence rather than the real-failure one |
+| installed, but the receipt owes a `user_action` / `followups` (v5.16, `⚠`) | that install, after the `✓` | never re-sent; an undelivered one is retried at the start of every tick until delivered | none | once per `update_id` (`owed_action_notified` written only on delivery): a thing a human must do is said once, and not given up on before it arrives |
 
 - Every stamp (`check_alert_last_ts`, `real_alert_last_ts`, `notify_alert_last_ts`, `rollback_remind_ts`, `available_noop_alert_last_ts`) goes through one reader: empty, garbage, over-long, signed, or more than 300s in the future → "no stamp": alert now and overwrite on delivery (self-heal). Never a `set -u` crash, never silent forever.
 - Stamps are written **only after delivery** (dead letter excepted, see above). A failed delivery is retried on the next tick.
@@ -130,6 +131,17 @@ This is also the new verdict on the two B500 rows without an error word (`✓ Al
 Check-failure alerts carry the consecutive count, the last successful installation (`unknown` until the first proven install), and the real error: lines with `✗` / error / failed / timed out come first (each with the next line as context), the remaining budget is filled with the other lines in order, and only then is the summary bounded (6 lines, 200 bytes per line, 1000 bytes total). An error after a screen of cleanup chatter is not cut off.
 
 An install is proven only by installation proof bound to the current invocation: a fresh, immutable receipt for THIS run plus an affirmative completion or code movement. Stale, missing, or unrelated (another operation, e.g. `kind=plugin-check`) or unchanged receipts never prove an install.
+
+## v5.16 release notes
+
+- **Relay what upstream says is still owed after an install** (2026-11-18 incident: the v0.23.1→v0.23.2 install was judged correctly, but the receipt's `user_action` — `local_changes`: a local modification stashed and NOT restored, with the stash ref and the re-apply command — reached nobody). Every path that reaches `mark_installed` (correlated success, partial + SHA advance with exit 0, the non-zero-exit race branch, a legacy receipt accepted on this run's own evidence) now reads `user_action` and `followups` from the same receipt snapshot. If either is non-empty, **one** ⚠ reminder follows the ✓ notice with `user_action.step` / `reason` verbatim and each follow-up's `step` / `reason` (escape sequences and control characters removed, whitespace collapsed to one line; each reason at most 600 characters — upstream itself caps it at 500, so the stash ref and the re-apply command arrive whole; follow-ups are added up to 3300 bytes and the rest counted; the whole message ≤ 3500 bytes).
+  - **The install verdict does not change**: still `mark_installed`, counters still reset, every path exits exactly as in v5.15 (success 0, both partial exit-0 branches 0, race branch 0), whether or not the reminder is delivered.
+  - **Delivery**: the reminder is written to `state/auto_update/owed_action_pending/<key>` first, then delivered after the ✓. A failed delivery goes through notify()'s own failure path (dead letter + meta-alert at the 3rd in a row); the reminder stays queued and is retried **at the start of every later tick** until delivered. A kill during the gateway poll cannot lose it.
+  - **Dedupe**: `<key>` = the receipt's `update_id` (the snapshot's sha256 if missing / malformed), appended to `state/auto_update/owed_action_notified` **only after delivery**; the same `update_id` again is logged, never re-sent.
+  - Malformed fields (string, list, number, bool, null, over-long, non-dict items, empty dicts) never crash and never go silent: any truthy `user_action` / `followups` reminds; empty values (`null`, `""`, `[]`, `{}`, `false`, `0`) = nothing owed, output identical to v5.15.
+  - No-op / failure paths are unchanged: a no-op receipt owing something never proved the no-op (5b reminder), a failure is still a failure.
+- **B1300 hardening** (`receipt_sha_advanced`): a `short_sha` string difference alone no longer proves the code moved. Per side the identity is the full `sha` (40/64 hex) when present, else `short_sha` (≥ 7 hex), case-insensitive; a `short_sha` that is not a prefix of its own side's full `sha` = self-contradicting receipt = no advance. Both sides full → compare the full SHAs; otherwise compare the common prefix (the shorter length): different lengths where one is a prefix of the other (the r7A forged receipt: same `sha`, `short_sha` 7 vs 8 chars) = the same commit = **not advanced**.
+- Regressions: `scripts/check_compat_sanity.py` gains `OwedActionNotice` (fixture `verify/fixtures/receipt_partial_user_action_v0.23.2.json` = the real 11-18 receipt, field structure kept, host paths / profile names / launcher id replaced) and `ShaAdvanceB1300`; the release gate gains 5 mutations (reminder removed, dedupe removed, stamped although undelivered, tick-start retry removed, the old `receipt_sha_advanced` restored), each must turn red.
 
 ## v5.15 release notes
 
@@ -155,7 +167,7 @@ The deduplicated snapshot is `verify/upstream_corpus.json` (at most 512KB); the 
 
 ## Files
 
-- `auto_update.sh` — the updater (UPDATER_VERSION 5.15)
+- `auto_update.sh` — the updater (UPDATER_VERSION 5.16)
 - `LICENSE` — MIT
 - `scripts/release_gate.sh` — run BEFORE shipping: doc pointers + matrix + probes + teeth
 - `scripts/schedule_delivery.sh` — does the recommended cron shape deliver env + flag?
@@ -163,7 +175,7 @@ The deduplicated snapshot is `verify/upstream_corpus.json` (at most 512KB); the 
 - `scripts/check_compat_sanity.py` — `--check` outcome compatibility check, run as `python3 scripts/check_compat_sanity.py auto_update.sh`; part of the release gate
 - `scripts/upstream_print_corpus.py` — upstream wording scan over every official release (see "Upstream wording corpus"); `verify/upstream_corpus.json` the corpus snapshot, `verify/upstream_error_review.json` every error-word hit with its verdict
 - `verify/` — hermetic harness (stub hermes/curl/systemctl); matrix = executable contract
-- `verify/fixtures/` — third-generation no-op receipts written by the real upstream functions (verbatim), used as test fixtures
+- `verify/fixtures/` — third-generation no-op receipts written by the real upstream functions (verbatim), and the real 11-18 install receipt (partial + `user_action`, desensitized), used as test fixtures
 - `verify/receipt_probe/` — the isolated probe that produced them and the receipt-generation scan (need the upstream repo; read-only, never runs `hermes update`)
 - `references/` — receipt contract, WSL deployment, bundle recipe, health fixture
 
@@ -177,5 +189,5 @@ bash scripts/release_gate.sh
 
 Require PASS. The gate includes `python3 scripts/check_compat_sanity.py auto_update.sh`. The matrix and the compat probe are the executable contract of the script's behavior (they print their own tallies; counts are not restated here). Which test carries which acceptance point: `verify/README.md`.
 
-sha256 (auto_update.sh, updater v5.15): `2f0b86685243372540713b4fd80c8dda5c9bca2f6e696b0f50a17956b727234a`
+sha256 (auto_update.sh, updater v5.16): `0d47526f49d5b2d32570107ffd8b3a5d17bfbe35f308fcb37a97f28573b24a9c`
 _Regenerate with `sha256sum auto_update.sh` before re-packing._

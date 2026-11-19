@@ -161,6 +161,22 @@ EDITS = {
     "followups": ('          and not d.get("followups") and not d.get("user_action")\n', ''),
     # PATCH5 B1201: back to "only a line that STARTS with ✗"
     "midlinex": ('    case "$t" in *"✗"*) printf', '    case "$t" in "✗"*) printf'),
+    # v5.16: the owed-action reminder removed (the 2026-11-18 silence returns)
+    "owednotice": ('    out=$(receipt_owed_text "${1:-}" "${VERSION:-}" "$UPDATER_VERSION")\n', '    out=""\n'),
+    # v5.16: the per-update_id dedupe removed (the same receipt reminds on every install of it)
+    "owededupe": ('        if [ -f "$OWED_SENT" ] && grep -qxF -- "$key" "$OWED_SENT" 2>/dev/null; then rm -f -- "$f"; log "owed-action reminder $key already delivered — not repeated"; continue; fi\n', ''),
+    # v5.16: the dedupe key / pending removal written although delivery failed (reminder lost)
+    "owedstamp": ('        if notify "$(head -c 4000 -- "$f")"; then\n', '        notify "$(head -c 4000 -- "$f")"; if true; then\n'),
+    # v5.16: the tick-start retry of an undelivered reminder removed
+    "owedretry": ("# the run killed mid-poll) is retried first, on every tick, until it is delivered.\nowed_action_flush\n",
+                  "# the run killed mid-poll) is retried first, on every tick, until it is delivered.\n:\n"),
+    # v5.16 B1300: receipt_sha_advanced back to the v5.15 short_sha string inequality
+    "shaadvance": ('    (pre, ok1), (post, ok2) = ident(d.get("pre_update")), ident(d.get("post_update"))\n'
+                   '    n = min(len(pre), len(post))\n'
+                   '    print(1 if (ok1 and ok2 and n >= 7 and pre[:n] != post[:n]) else 0)\n',
+                   '    pre = ((d.get("pre_update") or {}).get("short_sha") or "").strip()\n'
+                   '    post = ((d.get("post_update") or {}).get("short_sha") or "").strip()\n'
+                   '    print(1 if (pre and post and pre != post) else 0)\n'),
     # PATCH4 stuck guard not cleared by a proven install (next streak alerts too early)
     "stuckclear": ('mark_installed() { date +%s > "$STATE_DIR/last_install_ts"; clear_available_noop; }',
                    'mark_installed() { date +%s > "$STATE_DIR/last_install_ts"; }'),
@@ -279,6 +295,12 @@ PY
 neuter_tool_and_run parseerror "PATCH5 B1102 corpus parse error not counted -> CorpusToolFailsClosed must FAIL" CorpusToolFailsClosed.test_scan_parse_error_fails CorpusToolFailsClosed.test_gate_vacuous_or_broken_snapshot_fails
 neuter_tool_and_run zeroprints "PATCH5 B1102 zero-print tag not counted -> CorpusToolFailsClosed must FAIL" CorpusToolFailsClosed.test_scan_zero_print_tag_fails
 neuter_tool_and_run emptya "PATCH5 B1102 empty (a) corpus passes -> CorpusToolFailsClosed must FAIL" CorpusToolFailsClosed.test_gate_vacuous_or_broken_snapshot_fails
+# v5.16 teeth: owed-action reminder after a proven install, its dedupe / delivery stamp / retry, B1300
+neuter_and_run owednotice "v5.16 owed-action reminder removed -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_incident_partial_sha_advance_user_action_reminds_once OwedActionNotice.test_correlated_success_with_followups_reminds
+neuter_and_run owededupe "v5.16 owed-action dedupe removed -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_incident_partial_sha_advance_user_action_reminds_once
+neuter_and_run owedstamp "v5.16 owed-action stamped although undelivered -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_undelivered_reminder_keeps_install_and_retries_until_delivered
+neuter_and_run owedretry "v5.16 undelivered owed-action reminder never retried -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_undelivered_reminder_keeps_install_and_retries_until_delivered
+neuter_and_run shaadvance "B1300 receipt_sha_advanced back to short_sha string inequality -> ShaAdvanceB1300 must FAIL" "$PY_PROBE" ShaAdvanceB1300.test_forged_short_length_change_is_not_an_install ShaAdvanceB1300.test_malformed_side_is_not_an_advance
 neuter_and_run realclock "B303 real failure re-alert by count/never -> RealFailureCadence must FAIL" "$PY_PROBE" RealFailureCadence
 neuter_and_run remindclock "B304 rollback reminder one-shot -> RollbackReminder must FAIL" "$PY_PROBE" RollbackReminder.test_weekly_reminder_never_installs
 neuter_and_run summarypriority "B302 summary without error priority -> AlertSummary must FAIL" "$PY_PROBE" AlertSummary

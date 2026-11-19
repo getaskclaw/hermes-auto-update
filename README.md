@@ -6,7 +6,7 @@
 
 让 [Hermes Agent](https://github.com/NousResearch/hermes-agent) 自己更新自己：一条系统 cron 定时跑更新脚本，跑在 gateway 进程树之外，只在发生真实结果时才发 Telegram 通知。
 
-当前版本：**updater v5.15**（这是更新器自身的版本号，和它安装的 Hermes 版本是两回事；变更见下文“v5.15 变更说明”）。
+当前版本：**updater v5.16**（这是更新器自身的版本号，和它安装的 Hermes 版本是两回事；变更见下文“v5.16 变更说明”与“v5.15 变更说明”）。
 
 ## 支持边界 / 免责声明
 
@@ -52,7 +52,7 @@ bash install.sh    # 只做前置检查——绝不运行更新器
 
 ## 通知设计
 
-已是最新时静默。安装成功发 `✓`（标题写 Hermes 版本，注明 updater 版本），失败发 `✗`。
+已是最新时静默。安装成功发 `✓`（标题写 Hermes 版本，注明 updater 版本），失败发 `✗`。安装成功但收据里还欠着 `user_action` / `followups` 时，`✓` 之后另发一条 `⚠` 待办提醒（v5.16，每个 `update_id` 一次，见“v5.16 变更说明”）。
 
 ### `update --check` 怎么判
 
@@ -123,6 +123,7 @@ bash install.sh    # 只做前置检查——绝不运行更新器
 | 检出比所选正式版新（`→`） | 进入该状态时 | 每 `AU_ROLLBACK_REMIND_SECS` | `AU_ROLLBACK_REMIND_SECS` | `604800 − 3600`（7 天 − 1 小时）：需要人做决定，不是紧急事件，每周提醒一次 |
 | 有更新却连续无事可做，收据已证明（空转护栏，`⚠`） | 连续第 3 次 | 每 `AU_CHECK_ALERT_INTERVAL` | 同检查告警 | `82800`：和检查告警同一种“流水线卡住”，同样每天提醒一次 |
 | 有更新却没装上，且没有本轮收据（5b，`⚠`） | 第 1 次 | 每 `AU_CHECK_ALERT_INTERVAL` | 同检查告警 | `82800`：没有证据就不安静；不算失败，所以用检查告警的节奏而不是真实失败的节奏 |
+| 安装成功但收据欠着 `user_action` / `followups`（v5.16，`⚠`） | 那次安装，`✓` 之后 | 不重发；未送达则每个 tick 开头重试直到送达 | 无 | 每个 `update_id` 只提醒一次（`owed_action_notified` 送达后才写）；要人动手的事说一次就够，送达前不放弃 |
 
 - 所有时间戳（`check_alert_last_ts`、`real_alert_last_ts`、`notify_alert_last_ts`、`rollback_remind_ts`、`available_noop_alert_last_ts`）都经同一个读取器：空、乱码、超长、负号、或比现在晚 300 秒以上 → 视为“没有时间戳”，立即告警，送达后覆盖（自愈），不会让 `set -u` 崩溃，也不会永久静默。
 - 时间戳**只在送达后**写入（死信例外，见上）。送达失败时，下一次 tick 重试。
@@ -134,6 +135,17 @@ bash install.sh    # 只做前置检查——绝不运行更新器
 检查失败告警带连续失败次数、上次成功安装时间（在首次经证明的安装之前显示“unknown”）、以及真实错误摘要：先选含 `✗` / error / failed / timed out 的行（各带下一行作上下文），剩余名额再按顺序补其它行，最后才限长（6 行、每行 200 字节、总计 1000 字节）。错误排在一屏清理日志之后也不会被截掉。
 
 只有绑定到本次调用的安装证明才能证明一次安装：一份新鲜的、不可变的本次运行收据，加上肯定的完成结果或代码变动。过期的、缺失的、属于其他操作（如 `kind=plugin-check`）的或无变化的收据都不能证明安装。
+
+## v5.16 变更说明
+
+- **安装成功时转达上游的待办**（2026-11-18 事故：v0.23.1→v0.23.2 的安装判对了，但收据里的 `user_action`——`local_changes`，本地改动被 stash 搁置、没有恢复，附 stash ref 和重新应用命令——没有告诉任何人）。现在凡是走到 `mark_installed` 的成功路径（带本轮 id 的 success、partial + SHA 前进且退出码 0、退出码非 0 的竞态分支、旧版收据靠本轮证据接受）都读同一份收据快照里的 `user_action` 与 `followups`：只要任一非空，就在 ✓ 通知之后另发**一条** ⚠ 提醒，列出 `user_action` 的 `step` / `reason` 原文与每个 followup 的 `step` / `reason`（去掉转义序列和控制字符、空白压成一行；每条 reason 至多 600 字符——上游自己截到 500，所以 stash ref 与重新应用命令完整保留；follow-up 放到 3300 字节为止，其余计数；整条按字节 ≤ 3500）。
+  - **不改变安装判定**：仍 `mark_installed`、仍清零计数，各路径的退出码与 v5.15 完全相同（success 0、partial 退出码 0 两支 0、竞态分支 0）；提醒送达与否都不影响。
+  - **送达**：先把提醒写进 `state/auto_update/owed_action_pending/<key>`，再在 ✓ 之后投递；送达失败按 notify 自己的失败路径计数（连续第 3 次写死信并附加告警），提醒留在队列里，**以后每个 tick 开头**重试，直到送达。gateway 轮询途中脚本被杀也不会丢。
+  - **去重**：`<key>` = 收据的 `update_id`（缺失 / 非法时用快照的 sha256），**送达后**才追加到 `state/auto_update/owed_action_notified`；同一 `update_id` 再出现只记日志、不再提醒。
+  - 字段异常（字符串、列表、数字、布尔、null、超长、非 dict 条目、空 dict）不崩溃，也不永久静默：任何真值的 `user_action` / `followups` 都会提醒；空值（`null`、`""`、`[]`、`{}`、`false`、`0`）= 没有待办，与 v5.15 输出完全一致。
+  - 无事可做 / 失败路径不变：欠着待办的无事可做收据本来就不算证明（5b 提醒），失败仍是失败。
+- **B1300 加固**（`receipt_sha_advanced`）：不再凭 `short_sha` 字符串不等判“代码前进”。每一侧优先取完整 `sha`（40/64 位十六进制），否则取 `short_sha`（≥ 7 位十六进制），不分大小写；`short_sha` 不是同侧完整 `sha` 的前缀 = 收据自相矛盾 = 不算前进。两侧都有完整 sha 时比完整 sha；否则按较短者的长度比前缀——长度不同但互为前缀（r7A 伪造收据：`sha` 相同、`short_sha` 7 位对 8 位）= 同一提交 = **未前进**。
+- 回归：`scripts/check_compat_sanity.py` 新增 `OwedActionNotice`（夹具 `verify/fixtures/receipt_partial_user_action_v0.23.2.json` = 11-18 真实收据，字段结构照抄，主机路径 / profile 名 / 启动 id 已脱敏）与 `ShaAdvanceB1300`；发布闸门新增 5 个变异（删提醒、删去重、未送达也记已送达、删 tick 开头重试、恢复旧 `receipt_sha_advanced`），各须变红。
 
 ## v5.15 变更说明
 
@@ -159,7 +171,7 @@ bash install.sh    # 只做前置检查——绝不运行更新器
 
 ## 文件
 
-- `auto_update.sh` —— 更新器本体（UPDATER_VERSION 5.15）
+- `auto_update.sh` —— 更新器本体（UPDATER_VERSION 5.16）
 - `LICENSE` —— MIT
 - `scripts/release_gate.sh` —— 发布前必跑：文档指针 + 测试矩阵 + 探针 + 破坏性验证（teeth）
 - `scripts/schedule_delivery.sh` —— 验证推荐调度形状是否真的送达 env 和 flag
@@ -167,7 +179,7 @@ bash install.sh    # 只做前置检查——绝不运行更新器
 - `scripts/check_compat_sanity.py` —— `--check` 结果兼容性检查，运行方式为 `python3 scripts/check_compat_sanity.py auto_update.sh`，属于发布闸门的一部分
 - `scripts/upstream_print_corpus.py` —— 全部正式发布版的上游措辞扫描（见“上游措辞语料”）；`verify/upstream_corpus.json` 语料快照，`verify/upstream_error_review.json` 错误词命中逐条登记
 - `verify/` —— 全封闭测试具（stub hermes/curl/systemctl）；矩阵即契约的可执行形式
-- `verify/fixtures/` —— 上游真实函数写出的第三代无事可做收据（原样），测试夹具
+- `verify/fixtures/` —— 上游真实函数写出的第三代无事可做收据（原样），以及 11-18 真实安装收据（partial + `user_action`，脱敏），测试夹具
 - `verify/receipt_probe/` —— 生成这些收据的隔离探针与三代收据扫描（需要上游仓库；只读，不跑 `hermes update`）
 - `references/` —— 收据字段契约、WSL 部署、打包验证、健康夹具
 
@@ -181,5 +193,5 @@ bash scripts/release_gate.sh
 
 要求 PASS。闸门包含 `python3 scripts/check_compat_sanity.py auto_update.sh`。矩阵和兼容探针是脚本行为的可执行契约（场景数以它们自己打印的统计为准，不在文档里抄写）；验收点与测试的对应关系见 `verify/README.md`。
 
-sha256（auto_update.sh，updater v5.15）: `2f0b86685243372540713b4fd80c8dda5c9bca2f6e696b0f50a17956b727234a`
+sha256（auto_update.sh，updater v5.16）: `0d47526f49d5b2d32570107ffd8b3a5d17bfbe35f308fcb37a97f28573b24a9c`
 _重新打包前用 `sha256sum auto_update.sh` 重新生成。_
