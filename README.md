@@ -142,10 +142,11 @@ bash install.sh    # 只做前置检查——绝不运行更新器
   - **不改变安装判定**：仍 `mark_installed`、仍清零计数，各路径的退出码与 v5.15 完全相同（success 0、partial 退出码 0 两支 0、竞态分支 0）；提醒送达与否都不影响。
   - **送达**：先把提醒写进 `state/auto_update/owed_action_pending/<key>`，再在 ✓ 之后投递；送达失败按 notify 自己的失败路径计数（连续第 3 次写死信并附加告警），提醒留在队列里，**以后每个 tick 开头**重试，直到送达。gateway 轮询途中脚本被杀也不会丢。
   - **去重**：`<key>` = 收据的 `update_id`（缺失 / 非法时用快照的 sha256），**送达后**才追加到 `state/auto_update/owed_action_notified`；同一 `update_id` 再出现只记日志、不再提醒。
+  - **“已入队”可核查**（PR #4 第 1 修复轮，审查 B1500 / B1501 / B1604）：只有读回校验过的普通提醒文件才算已入队；队列目录写不了（不是目录、不可写、mktemp/mv 失败）时改写 state 目录根下的备用文件 `owed_action_fallback.<key>`，同样每个 tick 重试直到送达；同名目录 / 坏文件被改名隔离（`.owed_bad.*`，不删除）并记日志，flush 不会静默跳过，坏条目代表的提醒按 key 重建（`gen-<key>`，真提醒到了就作废）；去重账本写入读回确认后才删待办，账本是目录 / 只读时先隔离再重建（保留原有 key），实在写不了就把待办改名为“已送达”标记；中断留下的 `.owed_q.*` 临时文件下次 flush 恢复。所有持久位置都写不了时：直接发一次，失败则全文写进日志并打到 stderr（cron 行把 stderr 写进 `auto_update_cron.log`），安装判定、计数与退出码不变。
   - 字段异常（字符串、列表、数字、布尔、null、超长、非 dict 条目、空 dict）不崩溃，也不永久静默：任何真值的 `user_action` / `followups` 都会提醒；空值（`null`、`""`、`[]`、`{}`、`false`、`0`）= 没有待办，与 v5.15 输出完全一致。
   - 无事可做 / 失败路径不变：欠着待办的无事可做收据本来就不算证明（5b 提醒），失败仍是失败。
 - **B1300 加固**（`receipt_sha_advanced`）：不再凭 `short_sha` 字符串不等判“代码前进”。每一侧优先取完整 `sha`（40/64 位十六进制），否则取 `short_sha`（≥ 7 位十六进制），不分大小写；`short_sha` 不是同侧完整 `sha` 的前缀 = 收据自相矛盾 = 不算前进。两侧都有完整 sha 时比完整 sha；否则按较短者的长度比前缀——长度不同但互为前缀（r7A 伪造收据：`sha` 相同、`short_sha` 7 位对 8 位）= 同一提交 = **未前进**。
-- 回归：`scripts/check_compat_sanity.py` 新增 `OwedActionNotice`（夹具 `verify/fixtures/receipt_partial_user_action_v0.23.2.json` = 11-18 真实收据，字段结构照抄，主机路径 / profile 名 / 启动 id 已脱敏）与 `ShaAdvanceB1300`；发布闸门新增 5 个变异（删提醒、删去重、未送达也记已送达、删 tick 开头重试、恢复旧 `receipt_sha_advanced`），各须变红。
+- 回归：`scripts/check_compat_sanity.py` 新增 `OwedActionNotice`（夹具 `verify/fixtures/receipt_partial_user_action_v0.23.2.json` = 11-18 真实收据，字段结构照抄，主机路径 / profile 名 / 启动 id 已脱敏）与 `ShaAdvanceB1300`；发布闸门新增 5 个变异（删提醒、删去重、未送达也记已送达、删 tick 开头重试、恢复旧 `receipt_sha_advanced`），各须变红。修复轮 1 再加入口级 `OwedActionPersistence`（r8A 三个场景：入队失败 + 通道恢复、待办 key 是目录、去重账本是目录；外加全部持久位置不可写、只读账本、账本不可恢复、`.owed_q.*` 残留）与 4 个变异（删备用持久化、恢复 `-e` 判断、删账本写入检查、删临时文件恢复）。
 
 ## v5.15 变更说明
 
@@ -193,5 +194,5 @@ bash scripts/release_gate.sh
 
 要求 PASS。闸门包含 `python3 scripts/check_compat_sanity.py auto_update.sh`。矩阵和兼容探针是脚本行为的可执行契约（场景数以它们自己打印的统计为准，不在文档里抄写）；验收点与测试的对应关系见 `verify/README.md`。
 
-sha256（auto_update.sh，updater v5.16）: `0d47526f49d5b2d32570107ffd8b3a5d17bfbe35f308fcb37a97f28573b24a9c`
+sha256（auto_update.sh，updater v5.16）: `81133eb66b15356fa1db05e7a78972fc5b80a941b562e4961f53606e72f5c92e`
 _重新打包前用 `sha256sum auto_update.sh` 重新生成。_

@@ -164,7 +164,17 @@ EDITS = {
     # v5.16: the owed-action reminder removed (the 2026-11-18 silence returns)
     "owednotice": ('    out=$(receipt_owed_text "${1:-}" "${VERSION:-}" "$UPDATER_VERSION")\n', '    out=""\n'),
     # v5.16: the per-update_id dedupe removed (the same receipt reminds on every install of it)
-    "owededupe": ('        if [ -f "$OWED_SENT" ] && grep -qxF -- "$key" "$OWED_SENT" 2>/dev/null; then rm -f -- "$f"; log "owed-action reminder $key already delivered — not repeated"; continue; fi\n', ''),
+    # (FIX1: the flush's delivered check moved into owed_delivered; same guard, new anchor)
+    "owededupe": ('        if owed_delivered "$key"; then\n', '        if false; then\n'),
+    # FIX1 B1500: the fallback file removed (blocked queue dir + dead channel -> reminder lost again)
+    "owedfallback": ('    if owed_free "$fb" && owed_write "$STATE_DIR" "$key" "$fb" "$body"; then\n', '    if false; then\n'),
+    # FIX1 B1500: back to the bare -e test (a same-name directory counts as "already queued")
+    "owedexists": ('    if owed_msg_ok "$qf" || owed_msg_ok "$fb"; then\n', '    if [ -e "$OWED_DIR/$key" ]; then\n'),
+    # FIX1 B1501: the ledger write no longer checked/recovered before the pending file is removed
+    "owedledgercheck": ('            if owed_ledger_add "$key"; then\n',
+                        '            { printf \'%s\\n\' "$key" >> "$OWED_SENT"; } 2>/dev/null; if true; then\n'),
+    # FIX1 B1604: leftover .owed_q.* temps no longer recovered
+    "owedtmp": ('        owed_recover_tmp "$f"\n', '        :\n'),
     # v5.16: the dedupe key / pending removal written although delivery failed (reminder lost)
     "owedstamp": ('        if notify "$(head -c 4000 -- "$f")"; then\n', '        notify "$(head -c 4000 -- "$f")"; if true; then\n'),
     # v5.16: the tick-start retry of an undelivered reminder removed
@@ -300,6 +310,11 @@ neuter_and_run owednotice "v5.16 owed-action reminder removed -> OwedActionNotic
 neuter_and_run owededupe "v5.16 owed-action dedupe removed -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_incident_partial_sha_advance_user_action_reminds_once
 neuter_and_run owedstamp "v5.16 owed-action stamped although undelivered -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_undelivered_reminder_keeps_install_and_retries_until_delivered
 neuter_and_run owedretry "v5.16 undelivered owed-action reminder never retried -> OwedActionNotice must FAIL" "$PY_PROBE" OwedActionNotice.test_undelivered_reminder_keeps_install_and_retries_until_delivered
+# FIX1 teeth (verdict-r8A B1500 / B1501, r8B B1604): each named after the r8A entry scenario it guards
+neuter_and_run owedfallback "FIX1 B1500 fallback persistence removed -> OwedActionPersistence must FAIL" "$PY_PROBE" OwedActionPersistence.test_queue_path_blocked_and_dead_channel_recovers
+neuter_and_run owedexists "FIX1 B1500 bare -e 'already queued' restored -> OwedActionPersistence must FAIL" "$PY_PROBE" OwedActionPersistence.test_immovable_pending_key_directory_uses_the_fallback
+neuter_and_run owedledgercheck "FIX1 B1501 ledger write unchecked before pending removal -> OwedActionPersistence must FAIL" "$PY_PROBE" OwedActionPersistence.test_dedupe_ledger_is_directory
+neuter_and_run owedtmp "FIX1 B1604 leftover queue temp not recovered -> OwedActionPersistence must FAIL" "$PY_PROBE" OwedActionPersistence.test_leftover_queue_temp_is_recovered
 neuter_and_run shaadvance "B1300 receipt_sha_advanced back to short_sha string inequality -> ShaAdvanceB1300 must FAIL" "$PY_PROBE" ShaAdvanceB1300.test_forged_short_length_change_is_not_an_install ShaAdvanceB1300.test_malformed_side_is_not_an_advance
 neuter_and_run realclock "B303 real failure re-alert by count/never -> RealFailureCadence must FAIL" "$PY_PROBE" RealFailureCadence
 neuter_and_run remindclock "B304 rollback reminder one-shot -> RollbackReminder must FAIL" "$PY_PROBE" RollbackReminder.test_weekly_reminder_never_installs

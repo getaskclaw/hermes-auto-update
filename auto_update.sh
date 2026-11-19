@@ -87,6 +87,12 @@
 #     on delivery = one reminder per receipt. Malformed fields: no crash, no permanent silence.
 #   - B1300: receipt_sha_advanced compares full SHAs when both sides have one, else the common prefix;
 #     a short_sha length change of the same commit (r7A forged 7 vs 8) is NOT an advance.
+#   - fix round 1 (r8A B1500 / B1501, r8B B1604): "queued" = a read-back-verified reminder file; a
+#     queue dir that cannot hold it -> fallback $STATE_DIR/owed_action_fallback.<key>; a same-name
+#     directory / bad file is moved aside (.owed_bad.*) and rebuilt from the key (gen-<key>), never
+#     skipped; pending removed only after the ledger write reads back (a broken ledger is moved aside
+#     and rebuilt, else a .owed_sent.<key> marker); leftover .owed_q.<key>.* temps are recovered;
+#     nothing writable at all -> one direct attempt, then the full text to the log and stderr.
 # v5.12 (2026-09-17): notify proxy→direct fallback (to6429 incident). The updater kept
 #   "succeeding" for 14 ticks while its ONLY alert channel was dead: hardcoded default
 #   TG_PROXY=127.0.0.1:18089 was a Kimi-sandbox leftover; that host isn't walled, xray
@@ -1006,55 +1012,216 @@ PYEOF
 }
 OWED_DIR="$STATE_DIR/owed_action_pending"
 OWED_SENT="$STATE_DIR/owed_action_notified"
+# B1500 fallback: one regular file per key in the state dir ROOT ($OWED_FB.<key>), used when the
+# queue dir cannot hold the reminder (not a directory, unwritable, mktemp / mv failed).
+OWED_FB="$STATE_DIR/owed_action_fallback"
+OWED_HEAD="⚠ hermes auto-update:"
+# B1500: "queued" is a checkable state. Only a regular, non-symlink, readable, non-empty file whose
+# first line is one of ours counts; a same-name directory / foreign / empty file does not.
+owed_msg_ok() {
+    local first=""
+    [ -f "$1" ] && [ ! -L "$1" ] && [ -r "$1" ] && [ -s "$1" ] || return 1
+    IFS= read -r first < "$1" 2>/dev/null || [ -n "$first" ] || return 1
+    case "$first" in "$OWED_HEAD"*) return 0 ;; esac
+    return 1
+}
+# Keys: id-<update_id> | sha-<digest>; gen-<key> = a reminder rebuilt from the key alone (its text was
+# unreadable). A gen- key is recorded on its own, so it never stands in for the real reminder.
+owed_key_ok() {
+    local k=${1#gen-}
+    case "$k" in
+        id-?*|sha-?*) case "$k" in *[!0-9A-Za-z_-]*) return 1 ;; esac; return 0 ;;
+    esac
+    return 1
+}
+# Queue-dir or fallback path of key $2, in the location ($1 = a dir) the entry came from.
+owed_path() { if [ "$1" = "$OWED_DIR" ]; then printf '%s' "$OWED_DIR/$2"; else printf '%s' "$OWED_FB.$2"; fi; }
+# The real reminder of key $1 is delivered or validly queued: a rebuilt gen- one is not needed.
+owed_real_known() {
+    owed_delivered "$1" || owed_msg_ok "$OWED_DIR/$1" || owed_msg_ok "$OWED_FB.$1"
+}
+# Move an entry that is not a readable reminder out of the way (never deleted: it may not be ours).
+owed_quarantine() { # $1 = path -> 0 when the path is free afterwards
+    local q
+    q="${1%/*}/.owed_bad.${1##*/}.$(date +%s).$$"
+    if mv -fT -- "$1" "$q" 2>/dev/null; then
+        log "⚠ owed-action: $1 was not a readable reminder file — moved aside to $q"
+        return 0
+    fi
+    log "⚠ owed-action: $1 is not a readable reminder file and could not be moved aside"
+    return 1
+}
+# Free path $1 for a new reminder file: absent already, or moved aside.
+owed_free() { { [ ! -e "$1" ] && [ ! -L "$1" ]; } || owed_quarantine "$1"; }
+# Write message $4 for key $2 to final path $3 via a temp .owed_q.<key>.XXXXXX in dir $1 (the key in
+# the temp name lets a later flush recover an interrupted write, B1604); 0 only when the final path
+# reads back as a valid reminder. mv -T never moves the temp INTO a same-name directory.
+owed_write() {
+    local tmp
+    tmp=$(mktemp "$1/.owed_q.$2.XXXXXX" 2>/dev/null) || return 1
+    if printf '%s\n' "$4" > "$tmp" 2>/dev/null && owed_msg_ok "$tmp" \
+        && mv -fT -- "$tmp" "$3" 2>/dev/null && owed_msg_ok "$3"; then
+        return 0
+    fi
+    rm -f -- "$tmp" 2>/dev/null
+    return 1
+}
+# The text is gone but the obligation is not: a reminder rebuilt from the key alone.
+owed_generic() {
+    printf '%s' "$OWED_HEAD Hermes was updated, but the updater's receipt says something is still owed (receipt key $1); the queued reminder text could not be read back — check ~/.hermes/logs/update_receipts for user_action / followups (updater v${UPDATER_VERSION})"
+}
+# Delivered = the key is in the ledger, or (ledger unwritable at delivery) a .owed_sent.<key> marker.
+owed_delivered() {
+    { [ -f "$OWED_SENT" ] && grep -qxF -- "$1" "$OWED_SENT" 2>/dev/null; } \
+        || [ -e "$OWED_DIR/.owed_sent.$1" ] || [ -e "$STATE_DIR/.owed_sent.$1" ]
+}
+# B1501: record a delivered key; 0 ONLY when the key reads back from the ledger. A ledger that is not
+# a writable regular file (a directory, a symlink, read-only) is moved aside first, its readable keys
+# carried over.
+owed_ledger_add() {
+    local n old=""
+    if { [ -e "$OWED_SENT" ] || [ -L "$OWED_SENT" ]; } \
+        && { [ ! -f "$OWED_SENT" ] || [ -L "$OWED_SENT" ] || [ ! -w "$OWED_SENT" ]; }; then
+        if [ -f "$OWED_SENT" ] && [ -r "$OWED_SENT" ]; then
+            old=$(grep -E '^(gen-)?(id|sha)-[0-9A-Za-z_-]+$' -- "$OWED_SENT" 2>/dev/null)
+        fi
+        owed_quarantine "$OWED_SENT" || return 1
+        if [ -n "$old" ]; then printf '%s\n' "$old" > "$OWED_SENT" 2>/dev/null || return 1; fi
+    fi
+    { printf '%s\n' "$1" >> "$OWED_SENT"; } 2>/dev/null || return 1
+    grep -qxF -- "$1" "$OWED_SENT" 2>/dev/null || return 1
+    n=$(wc -l < "$OWED_SENT" 2>/dev/null) || n=0
+    n=${n//[!0-9]/}
+    if [ "${n:-0}" -gt 500 ]; then
+        tail -n 200 -- "$OWED_SENT" > "$OWED_SENT.tmp" 2>/dev/null && mv -f -- "$OWED_SENT.tmp" "$OWED_SENT"
+    fi
+    return 0
+}
 # Queue the reminder for receipt snapshot $1 (call right after mark_installed). Never fails the run.
 owed_action_queue() {
-    local out key body tmp
+    local out key body qf fb
     out=$(receipt_owed_text "${1:-}" "${VERSION:-}" "$UPDATER_VERSION")
     [ -n "$out" ] || return 0
     key=${out%%$'\n'*}
     body=${out#*$'\n'}
-    case "$key" in
-        id-?*|sha-?*) case "$key" in *[!0-9A-Za-z_-]*) key="" ;; esac ;;
-        *) key="" ;;
-    esac
+    owed_key_ok "$key" || key=""
     if [ -z "$key" ] || [ -z "$body" ] || [ "$body" = "$out" ]; then
         log "⚠ owed action in the receipt, but the reminder text could not be built — read the receipt"
         notify "⚠ hermes auto-update: Hermes was updated, but the receipt lists user_action / followups that could not be read — check ~/.hermes/logs/update_receipts (updater v${UPDATER_VERSION})" || true
         return 0
     fi
-    if [ -e "$OWED_DIR/$key" ]; then
+    qf="$OWED_DIR/$key"
+    fb="$OWED_FB.$key"
+    if owed_msg_ok "$qf" || owed_msg_ok "$fb"; then
         log "owed action ($key) already queued"
         return 0
     fi
-    if mkdir -p "$OWED_DIR" 2>/dev/null && tmp=$(mktemp "$OWED_DIR/.q.XXXXXX" 2>/dev/null) \
-        && printf '%s\n' "$body" > "$tmp" && mv -f -- "$tmp" "$OWED_DIR/$key"; then
+    if mkdir -p "$OWED_DIR" 2>/dev/null && [ -d "$OWED_DIR" ] && owed_free "$qf" \
+        && owed_write "$OWED_DIR" "$key" "$qf" "$body"; then
         log "owed action recorded by the receipt ($key) — reminder queued: $(printf '%s' "$body" | sed -n 2p | head -c 200)"
-    else
-        [ -n "${tmp:-}" ] && rm -f -- "$tmp"
-        log "⚠ owed action ($key): could not queue under $OWED_DIR — sending once now without retry"
-        if notify "$body"; then log "owed-action reminder delivered ($key, unqueued)"; else log "⚠ owed-action reminder NOT delivered ($key, unqueued): $(printf '%s' "$body" | head -c 300)"; fi
+        return 0
     fi
+    # B1500: the queue dir cannot hold it -> the fallback file in the state dir root, same retry.
+    if owed_free "$fb" && owed_write "$STATE_DIR" "$key" "$fb" "$body"; then
+        log "⚠ owed action ($key): could not queue under $OWED_DIR — reminder kept in the fallback file $fb (retried every tick until delivered)"
+        return 0
+    fi
+    # Nothing persistent could be written: say so in the log AND on stderr (the cron line keeps the
+    # script's stderr in auto_update_cron.log), and try once now. Verdict / counters / exit code untouched.
+    log "⚠ owed action ($key): the reminder could NOT be persisted ($OWED_DIR and $fb both unwritable) — sending once now, NOT retried"
+    if notify "$body"; then
+        owed_ledger_add "$key" || log "⚠ owed-action reminder $key delivered, but the dedupe ledger $OWED_SENT could not be written"
+        log "owed-action reminder delivered ($key, unpersisted)"
+    else
+        log "⚠ owed-action reminder NOT delivered and NOT persisted ($key) — full text: $body"
+        printf '%s\n' "[$(date '+%F %T')] hermes auto-update: OWED-ACTION REMINDER LOST ($key): not delivered and no state file writable — $body" >&2
+    fi
+    return 0
 }
-# Deliver queued reminders (after the ✓ notice, and at the start of every tick). A key that was
-# already delivered is dropped, never re-sent; an undelivered one stays queued for the next tick.
+# Queue a reminder rebuilt from key $2 (an unreadable one stood for it) in location $1, unless the
+# real one is known. Delivered by a later flush, so a real reminder queued meanwhile supersedes it.
+owed_rebuild() {
+    local gk=${2#gen-} g
+    owed_real_known "$gk" && return 0
+    owed_delivered "gen-$gk" && return 0
+    g=$(owed_path "$1" "gen-$gk")
+    owed_msg_ok "$g" && return 0
+    if owed_free "$g" && owed_write "$1" "gen-$gk" "$g" "$(owed_generic "$gk")"; then
+        log "⚠ owed-action: the reminder for $gk was unreadable — one rebuilt from the key is queued ($g)"
+        return 0
+    fi
+    log "⚠ owed-action: the reminder for $gk was unreadable and none could be rebuilt in $1"
+    return 1
+}
+# B1604: a leftover temp .owed_q.<key>.XXXXXX (the run killed between write and mv). A valid one
+# becomes the queued file it was meant to be; an unreadable one is replaced by a rebuilt reminder.
+owed_recover_tmp() {
+    local f="$1" dir="${1%/*}" key dst
+    key=${f##*/}; key=${key#.owed_q.}; key=${key%.*}
+    dst=$(owed_path "$dir" "$key")
+    if ! owed_key_ok "$key" || [ ! -f "$f" ] || [ -L "$f" ]; then owed_quarantine "$f"; return 0; fi
+    if owed_delivered "$key" || owed_msg_ok "$OWED_DIR/$key" || owed_msg_ok "$OWED_FB.$key"; then
+        rm -f -- "$f"
+        log "owed-action: leftover temp $f removed ($key already queued or delivered)"
+        return 0
+    fi
+    if owed_msg_ok "$f"; then
+        if owed_free "$dst" && mv -fT -- "$f" "$dst" 2>/dev/null; then
+            log "⚠ owed-action: recovered the interrupted queue write $f as $dst"
+        else
+            log "⚠ owed-action: interrupted queue write $f could not be moved into place — kept for the next tick"
+        fi
+    elif owed_rebuild "$dir" "$key"; then
+        rm -f -- "$f"
+        log "⚠ owed-action: interrupted queue write $f was unreadable — removed, rebuilt reminder queued"
+    fi
+    return 0
+}
+# Deliver queued reminders (after the ✓ notice, and at the start of every tick): the queue dir and the
+# fallback files. A key that was already delivered is dropped, never re-sent; an undelivered one stays
+# queued for the next tick; an entry that is not a readable reminder is never skipped silently.
 owed_action_flush() {
-    [ -d "$OWED_DIR" ] || return 0
     local f key n=0
-    for f in "$OWED_DIR"/*; do
-        [ -f "$f" ] || continue
+    for f in "$OWED_DIR"/.owed_q.* "$STATE_DIR"/.owed_q.*; do
+        [ -e "$f" ] || [ -L "$f" ] || continue
+        owed_recover_tmp "$f"
+    done
+    for f in "$OWED_DIR"/* "$OWED_FB".*; do
+        [ -e "$f" ] || [ -L "$f" ] || continue
         key=${f##*/}
+        key=${key#"${OWED_FB##*/}".}
+        if ! owed_key_ok "$key"; then owed_quarantine "$f"; continue; fi
+        if owed_delivered "$key"; then
+            if [ -f "$f" ] && [ ! -L "$f" ]; then rm -f -- "$f"; else owed_quarantine "$f"; fi
+            log "owed-action reminder $key already delivered — not repeated"
+            continue
+        fi
+        if [ "$key" != "${key#gen-}" ] && owed_real_known "${key#gen-}"; then
+            if [ -f "$f" ] && [ ! -L "$f" ]; then rm -f -- "$f"; else owed_quarantine "$f"; fi
+            log "owed-action: rebuilt reminder $key dropped — the real one is queued or delivered"
+            continue
+        fi
+        if ! owed_msg_ok "$f"; then
+            # B1500: a same-name directory / unreadable file is moved aside (never skipped silently);
+            # the reminder it stood for is rebuilt from the key and sent by the next flush.
+            owed_quarantine "$f"
+            owed_rebuild "${f%/*}" "$key"
+            continue
+        fi
         n=$((n + 1))
         if [ "$n" -gt 10 ]; then log "owed-action reminders: more queued, continuing next tick"; break; fi
-        if [ -f "$OWED_SENT" ] && grep -qxF -- "$key" "$OWED_SENT" 2>/dev/null; then rm -f -- "$f"; log "owed-action reminder $key already delivered — not repeated"; continue; fi
         if notify "$(head -c 4000 -- "$f")"; then
-            printf '%s\n' "$key" >> "$OWED_SENT"
-            if [ "$(wc -l < "$OWED_SENT" 2>/dev/null || echo 0)" -gt 500 ]; then
-                tail -n 200 -- "$OWED_SENT" > "$OWED_SENT.tmp" 2>/dev/null && mv -f -- "$OWED_SENT.tmp" "$OWED_SENT"
+            # B1501: the pending file goes only once the key is verifiably recorded as delivered.
+            if owed_ledger_add "$key"; then
+                rm -f -- "$f"
+                log "owed-action reminder delivered ($key)"
+            elif mv -fT -- "$f" "${f%/*}/.owed_sent.$key" 2>/dev/null; then
+                log "⚠ owed-action reminder delivered ($key), but the dedupe ledger $OWED_SENT could not be written — kept as the delivered marker ${f%/*}/.owed_sent.$key"
+            else
+                log "⚠ owed-action reminder delivered ($key), but neither the ledger nor a delivered marker could be written — it may be sent again next tick"
             fi
-            rm -f -- "$f"
-            log "owed-action reminder delivered ($key)"
         else
-            log "⚠ owed-action reminder NOT delivered ($key) — kept in $OWED_DIR, retried at the next tick"
+            log "⚠ owed-action reminder NOT delivered ($key) — kept in ${f%/*}, retried at the next tick"
         fi
     done
     return 0
