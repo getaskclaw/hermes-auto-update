@@ -2010,6 +2010,33 @@ INCIDENT_YES = (
     "  Re-apply with: git stash show -p %s | git apply --3way [detached @ ae2a81ccc0]\n\n"
     "Fleet version check:\n  ✓ default (pid 4242) @ ae2a81cc — up to date\n" % (STASH_REF, STASH_REF, STASH_REF))
 OWED = "receipt says something is still owed"
+# FIX4 (verdict-r11A B2100). Receipts written by the REAL v0.23.2 functions (version_info.get_code_identity
+# + update_receipt.UpdateReceipt, exported from the tag; evidence-r11A/upstream_identity_entry.py and
+# probes.py noidentity), kept verbatim: (1) the identity read before the update timed out (git rev-parse
+# -> TimeoutExpired -> sha=None), the one after it worked; (2) _code_identity swallowed the error -> {}.
+# Both are outcome=success with a followup; the stub stamps correlation_id / finished_at for the run.
+GEN3_PRE_ID_TIMEOUT = "receipt_success_followups_pre_identity_timeout_v0.23.2.json"
+GEN3_NO_IDENTITY = "receipt_success_followups_no_identity_v0.23.2.json"
+R11A_NEEDLE = "follow-up [build]: Independent build step still owed"
+UNPROVEN_WORDING = "The receipt alone does not show that new code was installed"
+# The --yes output of that r11A entry run, verbatim (exit 0, completion line, no SHA advance in the receipt).
+R11A_YES = (
+    "☤ Updating Hermes Agent...\n\n"
+    "→ Update channel: stable\n"
+    "→ Latest release: stable v0.23.2 (aa0ef4e16d7a)\n"
+    "→ Fetching updates...\n"
+    "→ Switching to source commit aa0ef4e16d\n"
+    "→ Pulling updates...\n\n"
+    "✓ Code updated!\n"
+    "  ✓ Fetched release history (commits only) for version identity\n\n"
+    "→ Syncing bundled skills...\n"
+    "  ↑ 2 updated: github-pr-workflow, plan\n\n"
+    "→ Checking configuration for new options...\n"
+    "  ✓ Configuration is up to date\n\n"
+    "  ⚠ Update follow-up 'build' did not finish: Independent build step still owed (the next launch or"
+    " `hermes update` retries it)\n"
+    "✓ Update complete! (v0.23.1 → v0.23.2) [detached @ aa0ef4e]\n\n"
+    "  ✓ Restarted hermes-gateway.service\n")
 
 
 class OwedActionNotice(T):
@@ -2229,10 +2256,22 @@ class OwedActionNotice(T):
                 self.assertIsNone(b.st("last_install_ts"))
                 self.assertEqual(self.owed(b), [], b.texts())
                 # FIX3: the receipt stays on disk and every later tick derives from it -- it must not
-                # turn into an install reminder there either
+                # turn into an install reminder there either.
+                # FIX4 (r11A B2100): eligibility no longer needs the receipt's SHAs, so the no-op of OURS
+                # (outcome success) is now reminded once at a later tick (more alerts, allowed by the WO) --
+                # but never worded as an install. A failed outcome never reaches mark_installed: silent.
                 b.scenario(NOOP)
                 self.assertEqual(b.run(apply="1", now=T0 + 3600).returncode, 0, b.log())
-                self.assertEqual(self.owed(b), [], b.texts())
+                o = self.owed(b)
+                if name == "failed-outcome":
+                    self.assertEqual(o, [], b.texts())
+                else:
+                    self.assertEqual(len(o), 1, b.texts())
+                    self.assertIn(UNPROVEN_WORDING, o[0])
+                    self.assertNotIn("Hermes was updated", o[0])
+                    b.scenario(NOOP)
+                    self.assertEqual(b.run(apply="1", now=T0 + 7200).returncode, 0, b.log())
+                    self.assertEqual(len(self.owed(b)), 1, b.texts())
 
 
 OWED_UID = "a1873614d1af42e9a639deff0f4f861c"
@@ -2836,6 +2875,59 @@ class OwedActionDerived(T):
         b.notify_fails(False)
         self.recover_exactly_once(b, len(b.texts()), key=claims)
         self.assertEqual(self.ledger(b), [claims])
+
+    # --- r11A (verdict-r11A B2100): a receipt of ours WITHOUT SHAs, claim refused, channel dead -------
+    def r11a_sequence(self, b, receipt, refuse_claim=True):
+        # Install tick: --check available; --yes exit 0 with the completion line, writing `receipt`
+        # (correlated to this run); every *owed* temp refused (the claim cannot be written; the state dir
+        # stays writable and the receipt snapshot works); Telegram down. Then: writes and channel healthy,
+        # plain ticks. Returns the one recovered reminder.
+        uid = receipt["update_id"]
+        if refuse_claim:
+            self.refuse_mktemp(b, "*owed*")
+        b.notify_fails(True)
+        b.scenario(REAL_CHECK, yes=R11A_YES, correlate=True, receipt=receipt)
+        self.installed_dead(b, b.run(apply="1"))
+        self.assertEqual(b.st("consec_available_noop"), "0", b.log())
+        self.assertIn("(receipt: success)", b.log())
+        self.assertIn("owed-action reminder NOT delivered (id-%s)" % uid, b.log())
+        self.assertIsNone(b.st("owed_action_notified"))
+        if refuse_claim:
+            self.assertIn("the install claim could not be written", b.log())
+            self.assertIsNone(b.st("owed_action_claims"))
+            b._w(os.path.join(b.state, "independent-write-proof"), "state remained writable\n")
+            self.unstub(b, "mktemp")
+        b.notify_fails(False)
+        o = self.recover_exactly_once(b, len(b.texts()), needle=R11A_NEEDLE, key="id-" + uid)
+        self.assertEqual(self.ledger(b), ["id-" + uid])
+        return o
+
+    def test_r11a_pre_identity_timeout_claim_refused_dead_channel_recovers(self):
+        # r11A main scenario: the real upstream pre-update identity read timed out (pre sha=None), the
+        # claim temp is refused, the channel is dead -> after recovery exactly ONE reminder. Its key comes
+        # from the receipt alone (our correlation id), so it is worded as "not shown by the receipt".
+        o = self.r11a_sequence(self.box(), real_receipt(GEN3_PRE_ID_TIMEOUT))
+        self.assertIn(UNPROVEN_WORDING, o)
+        self.assertIn("outcome=success, update_id=49e5f4a63b0445e0a965854e14aaaec4", o)
+
+    def test_r11a_missing_sha_shapes_recover(self):
+        # The same sequence for every identity shape upstream can write: pre side without SHA, post side
+        # without SHA, both null, the whole identity {} (_code_identity swallowed the error). Control:
+        # with the claim written, the same receipt recovers too and is worded as an install.
+        full = {"sha": "91339898c3182cd8ae4046ccde75d37255e6c720", "short_sha": "91339898", "version": "0.23.1"}
+        null = {"sha": None, "short_sha": None, "version": "unknown", "source": "git"}
+        cases = (("pre-missing", real_receipt(GEN3_PRE_ID_TIMEOUT, pre_update={"version": "0.23.1", "source": "git"}), True),
+                 ("post-missing", real_receipt(GEN3_PRE_ID_TIMEOUT, pre_update=full, post_update=dict(null)), True),
+                 ("both-null", real_receipt(GEN3_PRE_ID_TIMEOUT, post_update=dict(null)), True),
+                 ("identity-empty-dict", real_receipt(GEN3_NO_IDENTITY), True),
+                 ("control-claim-written", real_receipt(GEN3_NO_IDENTITY), False))
+        for name, rec, refuse in cases:
+            with self.subTest(case=name):
+                o = self.r11a_sequence(self.box(), rec, refuse_claim=refuse)
+                if refuse:
+                    self.assertIn(UNPROVEN_WORDING, o)
+                else:
+                    self.assertTrue(o.startswith("⚠ hermes auto-update: Hermes was updated"), o)
 
     # --- recovery matrix ---------------------------------------------------------------------------
     FAILS = ("dead", "okfalse-refused", "chmod-at-notice", "kill-at-notice")

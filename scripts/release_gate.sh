@@ -181,8 +181,12 @@ EDITS = {
     "owedmaxfiles": ('    sources += [(p, False) for _, _, p in files[:maxfiles]]\n',
                      '    sources += [(p, False) for _, _, p in files]\n'),
     # FIX3: "records an install" no longer requires the receipt's own SHA advance (a no-op that owes
-    # followups would be announced as an install)
+    # followups would be announced as an install). FIX4: records_install now only picks the wording.
     "owedinstallonly": ('    return k >= 7 and a[:k] != b[:k]\n', '    return True\n'),
+    # FIX4 (r11A B2100): the eligibility of a receipt of ours requires its SHAs again (records_install
+    # instead of may_install): a real install whose receipt lacks a SHA and whose claim could not be
+    # written is never reminded after the install tick
+    "owedeligsha": ('            if not m or not may_install(d):\n', '            if not m or not records_install(d):\n'),
     # FIX3: the install claim never written (a legacy install's reminder can no longer be re-derived)
     "owedclaim": ('    if owed_keyfile_add "$OWED_CLAIMS" "$key" 200 "install claim list"; then\n', '    if false; then\n'),
     # FIX3 (B1501 class): the ledger appended blindly instead of rewritten + read back
@@ -328,7 +332,10 @@ neuter_and_run owedretry "FIX3 tick-start derivation removed -> OwedActionNotice
 neuter_and_run owedcutoff "FIX3 first-enable cut-off removed -> OwedActionDerived first enable must FAIL" "$PY_PROBE" OwedActionDerived.test_first_enable_does_not_flood_history
 neuter_and_run owedlookback "FIX3 30-day look-back removed -> OwedActionDerived must FAIL" "$PY_PROBE" OwedActionDerived.test_lookback_30_days
 neuter_and_run owedmaxfiles "FIX3 newest-50 bound removed -> OwedActionDerived must FAIL" "$PY_PROBE" OwedActionDerived.test_lookback_newest_50_receipts_and_10_per_tick
-neuter_and_run owedinstallonly "FIX3 install shape not required -> OwedActionNotice no-op/failure must FAIL" "$PY_PROBE" OwedActionNotice.test_noop_and_failure_paths_do_not_use_the_install_reminder
+neuter_and_run owedinstallonly "FIX3/FIX4 install shape not required for the install wording -> OwedActionNotice no-op/failure must FAIL" "$PY_PROBE" OwedActionNotice.test_noop_and_failure_paths_do_not_use_the_install_reminder
+# FIX4 teeth (verdict-r11A B2100; WO item 3: restoring the records_install condition must turn red)
+neuter_and_run owedeligsha "FIX4 SHAs required again for eligibility -> OwedActionDerived r11A main scenario must FAIL" "$PY_PROBE" OwedActionDerived.test_r11a_pre_identity_timeout_claim_refused_dead_channel_recovers
+neuter_and_run owedeligsha "FIX4 SHAs required again for eligibility -> OwedActionDerived r11A four identity shapes must FAIL" "$PY_PROBE" OwedActionDerived.test_r11a_missing_sha_shapes_recover
 neuter_and_run owedclaim "FIX3 install claim never written -> OwedActionDerived legacy recovery must FAIL" "$PY_PROBE" OwedActionDerived.test_legacy_install_recovers_through_the_claim
 neuter_and_run owedkeyfile "FIX3 ledger appended blindly -> OwedActionDerived broken ledger must FAIL" "$PY_PROBE" OwedActionDerived.test_broken_ledger_never_crashes_never_repeats
 neuter_and_run shaadvance "B1300 receipt_sha_advanced back to short_sha string inequality -> ShaAdvanceB1300 must FAIL" "$PY_PROBE" ShaAdvanceB1300.test_forged_short_length_change_is_not_an_install ShaAdvanceB1300.test_malformed_side_is_not_an_advance

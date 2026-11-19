@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "started_at": "2026-11-19T12:34:05.850631+00:00",
+  "argv": [
+    "evidence-r11A/upstream_identity_entry.py"
+  ],
+  "pid": 1073649,
+  "outcome": "success",
+  "pre_update": {
+    "sha": null,
+    "short_sha": null,
+    "version": "unknown",
+    "source": "git",
+    "commit_date": 1795091645
+  },
+  "post_update": {
+    "sha": "4a739eb71bfc4b67a693637f44547190e9543c5f",
+    "short_sha": "4a739eb7",
+    "version": "unknown",
+    "source": "git",
+    "commit_date": 1795091645
+  },
+  "steps": [],
+  "skips": [],
+  "gateway_restart": {},
+  "fleet": [],
+  "update_id": "49e5f4a63b0445e0a965854e14aaaec4",
+  "correlation_id": null,
+  "action_id": null,
+  "followups": [
+    {
+      "step": "build",
+      "reason": "Independent build step still owed",
+      "at": "2026-11-19T12:34:05.869373+00:00"
+    }
+  ]
+}
